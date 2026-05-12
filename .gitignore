@@ -1,0 +1,90 @@
+# ============================================================
+# HPE SAN Monorepo – Master .gitignore
+# Covers: Python (backend/simulator), Node.js/React (dashboard),
+#         Neo4j, Elasticsearch, and common OS/IDE artifacts
+# ============================================================
+
+# ── Python ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.venv/
+venv/
+env/
+ENV/
+.Python
+pip-wheel-metadata/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Testing ──────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Node / React ─────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnp
+.pnp.js
+
+# Build outputs
+dashboard/build/
+dashboard/dist/
+hpe-ontology-and-graph/build/
+Ring-Test-Management-Tool--HPE-CPP3/build/
+
+# ── Environment / secrets ────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.env
+
+# ── Neo4j ────────────────────────────────────────────────────
+neo4j/data/
+neo4j/logs/
+neo4j/import/
+neo4j/plugins/
+
+# ── Elasticsearch ────────────────────────────────────────────
+elasticsearch/data/
+elasticsearch/logs/
+elasticsearch/.data/
+
+# ── Project-specific generated data ─────────────────────────
+# Keep example device files, ignore auto-generated ones
+simulator/data/devices/fake_*.txt
+simulator/data/devices/sim_*.txt
+# But keep the reference seed files
+!simulator/data/devices/s4634.txt
+!simulator/data/devices/s9999.txt
+!simulator/data/devices/s7777.txt
+
+discovery/logs/
+discovery/state/
+
+# ── IDEs ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs & temp ───────────────────────────────────────────────
+logs/
+*.log
+temp/
+tmp/

@@ -1,0 +1,8 @@
+{
+  "ArraySystem": ["ip_address", "name", "model", "serial", "release_version", "config_type", "node_count", "total_cap_mib", "free_cap_mib", "is_decommissioned"],
+  "Node": ["node_id", "name", "is_master", "mem_mib", "up_since", "is_decommissioned"],
+  "Switch": ["name", "state", "mode", "serial", "temperature", "model", "ip_address", "is_decommissioned"],
+  "Host": ["ip_address", "name", "os_name", "wwn", "multipath", "is_decommissioned"],
+  "Cage": ["cage_id", "name", "state", "model", "drive_count", "temperature", "is_decommissioned"],
+  "PhysicalDisk": ["serial", "pd_id", "cage_pos", "state", "capacity_gb", "model", "manufacturer", "is_decommissioned"]
+}
