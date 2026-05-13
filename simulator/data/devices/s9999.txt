@@ -1,0 +1,333 @@
+showversion -b
+Release version 10.9.0.12
+Release Type: Standard Support Release
+
+Component Name                   Version
+CLI Server                       10.9.0.12
+CLI Client                       10.9.0.12
+System Manager                   10.9.0.12
+Kernel                           10.9.0.10
+IO Stack                         10.9.0.12
+Drive Firmware                   10.9.0.12
+Enclosure Firmware               10.9.0.12
+Switch Firmware                  10.20.2040
+Upgrade Tool                     701 (260101-10.9.0)
+
+showhost
+Id Name            Persona      -WWN/iSCSI_Name/NQN- Port
+                                1000AAAABBBB1001     0:3:1
+                                1000AAAABBBB1002     1:3:1
+                                1000AAAABBBB1003     1:3:1
+                                1000AAAABBBB1003     0:3:1
+                                1000AAAABBBB1004     ---
+                                1000AAAABBBB1005     1:3:1
+                                1000AAAABBBB1005     0:3:1
+                                1000AAAABBBB1006     ---
+                                1000AAAABBBB1007     0:3:1
+                                1000AAAABBBB1008     1:3:1
+--                              1000AAAABBBB1009     1:3:1
+                                1000AAAABBBB1010     1:3:1
+                                5140CCCCDDDD1001     1:3:1
+                                1000AAAABBBB1011     1:3:1
+                                1000AAAABBBB1012     1:3:1
+                                1000AAAABBBB1013     1:3:1
+                                1000AAAABBBB1009     0:3:1
+                                5140CCCCDDDD1000     0:3:1
+                                1000AAAABBBB1010     0:3:1
+                                1000AAAABBBB1012     0:3:1
+                                1000AAAABBBB1011     0:3:1
+                                1000AAAABBBB1013     0:3:1
+----------------------------------------------------------
+22 total
+
+showsys
+ID -Name- --------Model--------- --Serial-- Nodes Master TotalCap   AllocCap   FreeCap FailedCap
+0xD0001 s9999  HPE Alletra Storage MP DUMMY000999     2      0 703070208 536439706 118486118         0
+
+shownode
+Node ----Name---- Encl:Bay Master InCluster Mem(MiB) -------Up_Since--------
+   0 ARRAYDUMMY-0       1:1 Yes    Yes         257499 2026-03-11 21:44:19 PDT
+   1 ARRAYDUMMY-1       1:2 No     Yes         257499 2026-03-11 21:54:14 PDT
+
+showport
+N:S:P      Mode     State --Node_WWN/IP--- -Port_WWN/HW_Addr-    Type Protocol Label
+0:2:1 initiator     ready         10.10.8.1       AA88CC44D5E0    disk     NVMe  DP-1
+0:2:2 initiator loss_sync         10.10.9.1       AA88CC44D5E1    free     NVMe  DP-2
+0:3:1    target     ready 2FF70000DUMMY001   20310000DUMMY001    host       FC     -
+0:3:2    target     ready 2FF70000DUMMY001   20320000DUMMY001    free       FC     -
+0:3:3    target     ready 2FF70000DUMMY001   20330000DUMMY001    free       FC     -
+0:3:4    target loss_sync 2FF70000DUMMY001   20340000DUMMY001    free       FC     -
+0:4:1    target   offline          0.0.0.0       40A6B70073B8    free    iSCSI     -
+0:4:2    target   offline          0.0.0.0       40A6B70073B9    free    iSCSI     -
+0:4:3      peer   offline                -       40A6B70073BA    free       IP     -
+0:4:4      peer   offline                -       40A6B70073BB    free       IP     -
+0:5:1      peer     ready                -        202AC000100 cluster       IP     -
+0:5:2      peer     ready                -        202AC000100 cluster       IP     -
+1:2:1 initiator     ready         10.10.8.2       AA88CC44D490    disk     NVMe  DP-1
+1:2:2 initiator loss_sync         10.10.9.2       AA88CC44D491    free     NVMe  DP-2
+1:3:1    target     ready 2FF70000DUMMY001   21310000DUMMY001    host       FC     -
+1:3:2    target     ready 2FF70000DUMMY001   21320000DUMMY001    free       FC     -
+1:3:3    target     ready 2FF70000DUMMY001   21330000DUMMY001    free       FC     -
+1:3:4    target loss_sync 2FF70000DUMMY001   21340000DUMMY001    free       FC     -
+1:4:1    target   offline          0.0.0.0       40A6B7006D68    free    iSCSI     -
+1:4:2    target   offline          0.0.0.0       40A6B7006D69    free    iSCSI     -
+1:4:3      peer   offline                -       40A6B7006D6A    free       IP     -
+1:4:4      peer   offline                -       40A6B7006D6B    free       IP     -
+1:5:1      peer     ready                -        202AC000101 cluster       IP     -
+1:5:2      peer     ready                -        202AC000101 cluster       IP     -
+------------------------------------------------------------------------------------
+   24
+
+showswitch
+No switches listed
+
+showswitch
+Name State  Mode   LocateLED Serial     PS1 PS2 Fans Temp
+sw1  Normal Online off       TW32KM3056 ok  ok  ok   normal
+sw2  Normal Online off       TW32KM303T ok  ok  ok   normal
+-----------------------------------------------------------
+2    total
+
+showpd
+                           ----Size(MiB)-----
+Id CagePos Type RPM State      Total     Free Capacity(GB)
+ 0 1:1     SSD  N/A normal  14647296  1122304        15360
+ 1 1:2     SSD  N/A normal  14647296  1122304        15360
+ 2 1:3     SSD  N/A normal  14647296  1122304        15360
+ 3 1:4     SSD  N/A normal  14647296  1122304        15360
+ 4 1:5     SSD  N/A normal  14647296  1122304        15360
+ 5 1:6     SSD  N/A normal  14647296  1122304        15360
+ 6 1:7     SSD  N/A normal  14647296  1122304        15360
+ 7 1:8     SSD  N/A normal  14647296  1122304        15360
+ 8 1:9     SSD  N/A normal  14647296  1122304        15360
+ 9 1:10    SSD  N/A normal  14647296  1122304        15360
+10 1:11    SSD  N/A normal  14647296  1122304        15360
+11 1:12    SSD  N/A normal  14647296  1122304        15360
+12 1:13    SSD  N/A normal  14647296  1122304        15360
+13 1:14    SSD  N/A normal  14647296  1122304        15360
+14 1:15    SSD  N/A normal  14647296  1122304        15360
+15 1:16    SSD  N/A normal  14647296  1122304        15360
+16 1:17    SSD  N/A normal  14647296  1122304        15360
+17 1:18    SSD  N/A normal  14647296  1122304        15360
+18 1:19    SSD  N/A normal  14647296  1122304        15360
+19 1:20    SSD  N/A normal  14647296  1121280        15360
+20 1:21    SSD  N/A normal  14647296  2334720        15360
+21 1:22    SSD  N/A normal  14647296  1122304        15360
+22 1:23    SSD  N/A normal  14647296  1122304        15360
+23 1:24    SSD  N/A normal  14647296  1122304        15360
+24 41:1    SSD  N/A normal  14647296  1184768        15360
+25 41:2    SSD  N/A normal  14647296  1183744        15360
+26 41:3    SSD  N/A normal  14647296  1183744        15360
+27 41:4    SSD  N/A normal  14647296  1186816        15360
+28 41:5    SSD  N/A normal  14647296  1185792        15360
+29 41:6    SSD  N/A normal  14647296  1184768        15360
+30 41:7    SSD  N/A normal  14647296  1186816        15360
+31 41:8    SSD  N/A normal  14647296  1186816        15360
+32 41:9    SSD  N/A normal  14647296  1186816        15360
+33 41:10   SSD  N/A normal  14647296  1186816        15360
+34 41:11   SSD  N/A normal  14647296  1186816        15360
+35 41:12   SSD  N/A normal  14647296  1184768        15360
+36 41:13   SSD  N/A normal  14647296  1184768        15360
+37 41:14   SSD  N/A normal  14647296  1184768        15360
+38 41:15   SSD  N/A normal  14647296  1184768        15360
+39 41:16   SSD  N/A normal  14647296  1183744        15360
+40 41:17   SSD  N/A normal  14647296  1183744        15360
+41 41:18   SSD  N/A normal  14647296  1183744        15360
+42 41:19   SSD  N/A normal  14647296  1183744        15360
+43 41:20   SSD  N/A normal  14647296  1183744        15360
+44 41:21   SSD  N/A normal  14647296  1183744        15360
+45 41:22   SSD  N/A normal  14647296  1184768        15360
+46 41:23   SSD  N/A normal  14647296  1184768        15360
+47 41:24   SSD  N/A normal  14647296  1184768        15360
+----------------------------------------------------------
+48 total                   703070208 56586240
+
+showpd -s
+Id CagePos Type -State- -Detailed_State- --SedState--
+ 0 1:1     SSD  normal  normal           not_capable
+ 1 1:2     SSD  normal  normal           not_capable
+ 2 1:3     SSD  normal  normal           not_capable
+ 3 1:4     SSD  normal  normal           not_capable
+ 4 1:5     SSD  normal  normal           not_capable
+ 5 1:6     SSD  normal  normal           not_capable
+ 6 1:7     SSD  normal  normal           not_capable
+ 7 1:8     SSD  normal  normal           not_capable
+ 8 1:9     SSD  normal  normal           not_capable
+ 9 1:10    SSD  normal  normal           not_capable
+10 1:11    SSD  normal  normal           not_capable
+11 1:12    SSD  normal  normal           not_capable
+12 1:13    SSD  normal  normal           not_capable
+13 1:14    SSD  normal  normal           not_capable
+14 1:15    SSD  normal  normal           not_capable
+15 1:16    SSD  normal  normal           not_capable
+16 1:17    SSD  normal  normal           not_capable
+17 1:18    SSD  normal  normal           not_capable
+18 1:19    SSD  normal  normal           not_capable
+19 1:20    SSD  normal  normal           not_capable
+20 1:21    SSD  normal  normal           not_capable
+21 1:22    SSD  normal  normal           not_capable
+22 1:23    SSD  normal  normal           not_capable
+23 1:24    SSD  normal  normal           not_capable
+24 41:1    SSD  normal  normal           fips_capable
+25 41:2    SSD  normal  normal           fips_capable
+26 41:3    SSD  normal  normal           fips_capable
+27 41:4    SSD  normal  normal           fips_capable
+28 41:5    SSD  normal  normal           fips_capable
+29 41:6    SSD  normal  normal           fips_capable
+30 41:7    SSD  normal  normal           fips_capable
+31 41:8    SSD  normal  normal           fips_capable
+32 41:9    SSD  normal  normal           fips_capable
+33 41:10   SSD  normal  normal           fips_capable
+34 41:11   SSD  normal  normal           fips_capable
+35 41:12   SSD  normal  normal           fips_capable
+36 41:13   SSD  normal  normal           fips_capable
+37 41:14   SSD  normal  normal           fips_capable
+38 41:15   SSD  normal  normal           fips_capable
+39 41:16   SSD  normal  normal           fips_capable
+40 41:17   SSD  normal  normal           fips_capable
+41 41:18   SSD  normal  normal           fips_capable
+42 41:19   SSD  normal  normal           fips_capable
+43 41:20   SSD  normal  normal           fips_capable
+44 41:21   SSD  normal  normal           fips_capable
+45 41:22   SSD  normal  normal           fips_capable
+46 41:23   SSD  normal  normal           not_capable
+47 41:24   SSD  normal  normal           not_capable
+-----------------------------------------------------
+48 total
+
+showpd -i
+SSD  2026-03-03 02:13:04 PST
+18 1:19    normal 00AA000000000013 VENDORA NVME-MODEL-A     DMYA000019     3P02     NVMe     SSD  2026-03-03 02:13:04 PST
+19 1:20    normal 00AA000000000014 VENDORA NVME-MODEL-A     DMYA000020     3P02     NVMe     SSD  2026-03-03 02:13:05 PST
+20 1:21    normal 00AA000000000015 VENDORA NVME-MODEL-A     DMYA000021     3P02     NVMe     SSD  2026-03-03 02:13:06 PST
+21 1:22    normal 00AA000000000016 VENDORA NVME-MODEL-A     DMYA000022     3P02     NVMe     SSD  2026-03-03 02:13:06 PST
+22 1:23    normal 00AA000000000017 VENDORA NVME-MODEL-A     DMYA000023     3P02     NVMe     SSD  2026-03-03 02:13:07 PST
+23 1:24    normal 00AA000000000018 VENDORA NVME-MODEL-A     DMYA000024     3P02     NVMe     SSD  2026-03-03 02:13:07 PST
+24 41:1    normal 00BB000000000001 VENDORB NVME-MODEL-B     DMYB000001     3P04     NVMe     SSD  2026-03-03 02:13:08 PST
+25 41:2    normal 00BB000000000002 VENDORB NVME-MODEL-B     DMYB000002     3P04     NVMe     SSD  2026-03-03 02:13:08 PST
+26 41:3    normal 00BB000000000003 VENDORB NVME-MODEL-B     DMYB000003     3P04     NVMe     SSD  2026-03-03 02:13:09 PST
+27 41:4    normal 00BB000000000004 VENDORB NVME-MODEL-B     DMYB000004     3P04     NVMe     SSD  2026-03-03 02:13:09 PST
+28 41:5    normal 00BB000000000005 VENDORB NVME-MODEL-B     DMYB000005     3P04     NVMe     SSD  2026-03-03 02:13:10 PST
+29 41:6    normal 00BB000000000006 VENDORB NVME-MODEL-B     DMYB000006     3P04     NVMe     SSD  2026-03-03 02:13:10 PST
+30 41:7    normal 00BB000000000007 VENDORB NVME-MODEL-B     DMYB000007     3P04     NVMe     SSD  2026-03-03 02:13:11 PST
+31 41:8    normal 00BB000000000008 VENDORB NVME-MODEL-B     DMYB000008     3P04     NVMe     SSD  2026-03-03 02:13:11 PST
+32 41:9    normal 00BB000000000009 VENDORB NVME-MODEL-B     DMYB000009     3P04     NVMe     SSD  2026-03-03 02:13:12 PST
+33 41:10   normal 00BB00000000000A VENDORB NVME-MODEL-B     DMYB000010     3P04     NVMe     SSD  2026-03-03 02:13:12 PST
+34 41:11   normal 00BB00000000000B VENDORB NVME-MODEL-B     DMYB000011     3P04     NVMe     SSD  2026-03-03 02:13:13 PST
+35 41:12   normal 00BB00000000000C VENDORB NVME-MODEL-B     DMYB000012     3P04     NVMe     SSD  2026-03-03 02:13:13 PST
+36 41:13   normal 00BB00000000000D VENDORB NVME-MODEL-B     DMYB000013     3P04     NVMe     SSD  2026-03-03 02:13:14 PST
+37 41:14   normal 00BB00000000000E VENDORB NVME-MODEL-B     DMYB000014     3P04     NVMe     SSD  2026-03-03 02:13:14 PST
+38 41:15   normal 00BB00000000000F VENDORB NVME-MODEL-B     DMYB000015     3P04     NVMe     SSD  2026-03-03 02:13:15 PST
+39 41:16   normal 00BB000000000010 VENDORB NVME-MODEL-B     DMYB000016     3P04     NVMe     SSD  2026-03-03 02:13:15 PST
+40 41:17   normal 00BB000000000011 VENDORB NVME-MODEL-B     DMYB000017     3P04     NVMe     SSD  2026-03-03 02:13:16 PST
+41 41:18   normal 00BB000000000012 VENDORB NVME-MODEL-B     DMYB000018     3P04     NVMe     SSD  2026-03-03 02:13:16 PST
+42 41:19   normal 00BB000000000013 VENDORB NVME-MODEL-B     DMYB000019     3P04     NVMe     SSD  2026-03-03 02:13:17 PST
+43 41:20   normal 00BB000000000014 VENDORB NVME-MODEL-B     DMYB000020     3P04     NVMe     SSD  2026-03-03 02:13:17 PST
+44 41:21   normal 00BB000000000015 VENDORB NVME-MODEL-B     DMYB000021     3P04     NVMe     SSD  2026-03-03 02:13:18 PST
+45 41:22   normal 00BB000000000016 VENDORB NVME-MODEL-B     DMYB000022     3P04     NVMe     SSD  2026-03-03 02:13:18 PST
+46 41:23   normal 00BB000000000017 VENDORB NVME-MODEL-B     DMYB000023     3P04     NVMe     SSD  2026-03-03 02:13:19 PST
+47 41:24   normal 00BB000000000018 VENDORB NVME-MODEL-B     DMYB000024     3P04     NVMe     SSD  2026-03-03 02:13:19 PST
+-------------------------------------------------------------------------------------------------------------------------
+48 total
+
+showcage
+Id Name   Drives Temp  Model FormFactor State
+ 1 cage1      24 32-35 DCN7  SFF        normal
+41 cage41     24 35-38 DCF2  SFF        normal
+
+showcage -state
+   Id Name   -State- -DetailedState-
+    1 cage1  Normal  Normal
+    2 cage2  Normal  Normal
+   41 cage41 Normal  Normal
+   42 cage42 Normal  Normal
+   43 cage43 Normal  Normal
+   44 cage44 Normal  Normal
+   45 cage45 Normal  Normal
+   46 cage46 Normal  Normal
+   47 cage47 Normal  Normal
+   48 cage48 Normal  Normal
+   49 cage49 Normal  Normal
+   50 cage50 Normal  Normal
+------------------------------------
+total                12
+
+cli checkhealth
+Checking alert
+Checking cabling
+Checking cage
+Checking cdm
+Checking cert
+Checking dar
+Checking date
+Checking file
+Checking fileservice
+Checking host
+Checking hostkeys
+Checking ilo
+Checking ld
+Checking license
+Checking network
+Checking node
+Checking pd
+Checking pdch
+Checking port
+Checking qos
+Checking rc
+Checking security
+Checking signature
+Checking snmp
+Checking switch
+Checking task
+Checking ui
+Checking vlun
+Checking vv
+Component ----------------Summary Description----------------- Qty
+------------------------------------------------------------------
+        0 total                                                  0
+
+cli checkhealth
+Checking alert
+Checking cabling
+Checking cage
+Checking cdm
+Checking cert
+Checking dar
+Checking date
+Checking file
+Checking fileservice
+Checking host
+Checking hostkeys
+Checking ilo
+Checking ld
+Checking license
+Checking network
+Checking node
+Checking pd
+Checking pdch
+Checking port
+Checking qos
+Checking rc
+Checking security
+Checking signature
+Checking snmp
+Checking switch
+Checking task
+Checking ui
+Checking vlun
+Checking vv
+Component ----------------Summary Description----------------- Qty
+Alert     New alerts                                             3
+cert      No certificates                                        1
+File      Behavior altering files                                8
+iLO       iLO detected virtual serial port is disabled on node   2
+Port      Mismatched SFP speed                                   4
+vlun      Hosts not connected to a port                          1
+------------------------------------------------------------------
+        6 total                                                 19
+
+UPGRADE
+Output 1The system cannot proceed with the update due to the above errors.
+
+Output 2The system can proceed with the update, although please check the above warnings before proceeding.
+

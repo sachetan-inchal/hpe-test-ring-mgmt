@@ -8,6 +8,10 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:5005',
       '/sim': 'http://localhost:5001',
+      '/chatbot': {
+        target: 'http://localhost:5010',
+        rewrite: (path) => path.replace(/^\/chatbot/, '/api'),
+      },
     }
   }
 })

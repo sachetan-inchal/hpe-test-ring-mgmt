@@ -151,10 +151,20 @@ class DiscoveryCrawler:
         # Execute the right command set
         if dev_type == DeviceType.HPE_ARRAY:
             raw_outputs = self._run_commands(ip, HPE_COMMANDS)
-            # Pass raw dict directly to the simulator-aware parser
             parsed = parse_sim_array_output(raw_outputs)
             parsed["_ip"] = ip
             parsed["_device_type"] = "hpe_array"
+            
+            # Emit internal components for live plotting
+            for node in parsed.get("nodes", []):
+                self._emit({"type": "node_internal", "ip": ip, "node_id": node.get("node_id"), "label": node.get("name"), "node_type": "Node"})
+            for port in parsed.get("ports", []):
+                self._emit({"type": "node_internal", "ip": ip, "node_id": port.get("port_id"), "label": f"P{port.get('port_num')}", "node_type": "Port"})
+                self._emit({"type": "edge_internal", "ip": ip, "source": ip, "target": port.get("port_id"), "label": "HAS_PORT"})
+            for disk in parsed.get("drives", []):
+                self._emit({"type": "node_internal", "ip": ip, "node_id": disk.get("pd_id"), "label": f"Disk {disk.get('pd_id')}", "node_type": "PhysicalDisk"})
+                self._emit({"type": "edge_internal", "ip": ip, "source": ip, "target": disk.get("pd_id"), "label": "HAS_DISK"})
+
             new_ips = self._extract_linked_ips(parsed)
             self._emit({
                 "type": "parsed",
@@ -226,9 +236,13 @@ class DiscoveryCrawler:
                             "msg": f"Discovered new device IP: {new_ip} from {ip}"})
 
     def _run_commands(self, ip: str, commands: List[str]) -> dict:
+        terminal = virtual_network.connect(ip)
+        if not terminal:
+            return {}
+        
         outputs = {}
         for cmd in commands:
-            output = virtual_network.execute(ip, cmd)
+            output = terminal.execute(cmd)
             outputs[cmd] = output
             self._emit({
                 "type": "command",

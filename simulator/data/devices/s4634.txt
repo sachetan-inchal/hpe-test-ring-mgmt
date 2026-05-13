@@ -1,0 +1,1245 @@
+root@4UW0004634-3 Thu Mar 12 03:47:15:~# vi getdata.sh
+root@4UW0004634-3 Thu Mar 12 03:48:31:~# chmod +x getdata.sh
+root@4UW0004634-3 Thu Mar 12 03:53:45:~# cat getdata.sh
+#!/bin/bash -x
+showversion -b
+showsys
+shownode
+showswitch
+showport
+showhost
+showcage -pci
+showcage -sfp
+showcage -state
+showpd
+showpd -s
+showpd -i
+lscpu
+
+root@4UW0004634-3 Thu Mar 12 03:53:47:~# ./getdata.sh > s4634.txt 2>&1
+root@4UW0004634-3 Thu Mar 12 03:54:00:~#
+root@4UW0004634-3 Thu Mar 12 03:54:02:~# cat s4634.txt
++ showversion -b
+Release version 10.6.0.40
+Release Type: Standard Support Release
+
+Component Name                   Version
+CLI Server                       10.6.0.40
+CLI Client                       10.6.0.40
+System Manager                   10.6.0.40
+Kernel                           10.6.0.38
+IO Stack                         10.6.0.40
+Drive Firmware                   10.6.0.40
+Enclosure Firmware               10.6.0.40
+Switch Firmware                  10.15.1010
+Upgrade Tool                     643 (250602-10.6.0)
++ showsys
+                                                                     ------------------(MiB)------------------
+     ID -Name- ------------Model------------ --Serial-- Nodes Master TotalCap    AllocCap    FreeCap FailedCap
++ shownode
+Node ----Name---- Encl:Bay Master InCluster Mem(MiB) -------Up_Since--------
+   0 4UW0004634-0      1:1 Yes    Yes         515539 2026-03-10 01:25:24 PDT
+   1 4UW0004634-1      1:2 No     Yes         515539 2026-03-10 01:25:27 PDT
+   2 4UW0004634-2      2:1 No     Yes         515539 2026-03-10 01:25:29 PDT
+   3 4UW0004634-3      2:2 No     Yes         515539 2026-03-10 01:25:00 PDT
++ showswitch
+Name State  Mode   LocateLED Serial     PS1 PS2 Fans Temp
+sw1  Normal Online off       TW32KM3056 ok  ok  ok   normal
+sw2  Normal Online off       TW32KM303T ok  ok  ok   normal
+-----------------------------------------------------------
+2    total
++ showport
+N:S:P      Mode     State --Node_WWN/IP--- -Port_WWN/HW_Addr- Type Protocol Label
+0:1:1 initiator     ready       16.1.14.90       946DAED6F21A disk     NVMe  DP-1
+0:1:2 initiator     ready       16.1.15.90       946DAED6F21B disk     NVMe  DP-2
+0:2:1 initiator     ready         16.1.8.1       946DAED6F32E disk     NVMe  DP-1
+0:2:2 initiator     ready         16.1.9.1       946DAED6F32F disk     NVMe  DP-2
+0:3:1    target     ready 2FF70002AC07F065   20310002AC07F065 host       FC     -
+0:3:2    target loss_sync 2FF70002AC07F065   20320002AC07F065 free       FC     -
+0:3:3    target loss_sync 2FF70002AC07F065   20330002AC07F065 free       FC     -
+0:3:4    target loss_sync 2FF70002AC07F065   20340002AC07F065 free       FC     -
+0:4:1    target     ready       20.4.16.34       40A6B78A9A30 file       IP     -
+0:4:2    target     ready       20.4.26.34       40A6B78A9A31 file       IP     -
+0:4:3      peer   offline                -       40A6B78A9A32 free       IP     -
+0:4:4      peer   offline                -       40A6B78A9A33 free       IP     -
+1:1:1 initiator     ready       16.1.14.91       946DAED6F06A disk     NVMe  DP-1
+1:1:2 initiator     ready       16.1.15.91       946DAED6F06B disk     NVMe  DP-2
+1:2:1 initiator     ready         16.1.8.2       946DAED6F00A disk     NVMe  DP-1
+1:2:2 initiator     ready         16.1.9.2       946DAED6F00B disk     NVMe  DP-2
+1:3:1    target     ready 2FF70002AC07F065   21310002AC07F065 host       FC     -
+1:3:2    target loss_sync 2FF70002AC07F065   21320002AC07F065 free       FC     -
+1:3:3    target loss_sync 2FF70002AC07F065   21330002AC07F065 free       FC     -
+1:3:4    target loss_sync 2FF70002AC07F065   21340002AC07F065 free       FC     -
+1:4:1    target     ready      20.14.16.34       40A6B78A9850 file       IP     -
+1:4:2    target     ready      20.14.26.34       40A6B78A9851 file       IP     -
+1:4:3      peer   offline                -       40A6B78A9852 free       IP     -
+1:4:4      peer   offline                -       40A6B78A9853 free       IP     -
+2:1:1 initiator     ready       16.1.14.92       946DAED6F220 disk     NVMe  DP-1
+2:1:2 initiator     ready       16.1.15.92       946DAED6F221 disk     NVMe  DP-2
+2:2:1 initiator     ready         16.1.8.3       946DAED6F17E disk     NVMe  DP-1
+2:2:2 initiator     ready         16.1.9.3       946DAED6F17F disk     NVMe  DP-2
+2:3:1    target     ready 2FF70002AC07F065   22310002AC07F065 host       FC     -
+2:3:2    target loss_sync 2FF70002AC07F065   22320002AC07F065 free       FC     -
+2:3:3    target loss_sync 2FF70002AC07F065   22330002AC07F065 free       FC     -
+2:3:4    target loss_sync 2FF70002AC07F065   22340002AC07F065 free       FC     -
+2:4:1    target     ready      20.24.16.34       40A6B78A9810 file       IP     -
+2:4:2    target     ready      20.24.26.34       40A6B78A9811 file       IP     -
+2:4:3      peer   offline                -       40A6B78A9812 free       IP     -
+2:4:4      peer   offline                -       40A6B78A9813 free       IP     -
+3:1:1 initiator     ready       16.1.14.93       946DAED6F4C0 disk     NVMe  DP-1
+3:1:2 initiator     ready       16.1.15.93       946DAED6F4C1 disk     NVMe  DP-2
+3:2:1 initiator     ready         16.1.8.4       946DAED6EFCE disk     NVMe  DP-1
+3:2:2 initiator     ready         16.1.9.4       946DAED6EFCF disk     NVMe  DP-2
+3:3:1    target     ready 2FF70002AC07F065   23310002AC07F065 host       FC     -
+3:3:2    target loss_sync 2FF70002AC07F065   23320002AC07F065 free       FC     -
+3:3:3    target loss_sync 2FF70002AC07F065   23330002AC07F065 free       FC     -
+3:3:4    target loss_sync 2FF70002AC07F065   23340002AC07F065 free       FC     -
+3:4:1    target     ready      20.34.16.34       40A6B78A9680 file       IP     -
+3:4:2    target     ready      20.34.26.34       40A6B78A9681 file       IP     -
+3:4:3      peer   offline                -       40A6B78A9682 free       IP     -
+3:4:4      peer   offline                -       40A6B78A9683 free       IP     -
+---------------------------------------------------------------------------------
+   48
++ showhost
+Id Name  Persona -WWN/iSCSI_Name/NQN- Port
+--               51402EC0181CFF12     3:3:1
+                 51402EC0181CFF12     2:3:1
+                 51402EC0181CFF12     1:3:1
+                 51402EC0181CFF12     0:3:1
+                 51402EC0181CFF10     2:3:1
+                 51402EC0181CFF10     3:3:1
+                 51402EC0181CFF10     0:3:1
+                 51402EC0181CFF10     1:3:1
+                 51402EC001C839C4     3:3:1
+                 51402EC001C839C4     2:3:1
+                 51402EC001C839C4     1:3:1
+                 51402EC001C839C4     0:3:1
+                 51402EC001C839C6     3:3:1
+                 51402EC001C839C6     2:3:1
+                 51402EC001C839C6     1:3:1
+                 51402EC001C839C6     0:3:1
+                 1000941882EC2B7E     2:3:1
+                 1000941882EC2B7E     3:3:1
+                 1000941882EC2B7E     0:3:1
+                 1000941882EC2B7E     1:3:1
+                 100098F2B3A1375A     0:3:1
+                 100098F2B3A1375A     2:3:1
+                 100098F2B3A1375A     3:3:1
+                 100098F2B3A1375A     1:3:1
+                 100098F2B3A13764     2:3:1
+                 100098F2B3A13764     1:3:1
+                 100098F2B3A13764     3:3:1
+                 100098F2B3A13764     0:3:1
+                 1000E0071BD43B62     2:3:1
+                 1000E0071BD43B62     3:3:1
+                 1000E0071BD43B5C     1:3:1
+                 1000E0071BD43B5C     3:3:1
+                 1000E0071BD43B5C     2:3:1
+                 1000E0071BD43B5C     0:3:1
+                 1000E0071BD43B5B     1:3:1
+                 1000E0071BD43B5B     2:3:1
+                 1000E0071BD43B5B     3:3:1
+                 1000E0071BD43B5B     0:3:1
+                 51402EC0181DF92E     3:3:1
+                 51402EC0181DF92E     2:3:1
+                 51402EC0181DF92E     1:3:1
+                 51402EC0181DF92E     0:3:1
+                 51402EC001C80FA0     3:3:1
+                 51402EC001C80FA0     2:3:1
+                 51402EC001C80FA2     3:3:1
+                 51402EC001C80FA0     1:3:1
+                 51402EC001C80FA0     0:3:1
+                 51402EC001C80FA2     2:3:1
+                 51402EC001C80FA2     1:3:1
+                 51402EC001C80FA2     0:3:1
+                 100070106F763B3F     3:3:1
+                 100070106F763B3F     2:3:1
+                 100070106F765BA3     3:3:1
+                 100070106F765BA3     0:3:1
+                 100070106F765BA3     2:3:1
+                 100070106F765BA3     1:3:1
+                 100070106F763B3E     1:3:1
+                 100070106F763B3E     0:3:1
+-------------------------------------------
+58 total
++ showcage -pci
+ Cage IOM Slot -Type-- Manufacturer --Model--- ----Serial----- -Rev- Firmware
+    1   1    1 Eth     Mellanox     CX6-DP-DX  MT2324T00530    n/a   22.36.1010
+    1   1    2 Eth     Mellanox     CX6-DP-DX  MT2324T0053J    n/a   22.36.1010
+    1   1    3 FC      HPE          HPE64004-B MYT346TXSF      10    14.2.807.6
+    1   1    4 Eth     Intel        E810-CSFP  40A6B78A9A30    n/a   4.5
+    1   2    1 Eth     Mellanox     CX6-DP-DX  MT2324T0052E    n/a   22.36.1010
+    1   2    2 Eth     Mellanox     CX6-DP-DX  MT2324T00524    n/a   22.36.1010
+    1   2    3 FC      HPE          HPE64004-B MYT346TXSH      10    14.2.807.6
+    1   2    4 Eth     Intel        E810-CSFP  40A6B78A9850    n/a   4.5
+    2   1    1 Eth     Mellanox     CX6-DP-DX  MT2324T00536    n/a   22.36.1010
+    2   1    2 Eth     Mellanox     CX6-DP-DX  MT2324T0053A    n/a   22.36.1010
+    2   1    3 FC      HPE          HPE64004-B MYT346TXRW      10    14.2.807.6
+    2   1    4 Eth     Intel        E810-CSFP  40A6B78A9810    n/a   4.5
+    2   2    1 Eth     Mellanox     CX6-DP-DX  MT2324T0056E    n/a   22.36.1010
+    2   2    2 Eth     Mellanox     CX6-DP-DX  MT2324T0051U    n/a   22.36.1010
+    2   2    3 FC      HPE          HPE64004-B MYT346TXSG      10    14.2.807.6
+    2   2    4 Eth     Intel        E810-CSFP  40A6B78A9680    n/a   4.5
+   41   1    1 Unknown Mellanox     CX6-DP-DX  MT2324T0053R    n/a   22.36.1010
+   41   2    1 Unknown Mellanox     CX6-DP-DX  MT2324T00514    n/a   22.36.1010
+   42   1    1 Unknown Mellanox     CX6-DP-DX  MT2324T004TG    n/a   22.36.1010
+   42   2    1 Unknown Mellanox     CX6-DP-DX  MT2324T004UD    n/a   22.36.1010
+   43   1    1 Unknown Mellanox     CX6-DP-DX  1I0345088M      n/a   22.42.1000
+   43   2    1 Unknown Mellanox     CX6-DP-DX  1I0345088S      n/a   22.42.1000
+   44   1    1 Unknown Mellanox     CX6-DP-DX  1I0345088P      n/a   22.42.1000
+   44   2    1 Unknown Mellanox     CX6-DP-DX  1I0345089J      n/a   22.42.1000
+   45   1    1 Unknown Mellanox     CX6-DP-DX  1I03450891      n/a   22.42.1000
+   45   2    1 Unknown Mellanox     CX6-DP-DX  1I03450896      n/a   22.42.1000
+   46   1    1 Unknown Mellanox     CX6-DP-DX  1I03450899      n/a   22.42.1000
+   46   2    1 Unknown Mellanox     CX6-DP-DX  1I0345089B      n/a   22.42.1000
+   47   1    1 Unknown Mellanox     CX6-DP-DX  1I0323031K      n/a   22.42.1000
+   47   2    1 Unknown Mellanox     CX6-DP-DX  1I0323035J      n/a   22.42.1000
+   48   1    1 Unknown Mellanox     CX6-DP-DX  1I03410087      n/a   22.42.1000
+   48   2    1 Unknown Mellanox     CX6-DP-DX  1I0341008S      n/a   22.42.1000
+   49   1    1 Unknown Mellanox     CX6-DP-DX  1I035101ST      n/a   22.42.1000
+   49   2    1 Unknown Mellanox     CX6-DP-DX  1I035101T2      n/a   22.42.1000
+   50   1    1 Unknown Mellanox     CX6-DP-DX  1I0341006R      n/a   22.42.1000
+   50   2    1 Unknown Mellanox     CX6-DP-DX  1I03410064      n/a   22.42.1000
+-------------------------------------------------------------------------------
+total                                                                36
++ showcage -sfp
+                                                                                  -(Gbps)-                                               
+ Cage IOM SFP Label Manufacturer PartNumber       SerialNumber Revision Qualified MaxSpeed TXDisable TXFault RXLoss RXPowerLow DDM -State-
+   41   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L1317D   A0       Yes          100.0 No        No      No     No         Yes OK    
+   41   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L1311T   A0       Yes          100.0 No        No      No     No         Yes OK    
+   42   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L130ZY   A0       Yes          100.0 No        No      No     No         Yes OK    
+   42   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L130PM   A0       Yes          100.0 No        No      No     No         Yes OK    
+   43   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L130N3   A0       Yes          100.0 No        No      No     No         Yes OK    
+   43   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L131VH   A0       Yes          100.0 No        No      No     No         Yes OK    
+   44   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN26L1310G   A0       Yes          100.0 No        No      No     No         Yes OK    
+   44   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L1302S   A0       Yes          100.0 No        No      No     No         Yes OK    
+   45   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605S2   A0       Yes          100.0 No        No      No     No         Yes OK    
+   45   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605VG   A0       Yes          100.0 No        No      No     No         Yes OK    
+   46   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605VH   A0       Yes          100.0 No        No      No     No         Yes OK    
+   46   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605XH   A0       Yes          100.0 No        No      No     No         Yes OK    
+   47   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN45L6017T   A0       Yes          100.0 No        No      No     No         Yes OK    
+   47   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L60607   A0       Yes          100.0 No        No      No     No         Yes OK    
+   48   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN45L6015S   A0       Yes          100.0 No        No      No     No         Yes OK    
+   48   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605S3   A0       Yes          100.0 No        No      No     No         Yes OK    
+   49   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L60608   A0       Yes          100.0 No        No      No     No         Yes OK    
+   49   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L131SH   A0       Yes          100.0 No        No      No     No         Yes OK    
+   50   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605X2   A0       Yes          100.0 No        No      No     No         Yes OK    
+   50   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605L8   A0       Yes          100.0 No        No      No     No         Yes OK    
+------------------------------------------------------------------------------------------------------------------------------------------
+total                                                                                                                              20    
++ showcage -state
+   Id Name   -State- -DetailedState-
+    1 cage1  Normal  Normal
+    2 cage2  Normal  Normal
+   41 cage41 Normal  Normal
+   42 cage42 Normal  Normal
+   43 cage43 Normal  Normal
+   44 cage44 Normal  Normal
+   45 cage45 Normal  Normal
+   46 cage46 Normal  Normal
+   47 cage47 Normal  Normal
+   48 cage48 Normal  Normal
+   49 cage49 Normal  Normal
+   50 cage50 Normal  Normal
+------------------------------------
+total                12
++ showpd
+                            ------Size(MiB)------
+ Id CagePos Type RPM State       Total       Free Capacity(GB)
+  0 41:1    QLC  N/A normal   29295616   27600896        30720
+  1 41:2    QLC  N/A normal   29295616   27601920        30720
+  2 41:3    QLC  N/A normal   29295616   27601920        30720
+  3 41:4    QLC  N/A normal   29295616   27601920        30720
+  4 41:5    QLC  N/A normal   29295616   27601920        30720
+  5 41:6    QLC  N/A normal   29295616   27601920        30720
+  6 41:7    QLC  N/A normal   29295616   27601920        30720
+  7 41:8    QLC  N/A normal   29295616   27603968        30720
+  8 41:9    QLC  N/A normal   29295616   27601920        30720
+  9 41:10   QLC  N/A normal   29295616   27601920        30720
+ 10 41:11   QLC  N/A normal   29295616   27603968        30720
+ 11 41:12   QLC  N/A normal   29295616   27604992        30720
+ 12 41:13   QLC  N/A normal   29295616   27606016        30720
+ 13 41:14   QLC  N/A normal   29295616   27604992        30720
+ 14 41:15   QLC  N/A normal   29295616   27604992        30720
+ 15 41:16   QLC  N/A normal   29295616   27602944        30720
+ 16 41:17   QLC  N/A normal   29295616   27606016        30720
+ 17 41:18   QLC  N/A normal   29295616   27601920        30720
+ 18 41:19   QLC  N/A normal   29295616   27601920        30720
+ 19 41:20   QLC  N/A normal   29295616   27602944        30720
+ 20 41:21   QLC  N/A normal   29295616   27606016        30720
+ 21 41:22   QLC  N/A normal   29295616   27601920        30720
+ 22 41:23   QLC  N/A normal   29295616   27601920        30720
+ 23 41:24   QLC  N/A normal   29295616   27602944        30720
+ 24 42:1    QLC  N/A normal   29295616   27601920        30720
+ 25 42:2    QLC  N/A normal   29295616   27601920        30720
+ 26 42:3    QLC  N/A normal   29295616   27601920        30720
+ 27 42:4    QLC  N/A normal   29295616   27601920        30720
+ 28 42:5    QLC  N/A normal   29295616   27601920        30720
+ 29 42:6    QLC  N/A normal   29295616   27604992        30720
+ 30 42:7    QLC  N/A normal   29295616   27601920        30720
+ 31 42:8    QLC  N/A normal   29295616   27601920        30720
+ 32 42:9    QLC  N/A normal   29295616   27601920        30720
+ 33 42:10   QLC  N/A normal   29295616   27601920        30720
+ 34 42:11   QLC  N/A normal   29295616   27606016        30720
+ 35 42:12   QLC  N/A normal   29295616   27603968        30720
+ 36 42:13   QLC  N/A normal   29295616   27606016        30720
+ 37 42:14   QLC  N/A normal   29295616   27603968        30720
+ 38 42:15   QLC  N/A normal   29295616   27604992        30720
+ 39 42:16   QLC  N/A normal   29295616   27603968        30720
+ 40 42:17   QLC  N/A normal   29295616   27604992        30720
+ 41 42:18   QLC  N/A normal   29295616   27604992        30720
+ 42 42:19   QLC  N/A normal   29295616   27601920        30720
+ 43 42:20   QLC  N/A normal   29295616   27606016        30720
+ 44 42:21   QLC  N/A normal   29295616   27604992        30720
+ 45 42:22   QLC  N/A normal   29295616   27602944        30720
+ 46 42:23   QLC  N/A normal   29295616   27601920        30720
+ 47 42:24   QLC  N/A normal   29295616   27603968        30720
+ 48 43:1    QLC  N/A normal   29295616   27601920        30720
+ 49 43:2    QLC  N/A normal   29295616   27601920        30720
+ 50 43:3    QLC  N/A normal   29295616   27601920        30720
+ 51 43:4    QLC  N/A normal   29295616   27601920        30720
+ 52 43:5    QLC  N/A normal   29295616   27601920        30720
+ 53 43:6    QLC  N/A normal   29295616   27604992        30720
+ 54 43:7    QLC  N/A normal   29295616   27604992        30720
+ 55 43:8    QLC  N/A normal   29295616   27606016        30720
+ 56 43:9    QLC  N/A normal   29295616   27601920        30720
+ 57 43:10   QLC  N/A normal   29295616   27606016        30720
+ 58 43:11   QLC  N/A normal   29295616   27604992        30720
+ 59 43:12   QLC  N/A normal   29295616   27606016        30720
+ 60 43:13   QLC  N/A normal   29295616   27604992        30720
+ 61 43:14   QLC  N/A normal   29295616   27604992        30720
+ 62 43:15   QLC  N/A normal   29295616   27606016        30720
+ 63 43:16   QLC  N/A normal   29295616   27604992        30720
+ 64 43:17   QLC  N/A normal   29295616   27606016        30720
+ 65 43:18   QLC  N/A normal   29295616   27604992        30720
+ 66 43:19   QLC  N/A normal   29295616   27602944        30720
+ 67 43:20   QLC  N/A normal   29295616   27604992        30720
+ 68 43:21   QLC  N/A normal   29295616   27604992        30720
+ 69 43:22   QLC  N/A normal   29295616   27601920        30720
+ 70 43:23   QLC  N/A normal   29295616   27603968        30720
+ 71 43:24   QLC  N/A normal   29295616   27604992        30720
+ 72 44:1    QLC  N/A normal   29295616   27601920        30720
+ 73 44:2    QLC  N/A normal   29295616   27601920        30720
+ 74 44:3    QLC  N/A normal   29295616   27601920        30720
+ 75 44:4    QLC  N/A normal   29295616   27601920        30720
+ 76 44:5    QLC  N/A normal   29295616   27604992        30720
+ 77 44:6    QLC  N/A normal   29295616   27606016        30720
+ 78 44:7    QLC  N/A normal   29295616   27604992        30720
+ 79 44:8    QLC  N/A normal   29295616   27604992        30720
+ 80 44:9    QLC  N/A normal   29295616   27601920        30720
+ 81 44:10   QLC  N/A normal   29295616   27604992        30720
+ 82 44:11   QLC  N/A normal   29295616   27604992        30720
+ 83 44:12   QLC  N/A normal   29295616   27602944        30720
+ 84 44:13   QLC  N/A normal   29295616   27606016        30720
+ 85 44:14   QLC  N/A normal   29295616   27601920        30720
+ 86 44:15   QLC  N/A normal   29295616   27603968        30720
+ 87 44:16   QLC  N/A normal   29295616   27606016        30720
+ 88 44:17   QLC  N/A normal   29295616   27604992        30720
+ 89 44:18   QLC  N/A normal   29295616   27606016        30720
+ 90 44:19   QLC  N/A normal   29295616   27604992        30720
+ 91 44:20   QLC  N/A normal   29295616   27604992        30720
+ 92 44:21   QLC  N/A normal   29295616   27604992        30720
+ 93 44:22   QLC  N/A normal   29295616   27606016        30720
+ 94 44:23   QLC  N/A normal   29295616   27603968        30720
+ 95 44:24   QLC  N/A normal   29295616   27604992        30720
+ 96 45:1    QLC  N/A normal   29295616   27601920        30720
+ 97 45:2    QLC  N/A normal   29295616   27601920        30720
+ 98 45:3    QLC  N/A normal   29295616   27601920        30720
+ 99 45:4    QLC  N/A normal   29295616   27606016        30720
+100 45:5    QLC  N/A normal   29295616   27604992        30720
+101 45:6    QLC  N/A normal   29295616   27606016        30720
+102 45:7    QLC  N/A normal   29295616   27604992        30720
+103 45:8    QLC  N/A normal   29295616   27604992        30720
+104 45:9    QLC  N/A normal   29295616   27604992        30720
+105 45:10   QLC  N/A normal   29295616   27604992        30720
+106 45:11   QLC  N/A normal   29295616   27601920        30720
+107 45:12   QLC  N/A normal   29295616   27603968        30720
+108 45:13   QLC  N/A normal   29295616   27606016        30720
+109 45:14   QLC  N/A normal   29295616   27601920        30720
+110 45:15   QLC  N/A normal   29295616   27601920        30720
+111 45:16   QLC  N/A normal   29295616   27606016        30720
+112 45:17   QLC  N/A normal   29295616   27606016        30720
+113 45:18   QLC  N/A normal   29295616   27606016        30720
+114 45:19   QLC  N/A normal   29295616   27606016        30720
+115 45:20   QLC  N/A normal   29295616   27606016        30720
+116 45:21   QLC  N/A normal   29295616   27606016        30720
+117 45:22   QLC  N/A normal   29295616   27604992        30720
+118 45:23   QLC  N/A normal   29295616   27603968        30720
+119 45:24   QLC  N/A normal   29295616   27606016        30720
+120 46:1    QLC  N/A normal   29295616   27601920        30720
+121 46:2    QLC  N/A normal   29295616   27602944        30720
+122 46:3    QLC  N/A normal   29295616   27601920        30720
+123 46:4    QLC  N/A normal   29295616   27601920        30720
+124 46:5    QLC  N/A normal   29295616   27606016        30720
+125 46:6    QLC  N/A normal   29295616   27604992        30720
+126 46:7    QLC  N/A normal   29295616   27604992        30720
+127 46:8    QLC  N/A normal   29295616   27606016        30720
+128 46:9    QLC  N/A normal   29295616   27606016        30720
+129 46:10   QLC  N/A normal   29295616   27606016        30720
+130 46:11   QLC  N/A normal   29295616   27606016        30720
+131 46:12   QLC  N/A normal   29295616   27606016        30720
+132 46:13   QLC  N/A normal   29295616   27604992        30720
+133 46:14   QLC  N/A normal   29295616   27606016        30720
+134 46:15   QLC  N/A normal   29295616   27604992        30720
+135 46:16   QLC  N/A normal   29295616   27606016        30720
+136 46:17   QLC  N/A normal   29295616   27601920        30720
+137 46:18   QLC  N/A normal   29295616   27606016        30720
+138 46:19   QLC  N/A normal   29295616   27606016        30720
+139 46:20   QLC  N/A normal   29295616   27606016        30720
+140 46:21   QLC  N/A normal   29295616   27606016        30720
+141 46:22   QLC  N/A normal   29295616   27606016        30720
+142 46:23   QLC  N/A normal   29295616   27606016        30720
+143 46:24   QLC  N/A normal   29295616   27602944        30720
+144 47:1    QLC  N/A normal   29295616   26839040        30720
+145 47:2    QLC  N/A normal   29295616   26840064        30720
+146 47:3    QLC  N/A normal   29295616   26841088        30720
+147 47:4    QLC  N/A normal   29295616   26840064        30720
+148 47:5    QLC  N/A normal   29295616   26839040        30720
+149 47:6    QLC  N/A normal   29295616   26839040        30720
+150 47:7    QLC  N/A normal   29295616   26840064        30720
+151 47:8    QLC  N/A normal   29295616   26839040        30720
+152 47:9    QLC  N/A normal   29295616   26839040        30720
+153 47:10   QLC  N/A normal   29295616   26841088        30720
+154 47:11   QLC  N/A normal   29295616   26842112        30720
+155 47:12   QLC  N/A normal   29295616   26839040        30720
+156 49:1    QLC  N/A normal   29295616   26839040        30720
+157 49:2    QLC  N/A normal   29295616   26840064        30720
+158 49:3    QLC  N/A normal   29295616   26840064        30720
+159 49:4    QLC  N/A normal   29295616   26841088        30720
+160 49:5    QLC  N/A normal   29295616   26839040        30720
+161 49:6    QLC  N/A normal   29295616   26839040        30720
+162 49:7    QLC  N/A normal   29295616   26839040        30720
+163 49:8    QLC  N/A normal   29295616   26839040        30720
+164 49:9    QLC  N/A normal   29295616   26839040        30720
+165 49:10   QLC  N/A normal   29295616   26841088        30720
+166 49:11   QLC  N/A normal   29295616   26842112        30720
+167 49:12   QLC  N/A normal   29295616   26839040        30720
+168 50:1    QLC  N/A normal   29295616   26839040        30720
+169 50:2    QLC  N/A normal   29295616   26841088        30720
+170 50:3    QLC  N/A normal   29295616   26840064        30720
+171 50:4    QLC  N/A normal   29295616   26841088        30720
+172 50:5    QLC  N/A normal   29295616   26840064        30720
+173 50:6    QLC  N/A normal   29295616   26839040        30720
+174 50:7    QLC  N/A normal   29295616   26842112        30720
+175 50:8    QLC  N/A normal   29295616   26839040        30720
+176 50:9    QLC  N/A normal   29295616   26842112        30720
+177 50:10   QLC  N/A normal   29295616   26839040        30720
+178 50:11   QLC  N/A normal   29295616   26839040        30720
+179 50:12   QLC  N/A normal   29295616   26839040        30720
+180 48:3    QLC  N/A normal   29295616   26844160        30720
+181 48:4    QLC  N/A normal   29295616   26839040        30720
+182 48:5    QLC  N/A normal   29295616   26843136        30720
+183 48:6    QLC  N/A normal   29295616   26840064        30720
+184 48:7    QLC  N/A normal   29295616   26843136        30720
+185 48:8    QLC  N/A normal   29295616   26839040        30720
+186 48:9    QLC  N/A normal   29295616   26842112        30720
+187 48:10   QLC  N/A normal   29295616   26841088        30720
+188 48:11   QLC  N/A normal   29295616   26843136        30720
+189 48:12   QLC  N/A normal   29295616   26843136        30720
+190 48:1    QLC  N/A normal   29295616   26844160        30720
+191 48:2    QLC  N/A normal   29295616   26844160        30720
+--------------------------------------------------------------
+192 total                   5624758272 5263330304
++ showpd -s
+ Id CagePos Type -State- -Detailed_State- -SedState-
+  0 41:1    QLC  normal  normal           capable
+  1 41:2    QLC  normal  normal           capable
+  2 41:3    QLC  normal  normal           capable
+  3 41:4    QLC  normal  normal           capable
+  4 41:5    QLC  normal  normal           capable
+  5 41:6    QLC  normal  normal           capable
+  6 41:7    QLC  normal  normal           capable
+  7 41:8    QLC  normal  normal           capable
+  8 41:9    QLC  normal  normal           capable
+  9 41:10   QLC  normal  normal           capable
+ 10 41:11   QLC  normal  normal           capable
+ 11 41:12   QLC  normal  normal           capable
+ 12 41:13   QLC  normal  normal           capable
+ 13 41:14   QLC  normal  normal           capable
+ 14 41:15   QLC  normal  normal           capable
+ 15 41:16   QLC  normal  normal           capable
+ 16 41:17   QLC  normal  normal           capable
+ 17 41:18   QLC  normal  normal           capable
+ 18 41:19   QLC  normal  normal           capable
+ 19 41:20   QLC  normal  normal           capable
+ 20 41:21   QLC  normal  normal           capable
+ 21 41:22   QLC  normal  normal           capable
+ 22 41:23   QLC  normal  normal           capable
+ 23 41:24   QLC  normal  normal           capable
+ 24 42:1    QLC  normal  normal           capable
+ 25 42:2    QLC  normal  normal           capable
+ 26 42:3    QLC  normal  normal           capable
+ 27 42:4    QLC  normal  normal           capable
+ 28 42:5    QLC  normal  normal           capable
+ 29 42:6    QLC  normal  normal           capable
+ 30 42:7    QLC  normal  normal           capable
+ 31 42:8    QLC  normal  normal           capable
+ 32 42:9    QLC  normal  normal           capable
+ 33 42:10   QLC  normal  normal           capable
+ 34 42:11   QLC  normal  normal           capable
+ 35 42:12   QLC  normal  normal           capable
+ 36 42:13   QLC  normal  normal           capable
+ 37 42:14   QLC  normal  normal           capable
+ 38 42:15   QLC  normal  normal           capable
+ 39 42:16   QLC  normal  normal           capable
+ 40 42:17   QLC  normal  normal           capable
+ 41 42:18   QLC  normal  normal           capable
+ 42 42:19   QLC  normal  normal           capable
+ 43 42:20   QLC  normal  normal           capable
+ 44 42:21   QLC  normal  normal           capable
+ 45 42:22   QLC  normal  normal           capable
+ 46 42:23   QLC  normal  normal           capable
+ 47 42:24   QLC  normal  normal           capable
+ 48 43:1    QLC  normal  normal           capable
+ 49 43:2    QLC  normal  normal           capable
+ 50 43:3    QLC  normal  normal           capable
+ 51 43:4    QLC  normal  normal           capable
+ 52 43:5    QLC  normal  normal           capable
+ 53 43:6    QLC  normal  normal           capable
+ 54 43:7    QLC  normal  normal           capable
+ 55 43:8    QLC  normal  normal           capable
+ 56 43:9    QLC  normal  normal           capable
+ 57 43:10   QLC  normal  normal           capable
+ 58 43:11   QLC  normal  normal           capable
+ 59 43:12   QLC  normal  normal           capable
+ 60 43:13   QLC  normal  normal           capable
+ 61 43:14   QLC  normal  normal           capable
+ 62 43:15   QLC  normal  normal           capable
+ 63 43:16   QLC  normal  normal           capable
+ 64 43:17   QLC  normal  normal           capable
+ 65 43:18   QLC  normal  normal           capable
+ 66 43:19   QLC  normal  normal           capable
+ 67 43:20   QLC  normal  normal           capable
+ 68 43:21   QLC  normal  normal           capable
+ 69 43:22   QLC  normal  normal           capable
+ 70 43:23   QLC  normal  normal           capable
+ 71 43:24   QLC  normal  normal           capable
+ 72 44:1    QLC  normal  normal           capable
+ 73 44:2    QLC  normal  normal           capable
+ 74 44:3    QLC  normal  normal           capable
+ 75 44:4    QLC  normal  normal           capable
+ 76 44:5    QLC  normal  normal           capable
+ 77 44:6    QLC  normal  normal           capable
+ 78 44:7    QLC  normal  normal           capable
+ 79 44:8    QLC  normal  normal           capable
+ 80 44:9    QLC  normal  normal           capable
+ 81 44:10   QLC  normal  normal           capable
+ 82 44:11   QLC  normal  normal           capable
+ 83 44:12   QLC  normal  normal           capable
+ 84 44:13   QLC  normal  normal           capable
+ 85 44:14   QLC  normal  normal           capable
+ 86 44:15   QLC  normal  normal           capable
+ 87 44:16   QLC  normal  normal           capable
+ 88 44:17   QLC  normal  normal           capable
+ 89 44:18   QLC  normal  normal           capable
+ 90 44:19   QLC  normal  normal           capable
+ 91 44:20   QLC  normal  normal           capable
+ 92 44:21   QLC  normal  normal           capable
+ 93 44:22   QLC  normal  normal           capable
+ 94 44:23   QLC  normal  normal           capable
+ 95 44:24   QLC  normal  normal           capable
+ 96 45:1    QLC  normal  normal           capable
+ 97 45:2    QLC  normal  normal           capable
+ 98 45:3    QLC  normal  normal           capable
+ 99 45:4    QLC  normal  normal           capable
+100 45:5    QLC  normal  normal           capable
+101 45:6    QLC  normal  normal           capable
+102 45:7    QLC  normal  normal           capable
+103 45:8    QLC  normal  normal           capable
+104 45:9    QLC  normal  normal           capable
+105 45:10   QLC  normal  normal           capable
+106 45:11   QLC  normal  normal           capable
+107 45:12   QLC  normal  normal           capable
+108 45:13   QLC  normal  normal           capable
+109 45:14   QLC  normal  normal           capable
+110 45:15   QLC  normal  normal           capable
+111 45:16   QLC  normal  normal           capable
+112 45:17   QLC  normal  normal           capable
+113 45:18   QLC  normal  normal           capable
+114 45:19   QLC  normal  normal           capable
+115 45:20   QLC  normal  normal           capable
+116 45:21   QLC  normal  normal           capable
+117 45:22   QLC  normal  normal           capable
+118 45:23   QLC  normal  normal           capable
+119 45:24   QLC  normal  normal           capable
+120 46:1    QLC  normal  normal           capable
+121 46:2    QLC  normal  normal           capable
+122 46:3    QLC  normal  normal           capable
+123 46:4    QLC  normal  normal           capable
+124 46:5    QLC  normal  normal           capable
+125 46:6    QLC  normal  normal           capable
+126 46:7    QLC  normal  normal           capable
+127 46:8    QLC  normal  normal           capable
+128 46:9    QLC  normal  normal           capable
+129 46:10   QLC  normal  normal           capable
+130 46:11   QLC  normal  normal           capable
+131 46:12   QLC  normal  normal           capable
+132 46:13   QLC  normal  normal           capable
+133 46:14   QLC  normal  normal           capable
+134 46:15   QLC  normal  normal           capable
+135 46:16   QLC  normal  normal           capable
+136 46:17   QLC  normal  normal           capable
+137 46:18   QLC  normal  normal           capable
+138 46:19   QLC  normal  normal           capable
+139 46:20   QLC  normal  normal           capable
+140 46:21   QLC  normal  normal           capable
+141 46:22   QLC  normal  normal           capable
+142 46:23   QLC  normal  normal           capable
+143 46:24   QLC  normal  normal           capable
+144 47:1    QLC  normal  normal           capable
+145 47:2    QLC  normal  normal           capable
+146 47:3    QLC  normal  normal           capable
+147 47:4    QLC  normal  normal           capable
+148 47:5    QLC  normal  normal           capable
+149 47:6    QLC  normal  normal           capable
+150 47:7    QLC  normal  normal           capable
+151 47:8    QLC  normal  normal           capable
+152 47:9    QLC  normal  normal           capable
+153 47:10   QLC  normal  normal           capable
+154 47:11   QLC  normal  normal           capable
+155 47:12   QLC  normal  normal           capable
+156 49:1    QLC  normal  normal           capable
+157 49:2    QLC  normal  normal           capable
+158 49:3    QLC  normal  normal           capable
+159 49:4    QLC  normal  normal           capable
+160 49:5    QLC  normal  normal           capable
+161 49:6    QLC  normal  normal           capable
+162 49:7    QLC  normal  normal           capable
+163 49:8    QLC  normal  normal           capable
+164 49:9    QLC  normal  normal           capable
+165 49:10   QLC  normal  normal           capable
+166 49:11   QLC  normal  normal           capable
+167 49:12   QLC  normal  normal           capable
+168 50:1    QLC  normal  normal           capable
+169 50:2    QLC  normal  normal           capable
+170 50:3    QLC  normal  normal           capable
+171 50:4    QLC  normal  normal           capable
+172 50:5    QLC  normal  normal           capable
+173 50:6    QLC  normal  normal           capable
+174 50:7    QLC  normal  normal           capable
+175 50:8    QLC  normal  normal           capable
+176 50:9    QLC  normal  normal           capable
+177 50:10   QLC  normal  normal           capable
+178 50:11   QLC  normal  normal           capable
+179 50:12   QLC  normal  normal           capable
+180 48:3    QLC  normal  normal           capable
+181 48:4    QLC  normal  normal           capable
+182 48:5    QLC  normal  normal           capable
+183 48:6    QLC  normal  normal           capable
+184 48:7    QLC  normal  normal           capable
+185 48:8    QLC  normal  normal           capable
+186 48:9    QLC  normal  normal           capable
+187 48:10   QLC  normal  normal           capable
+188 48:11   QLC  normal  normal           capable
+189 48:12   QLC  normal  normal           capable
+190 48:1    QLC  normal  normal           capable
+191 48:2    QLC  normal  normal           capable
+----------------------------------------------------
+192 total
++ showpd -i
+ Id CagePos State  ----Node_WWN---- --MFR-- -----Model------ ----Serial---- -FW_Rev- Protocol Type -----AdmissionTime-----
+  0 41:1    normal 002538E44100E1D1 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400136 3R01     NVMe     QLC  2026-03-03 23:57:02 PST
+  1 41:2    normal 002538E44100E25B SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400274 3R01     NVMe     QLC  2026-03-03 23:57:02 PST
+  2 41:3    normal 002538E44100E286 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400317 3R01     NVMe     QLC  2026-03-03 23:57:03 PST
+  3 41:4    normal 002538E44100E1CB SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400130 3R01     NVMe     QLC  2026-03-03 23:57:04 PST
+  4 41:5    normal 002538E44100E1D4 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400139 3R01     NVMe     QLC  2026-03-03 23:57:05 PST
+  5 41:6    normal 002538E1415008EF SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100264 3R01     NVMe     QLC  2026-03-03 23:57:05 PST
+  6 41:7    normal 002538E44100E28F SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400326 3R01     NVMe     QLC  2026-03-03 23:57:06 PST
+  7 41:8    normal 002538E1415007ED SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100006 3R01     NVMe     QLC  2026-03-03 23:57:06 PST
+  8 41:9    normal 002538E1415008F1 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100266 3R01     NVMe     QLC  2026-03-03 23:57:07 PST
+  9 41:10   normal 002538E1415008F0 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100265 3R01     NVMe     QLC  2026-03-03 23:57:07 PST
+ 10 41:11   normal 002538E44100E290 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400327 3R01     NVMe     QLC  2026-03-03 23:57:08 PST
+ 11 41:12   normal 002538E44100E293 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400330 3R01     NVMe     QLC  2026-03-03 23:57:08 PST
+ 12 41:13   normal 002538E141500883 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100156 3R01     NVMe     QLC  2026-03-03 23:57:09 PST
+ 13 41:14   normal 002538E841006262 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800743 3R01     NVMe     QLC  2026-03-03 23:57:09 PST
+ 14 41:15   normal 002538E1415008E7 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100256 3R01     NVMe     QLC  2026-03-03 23:57:10 PST
+ 15 41:16   normal 002538E84100626B SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800752 3R01     NVMe     QLC  2026-03-03 23:57:10 PST
+ 16 41:17   normal 002538E1415008EC SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100261 3R01     NVMe     QLC  2026-03-03 23:57:11 PST
+ 17 41:18   normal 002538E1415008E9 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100258 3R01     NVMe     QLC  2026-03-03 23:57:11 PST
+ 18 41:19   normal 002538E1415008F5 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100270 3R01     NVMe     QLC  2026-03-03 23:57:12 PST
+ 19 41:20   normal 002538E1415008EA SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100259 3R01     NVMe     QLC  2026-03-03 23:57:12 PST
+ 20 41:21   normal 002538E1415007F2 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100011 3R01     NVMe     QLC  2026-03-03 23:57:12 PST
+ 21 41:22   normal 002538E141500834 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100077 3R01     NVMe     QLC  2026-03-03 23:57:13 PST
+ 22 41:23   normal 002538E141500818 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100049 3R01     NVMe     QLC  2026-03-03 23:57:14 PST
+ 23 41:24   normal 002538E1415007E9 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100002 3R01     NVMe     QLC  2026-03-03 23:57:14 PST
+ 24 42:1    normal 002538E141500837 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100080 3R01     NVMe     QLC  2026-03-03 23:57:15 PST
+ 25 42:2    normal 002538E44100E1EA SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400161 3R01     NVMe     QLC  2026-03-03 23:57:15 PST
+ 26 42:3    normal 002538E44100E17B SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400050 3R01     NVMe     QLC  2026-03-03 23:57:16 PST
+ 27 42:4    normal 002538E1415008E5 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100254 3R01     NVMe     QLC  2026-03-03 23:57:16 PST
+ 28 42:5    normal 002538E1415008C7 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100224 3R01     NVMe     QLC  2026-03-03 23:57:17 PST
+ 29 42:6    normal 002538E141500867 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100128 3R01     NVMe     QLC  2026-03-03 23:57:17 PST
+ 30 42:7    normal 002538E14150090C SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100293 3R01     NVMe     QLC  2026-03-03 23:57:18 PST
+ 31 42:8    normal 002538E84100625E SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800739 3R01     NVMe     QLC  2026-03-03 23:57:18 PST
+ 32 42:9    normal 002538E44100E29A SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400337 3R01     NVMe     QLC  2026-03-03 23:57:18 PST
+ 33 42:10   normal 002538E14150090B SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100292 3R01     NVMe     QLC  2026-03-03 23:57:19 PST
+ 34 42:11   normal 002538E141500832 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100075 3R01     NVMe     QLC  2026-03-03 23:57:19 PST
+ 35 42:12   normal 002538E141500888 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100161 3R01     NVMe     QLC  2026-03-03 23:57:20 PST
+ 36 42:13   normal 002538E14150086A SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100131 3R01     NVMe     QLC  2026-03-03 23:57:20 PST
+ 37 42:14   normal 002538E141500821 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100058 3R01     NVMe     QLC  2026-03-03 23:57:21 PST
+ 38 42:15   normal 002538E1415008E8 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100257 3R01     NVMe     QLC  2026-03-03 23:57:21 PST
+ 39 42:16   normal 002538E141500824 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100061 3R01     NVMe     QLC  2026-03-03 23:57:22 PST
+ 40 42:17   normal 002538E1415008CF SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100232 3R01     NVMe     QLC  2026-03-03 23:57:22 PST
+ 41 42:18   normal 002538E44100E29B SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400338 3R01     NVMe     QLC  2026-03-03 23:57:23 PST
+ 42 42:19   normal 002538E1415008D9 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100242 3R01     NVMe     QLC  2026-03-03 23:57:23 PST
+ 43 42:20   normal 002538E44100E1ED SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400164 3R01     NVMe     QLC  2026-03-03 23:57:24 PST
+ 44 42:21   normal 002538E1415008D3 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100236 3R01     NVMe     QLC  2026-03-03 23:57:25 PST
+ 45 42:22   normal 002538E44100E27C SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400307 3R01     NVMe     QLC  2026-03-03 23:57:25 PST
+ 46 42:23   normal 002538E84100620E SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800714 3R01     NVMe     QLC  2026-03-03 23:57:26 PST
+ 47 42:24   normal 002538E8410061E9 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800702 3R01     NVMe     QLC  2026-03-03 23:57:26 PST
+ 48 43:1    normal 002538E44100E1E6 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400157 3R01     NVMe     QLC  2026-03-03 23:57:26 PST
+ 49 43:2    normal 002538E44100E1EB SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400162 3R01     NVMe     QLC  2026-03-03 23:57:27 PST
+ 50 43:3    normal 002538E44100E299 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400336 3R01     NVMe     QLC  2026-03-03 23:57:27 PST
+ 51 43:4    normal 002538E44100E1EF SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400166 3R01     NVMe     QLC  2026-03-03 23:57:28 PST
+ 52 43:5    normal 002538E1415007F1 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100010 3R01     NVMe     QLC  2026-03-03 23:57:28 PST
+ 53 43:6    normal 002538E1415008F7 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100272 3R01     NVMe     QLC  2026-03-03 23:57:29 PST
+ 54 43:7    normal 002538E141500801 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100026 3R01     NVMe     QLC  2026-03-03 23:57:29 PST
+ 55 43:8    normal 002538E1415007F4 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100013 3R01     NVMe     QLC  2026-03-03 23:57:30 PST
+ 56 43:9    normal 002538E44100E248 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400255 3R01     NVMe     QLC  2026-03-03 23:57:30 PST
+ 57 43:10   normal 002538E44100E288 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400319 3R01     NVMe     QLC  2026-03-03 23:57:31 PST
+ 58 43:11   normal 002538E1415008F2 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100267 3R01     NVMe     QLC  2026-03-03 23:57:31 PST
+ 59 43:12   normal 002538E44100E258 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400271 3R01     NVMe     QLC  2026-03-03 23:57:32 PST
+ 60 43:13   normal 002538E44100E28B SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400322 3R01     NVMe     QLC  2026-03-03 23:57:32 PST
+ 61 43:14   normal 002538E44100E2A9 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400352 3R01     NVMe     QLC  2026-03-03 23:57:33 PST
+ 62 43:15   normal 002538E44100E2A7 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400350 3R01     NVMe     QLC  2026-03-03 23:57:33 PST
+ 63 43:16   normal 002538E44100E29E SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400341 3R01     NVMe     QLC  2026-03-03 23:57:34 PST
+ 64 43:17   normal 002538E44100E289 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400320 3R01     NVMe     QLC  2026-03-03 23:57:34 PST
+ 65 43:18   normal 002538E1415008F4 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100269 3R01     NVMe     QLC  2026-03-03 23:57:35 PST
+ 66 43:19   normal 002538E44100E25E SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400277 3R01     NVMe     QLC  2026-03-03 23:57:36 PST
+ 67 43:20   normal 002538E841006261 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800742 3R01     NVMe     QLC  2026-03-03 23:57:36 PST
+ 68 43:21   normal 002538E44100E1CA SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400129 3R01     NVMe     QLC  2026-03-03 23:57:37 PST
+ 69 43:22   normal 002538E44100E1D0 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400135 3R01     NVMe     QLC  2026-03-03 23:57:37 PST
+ 70 43:23   normal 002538E44100E182 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400057 3R01     NVMe     QLC  2026-03-03 23:57:38 PST
+ 71 43:24   normal 002538E841006269 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800750 3R01     NVMe     QLC  2026-03-03 23:57:38 PST
+ 72 44:1    normal 002538E44100E270 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400295 3R01     NVMe     QLC  2026-03-03 23:57:39 PST
+ 73 44:2    normal 002538E44100E26A SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400289 3R01     NVMe     QLC  2026-03-03 23:57:39 PST
+ 74 44:3    normal 002538E84100626C SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800753 3R01     NVMe     QLC  2026-03-03 23:57:40 PST
+ 75 44:4    normal 002538E841006263 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800744 3R01     NVMe     QLC  2026-03-03 23:57:40 PST
+ 76 44:5    normal 002538E141500886 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100159 3R01     NVMe     QLC  2026-03-03 23:57:40 PST
+ 77 44:6    normal 002538E141500803 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100028 3R01     NVMe     QLC  2026-03-03 23:57:41 PST
+ 78 44:7    normal 002538E141500871 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100138 3R01     NVMe     QLC  2026-03-03 23:57:41 PST
+ 79 44:8    normal 002538E14150084A SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100099 3R01     NVMe     QLC  2026-03-03 23:57:42 PST
+ 80 44:9    normal 002538E14150086D SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100134 3R01     NVMe     QLC  2026-03-03 23:57:42 PST
+ 81 44:10   normal 002538E141500848 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100097 3R01     NVMe     QLC  2026-03-03 23:57:43 PST
+ 82 44:11   normal 002538E14150080C SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100037 3R01     NVMe     QLC  2026-03-03 23:57:43 PST
+ 83 44:12   normal 002538E14150080F SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100040 3R01     NVMe     QLC  2026-03-03 23:57:44 PST
+ 84 44:13   normal 002538E1415007FE SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100023 3R01     NVMe     QLC  2026-03-03 23:57:44 PST
+ 85 44:14   normal 002538E14150086B SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100132 3R01     NVMe     QLC  2026-03-03 23:57:44 PST
+ 86 44:15   normal 002538E14150086C SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100133 3R01     NVMe     QLC  2026-03-03 23:57:45 PST
+ 87 44:16   normal 002538E141500841 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100090 3R01     NVMe     QLC  2026-03-03 23:57:45 PST
+ 88 44:17   normal 002538E44100E253 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400266 3R01     NVMe     QLC  2026-03-03 23:57:46 PST
+ 89 44:18   normal 002538E44100E24D SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400260 3R01     NVMe     QLC  2026-03-03 23:57:47 PST
+ 90 44:19   normal 002538E44100E287 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400318 3R01     NVMe     QLC  2026-03-03 23:57:47 PST
+ 91 44:20   normal 002538E44100E254 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400267 3R01     NVMe     QLC  2026-03-03 23:57:48 PST
+ 92 44:21   normal 002538E44100E2A3 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400346 3R01     NVMe     QLC  2026-03-03 23:57:48 PST
+ 93 44:22   normal 002538E44100E259 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400272 3R01     NVMe     QLC  2026-03-03 23:57:49 PST
+ 94 44:23   normal 002538E44100E285 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400316 3R01     NVMe     QLC  2026-03-03 23:57:49 PST
+ 95 44:24   normal 002538E44100E2A1 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400344 3R01     NVMe     QLC  2026-03-03 23:57:50 PST
+ 96 45:1    normal 002538E141500904 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100285 3R01     NVMe     QLC  2026-03-03 23:57:50 PST
+ 97 45:2    normal 002538E141500902 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100283 3R01     NVMe     QLC  2026-03-03 23:57:51 PST
+ 98 45:3    normal 002538E141500903 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100284 3R01     NVMe     QLC  2026-03-03 23:57:51 PST
+ 99 45:4    normal 002538E141500901 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100282 3R01     NVMe     QLC  2026-03-03 23:57:52 PST
+100 45:5    normal 002538E14150083D SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100086 3R01     NVMe     QLC  2026-03-03 23:57:52 PST
+101 45:6    normal 002538E141500826 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100063 3R01     NVMe     QLC  2026-03-03 23:57:52 PST
+102 45:7    normal 002538E141500892 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100171 3R01     NVMe     QLC  2026-03-03 23:57:53 PST
+103 45:8    normal 002538E141500807 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100032 3R01     NVMe     QLC  2026-03-03 23:57:53 PST
+104 45:9    normal 002538E44100E1D3 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400138 3R01     NVMe     QLC  2026-03-03 23:57:54 PST
+105 45:10   normal 002538E84100620F SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800715 3R01     NVMe     QLC  2026-03-03 23:57:54 PST
+106 45:11   normal 002538E841006271 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800758 3R01     NVMe     QLC  2026-03-03 23:57:55 PST
+107 45:12   normal 002538E841006268 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800749 3R01     NVMe     QLC  2026-03-03 23:57:55 PST
+108 45:13   normal 002538E84100624A SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800734 3R01     NVMe     QLC  2026-03-03 23:57:56 PST
+109 45:14   normal 002538E44100E25F SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400278 3R01     NVMe     QLC  2026-03-03 23:57:56 PST
+110 45:15   normal 002538E44100E265 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400284 3R01     NVMe     QLC  2026-03-03 23:57:57 PST
+111 45:16   normal 002538E141500831 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100074 3R01     NVMe     QLC  2026-03-03 23:57:58 PST
+112 45:17   normal 002538E44100E267 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400286 3R01     NVMe     QLC  2026-03-03 23:57:58 PST
+113 45:18   normal 002538E44100E26B SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400290 3R01     NVMe     QLC  2026-03-03 23:57:59 PST
+114 45:19   normal 002538E44100E170 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400039 3R01     NVMe     QLC  2026-03-03 23:57:59 PST
+115 45:20   normal 002538E44100E181 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400056 3R01     NVMe     QLC  2026-03-03 23:57:59 PST
+116 45:21   normal 002538E44100E275 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400300 3R01     NVMe     QLC  2026-03-03 23:58:00 PST
+117 45:22   normal 002538E44100E1EC SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400163 3R01     NVMe     QLC  2026-03-03 23:58:00 PST
+118 45:23   normal 002538E44100E2A0 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400343 3R01     NVMe     QLC  2026-03-03 23:58:01 PST
+119 45:24   normal 002538E44100E28A SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400321 3R01     NVMe     QLC  2026-03-03 23:58:01 PST
+120 46:1    normal 002538E44100E2A4 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400347 3R01     NVMe     QLC  2026-03-03 23:58:02 PST
+121 46:2    normal 002538E44100E249 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400256 3R01     NVMe     QLC  2026-03-03 23:58:02 PST
+122 46:3    normal 002538E44100E251 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400264 3R01     NVMe     QLC  2026-03-03 23:58:03 PST
+123 46:4    normal 002538E84100626F SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800756 3R01     NVMe     QLC  2026-03-03 23:58:03 PST
+124 46:5    normal 002538E44100E264 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400283 3R01     NVMe     QLC  2026-03-03 23:58:04 PST
+125 46:6    normal 002538E44100E284 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400315 3R01     NVMe     QLC  2026-03-03 23:58:04 PST
+126 46:7    normal 002538E44100E25C SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400275 3R01     NVMe     QLC  2026-03-03 23:58:05 PST
+127 46:8    normal 002538E44100E266 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400285 3R01     NVMe     QLC  2026-03-03 23:58:05 PST
+128 46:9    normal 002538E44100E24C SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400259 3R01     NVMe     QLC  2026-03-03 23:58:06 PST
+129 46:10   normal 002538E44100E2A5 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400348 3R01     NVMe     QLC  2026-03-03 23:58:06 PST
+130 46:11   normal 002538E44100E2A6 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400349 3R01     NVMe     QLC  2026-03-03 23:58:07 PST
+131 46:12   normal 002538E44100E2A8 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400351 3R01     NVMe     QLC  2026-03-03 23:58:07 PST
+132 46:13   normal 002538E44100E1D6 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400141 3R01     NVMe     QLC  2026-03-03 23:58:08 PST
+133 46:14   normal 002538E44100E1D5 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400140 3R01     NVMe     QLC  2026-03-03 23:58:09 PST
+134 46:15   normal 002538E44100E17C SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400051 3R01     NVMe     QLC  2026-03-03 23:58:09 PST
+135 46:16   normal 002538E44100E1D7 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400142 3R01     NVMe     QLC  2026-03-03 23:58:10 PST
+136 46:17   normal 002538E44100E24E SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400261 3R01     NVMe     QLC  2026-03-03 23:58:10 PST
+137 46:18   normal 002538E44100E28E SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400325 3R01     NVMe     QLC  2026-03-03 23:58:11 PST
+138 46:19   normal 002538E1415008D4 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100237 3R01     NVMe     QLC  2026-03-03 23:58:11 PST
+139 46:20   normal 002538E14150088C SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100165 3R01     NVMe     QLC  2026-03-03 23:58:12 PST
+140 46:21   normal 002538E44100E291 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400328 3R01     NVMe     QLC  2026-03-03 23:58:12 PST
+141 46:22   normal 002538E44100E28C SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400323 3R01     NVMe     QLC  2026-03-03 23:58:13 PST
+142 46:23   normal 002538E44100E28D SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400324 3R01     NVMe     QLC  2026-03-03 23:58:14 PST
+143 46:24   normal 002538E44100E292 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400329 3R01     NVMe     QLC  2026-03-03 23:58:14 PST
+144 47:1    normal 002538E44100E24B SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400258 3R01     NVMe     QLC  2026-03-03 23:58:14 PST
+145 47:2    normal 002538E84100624C SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800736 3R01     NVMe     QLC  2026-03-03 23:58:15 PST
+146 47:3    normal 002538E44100E1B2 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400105 3R01     NVMe     QLC  2026-03-03 23:58:15 PST
+147 47:4    normal 002538E44100E24A SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400257 3R01     NVMe     QLC  2026-03-03 23:58:16 PST
+148 47:5    normal 002538E141500868 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100129 3R01     NVMe     QLC  2026-03-03 23:58:16 PST
+149 47:6    normal 002538E14150081B SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100052 3R01     NVMe     QLC  2026-03-03 23:58:17 PST
+150 47:7    normal 002538E44100E1B8 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400111 R001     NVMe     QLC  2026-03-03 23:58:17 PST
+151 47:8    normal 002538E141500820 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100057 3R01     NVMe     QLC  2026-03-03 23:58:18 PST
+152 47:9    normal 002538E1415007FF SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100024 3R01     NVMe     QLC  2026-03-03 23:58:18 PST
+153 47:10   normal 002538E1415007EC SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100005 3R01     NVMe     QLC  2026-03-03 23:58:19 PST
+154 47:11   normal 002538E44100F56B SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400429 3R01     NVMe     QLC  2026-03-03 23:58:20 PST
+155 47:12   normal 002538E14150084D SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100102 3R01     NVMe     QLC  2026-03-03 23:58:20 PST
+156 49:1    normal 002538E44100E192 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400073 R001     NVMe     QLC  2026-03-03 23:58:22 PST
+157 49:2    normal 002538E44100E26E SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400293 3R01     NVMe     QLC  2026-03-03 23:58:23 PST
+158 49:3    normal 002538E44100E271 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400296 3R01     NVMe     QLC  2026-03-03 23:58:23 PST
+159 49:4    normal 002538E44100E274 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400299 3R01     NVMe     QLC  2026-03-03 23:58:24 PST
+160 49:5    normal 002538E44100E27B SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400306 3R01     NVMe     QLC  2026-03-03 23:58:24 PST
+161 49:6    normal 002538E44100E29C SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400339 3R01     NVMe     QLC  2026-03-03 23:58:24 PST
+162 49:7    normal 002538E44100E29F SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400342 3R01     NVMe     QLC  2026-03-03 23:58:25 PST
+163 49:8    normal 002538E14150093F SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100320 3R01     NVMe     QLC  2026-03-03 23:58:25 PST
+164 49:9    normal 002538E141500850 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100105 3R01     NVMe     QLC  2026-03-03 23:58:26 PST
+165 49:10   normal 002538E141500800 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100025 3R01     NVMe     QLC  2026-03-03 23:58:26 PST
+166 49:11   normal 002538E141500897 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100176 3R01     NVMe     QLC  2026-03-03 23:58:27 PST
+167 49:12   normal 002538E14150084B SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100100 3R01     NVMe     QLC  2026-03-03 23:58:27 PST
+168 50:1    normal 002538E44100E283 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400314 3R01     NVMe     QLC  2026-03-03 23:58:28 PST
+169 50:2    normal 002538E44100E280 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400311 3R01     NVMe     QLC  2026-03-03 23:58:28 PST
+170 50:3    normal 002538E1415008D7 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100240 3R01     NVMe     QLC  2026-03-03 23:58:29 PST
+171 50:4    normal 002538E44100E25D SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400276 3R01     NVMe     QLC  2026-03-03 23:58:29 PST
+172 50:5    normal 002538E44100E262 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400281 3R01     NVMe     QLC  2026-03-03 23:58:30 PST
+173 50:6    normal 002538E44100E25A SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400273 3R01     NVMe     QLC  2026-03-03 23:58:31 PST
+174 50:7    normal 002538E44100E27F SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400310 3R01     NVMe     QLC  2026-03-03 23:58:31 PST
+175 50:8    normal 002538E44100E1EE SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400165 3R01     NVMe     QLC  2026-03-03 23:58:32 PST
+176 50:9    normal 002538E84100626D SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800754 3R01     NVMe     QLC  2026-03-03 23:58:32 PST
+177 50:10   normal 002538E841006267 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800748 3R01     NVMe     QLC  2026-03-03 23:58:33 PST
+178 50:11   normal 002538E44100E297 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400334 3R01     NVMe     QLC  2026-03-03 23:58:33 PST
+179 50:12   normal 002538E44100E294 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400331 3R01     NVMe     QLC  2026-03-03 23:58:34 PST
+180 48:3    normal 002538E44100E295 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400332 3R01     NVMe     QLC  2026-03-04 01:21:13 PST
+181 48:4    normal 002538E44100E1F0 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400167 3R01     NVMe     QLC  2026-03-04 01:21:13 PST
+182 48:5    normal 002538E44100E2A2 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400345 3R01     NVMe     QLC  2026-03-04 01:21:14 PST
+183 48:6    normal 002538E44100E29D SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400340 3R01     NVMe     QLC  2026-03-04 01:21:14 PST
+184 48:7    normal 002538E141500835 SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100078 3R01     NVMe     QLC  2026-03-04 01:21:15 PST
+185 48:8    normal 002538E1415007EA SAMSUNG AELN30T7P5xnEQRI S7PNNG0X100003 3R01     NVMe     QLC  2026-03-04 01:21:15 PST
+186 48:9    normal 002538E84100624D SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800737 3R01     NVMe     QLC  2026-03-04 01:21:16 PST
+187 48:10   normal 002538E841006270 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X800757 3R01     NVMe     QLC  2026-03-04 01:21:16 PST
+188 48:11   normal 002538E44100E296 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400333 3R01     NVMe     QLC  2026-03-04 01:21:17 PST
+189 48:12   normal 002538E44100E298 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400335 3R01     NVMe     QLC  2026-03-04 01:21:17 PST
+190 48:1    normal 002538E44100E272 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400297 3R01     NVMe     QLC  2026-03-04 01:35:35 PST
+191 48:2    normal 002538E44100E1D2 SAMSUNG AELN30T7P5xnEQRI S7PNNE0X400137 3R01     NVMe     QLC  2026-03-04 01:35:55 PST
+--------------------------------------------------------------------------------------------------------------------------
+192 total
++ lscpu
+Architecture:                x86_64
+  CPU op-mode(s):            32-bit, 64-bit
+  Address sizes:             43 bits physical, 48 bits virtual
+  Byte Order:                Little Endian
+CPU(s):                      64
+  On-line CPU(s) list:       0-63
+Vendor ID:                   AuthenticAMD
+  BIOS Vendor ID:            Advanced Micro Devices, Inc.
+  Model name:                AMD EPYC 7543P 32-Core Processor
+    BIOS Model name:         AMD EPYC 7543P 32-Core Processor                 CPU @ 2.8GHz
+    BIOS CPU family:         107
+    CPU family:              25
+    Model:                   1
+    Thread(s) per core:      2
+    Core(s) per socket:      32
+    Socket(s):               1
+    Stepping:                1
+    BogoMIPS:                5589.37
+    Flags:                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall
+                              nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology nonstop_tsc cpuid extd_apicid ape
+                             rfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c
+                             rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce
+                              topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpb cat_l3 cdp_l3 hw_pstate ssbd mba ibrs ibpb sti
+                             bp vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a rdseed adx smap clflushopt clwb sha_ni xsaveo
+                             pt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local clzero irperf xsaveerptr rdpru wb
+                             noinvd amd_ppin brs arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefil
+                             ter pfthreshold v_vmsave_vmload vgif v_spec_ctrl umip pku ospke vaes vpclmulqdq rdpid overflow_recov succor
+                             smca fsrm sev sev_es sev_snp debug_swap
+Virtualization features:
+  Virtualization:            AMD-V
+Caches (sum of all):
+  L1d:                       1 MiB (32 instances)
+  L1i:                       1 MiB (32 instances)
+  L2:                        16 MiB (32 instances)
+  L3:                        256 MiB (8 instances)
+NUMA:
+  NUMA node(s):              1
+  NUMA node0 CPU(s):         0-63
+Vulnerabilities:
+  Gather data sampling:      Not affected
+  Indirect target selection: Not affected
+  Itlb multihit:             Not affected
+  L1tf:                      Not affected
+  Mds:                       Not affected
+  Meltdown:                  Not affected
+  Mmio stale data:           Not affected
+  Reg file data sampling:    Not affected
+  Retbleed:                  Not affected
+  Spec rstack overflow:      Mitigation; Safe RET
+  Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl
+  Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization
+  Spectre v2:                Mitigation; Retpolines; IBPB conditional; IBRS_FW; STIBP always-on; RSB filling; PBRSB-eIBRS Not affected; B
+                             HI Not affected - vulnerable module loaded
+  Srbds:                     Not affected
+  Tsx async abort:           Not affected
+root@4UW0004634-3 Thu Mar 12 03:54:00:~#
+
+$ ls -l proxy.py s4634.txt
+-rw-r--r-- 1 KSusanta eng 64519 Mar 11 04:02 s4634.txt
+-rw-r--r-- 1 KSusanta eng   807 Mar 11 04:05 proxy.py
+$
+$ cat proxy.py
+#!/usr/bin/env python3
+import sys
+
+def get_command_data(filename, command_name):
+    commands = {}
+    current_cmd = None
+
+    with open(filename, "r") as f:
+        for line in f:
+            line = line.rstrip()
+
+            # Detect command start
+            if line.startswith("+"):
+                current_cmd = line[1:].strip()
+                commands[current_cmd] = []
+            else:
+                if current_cmd:
+                    commands[current_cmd].append(line)
+
+    if command_name in commands:
+        return "\n".join(commands[command_name])
+    else:
+        return "Command not found"
+
+
+if len(sys.argv) != 3:
+    print(f"Usage: {sys.argv[0]} <datafile> <command>")
+    sys.exit(1)
+
+file_name = sys.argv[1]
+cmd = sys.argv[2]
+
+result = get_command_data(file_name, cmd)
+print(result)
+
+$ vi proxy.py
+$ ls -l proxy.py s4634.txt
+-rw-r--r-- 1 KSusanta eng 64519 Mar 11 04:02 s4634.txt
+-rw-r--r-- 1 KSusanta eng   869 Mar 11 04:05 proxy.py
+$ 
+$ python3 proxy.py
+Usage: proxy.py <datafile> <command>
+$ python3 proxy.py s4634.txt showsys
+                                                                     ------------------(MiB)------------------
+     ID -Name- ------------Model------------ --Serial-- Nodes Master TotalCap    AllocCap    FreeCap FailedCap
+0x7F065 s4634  HPE Alletra Storage MP B10240 4UW0004634     4      0 5624758272 328458240 5263330304         0
+$ 
+$ python3 proxy.py s4634.txt showversion -b
+Usage: proxy.py <datafile> <command>
+$ python3 proxy.py s4634.txt "showversion -b"
+Release version 10.6.0.40
+Release Type: Standard Support Release
+
+Component Name                   Version
+CLI Server                       10.6.0.40
+CLI Client                       10.6.0.40
+System Manager                   10.6.0.40
+Kernel                           10.6.0.38
+IO Stack                         10.6.0.40
+Drive Firmware                   10.6.0.40
+Enclosure Firmware               10.6.0.40
+Switch Firmware                  10.15.1010
+Upgrade Tool                     643 (250602-10.6.0)
+$
+$ 
+$
+$ python3 proxy.py s4634.txt showsys
+                                                                     ------------------(MiB)------------------
+     ID -Name- ------------Model------------ --Serial-- Nodes Master TotalCap    AllocCap    FreeCap FailedCap
+0x7F065 s4634  HPE Alletra Storage MP B10240 4UW0004634     4      0 5624758272 328458240 5263330304         0
+$
+$ alias s4634="python3 proxy.py s4634.txt"
+$ s4634 showsys
+                                                                     ------------------(MiB)------------------
+     ID -Name- ------------Model------------ --Serial-- Nodes Master TotalCap    AllocCap    FreeCap FailedCap
+0x7F065 s4634  HPE Alletra Storage MP B10240 4UW0004634     4      0 5624758272 328458240 5263330304         0
+$ s4634 showspd
+Command not found
+$ 
+$ s4634 showpd
+                            ------Size(MiB)------
+ Id CagePos Type RPM State       Total       Free Capacity(GB)
+  0 41:1    QLC  N/A normal   29295616   27600896        30720
+  1 41:2    QLC  N/A normal   29295616   27601920        30720
+  2 41:3    QLC  N/A normal   29295616   27601920        30720
+  3 41:4    QLC  N/A normal   29295616   27601920        30720
+  4 41:5    QLC  N/A normal   29295616   27601920        30720
+  5 41:6    QLC  N/A normal   29295616   27601920        30720
+  6 41:7    QLC  N/A normal   29295616   27601920        30720
+  7 41:8    QLC  N/A normal   29295616   27603968        30720
+  8 41:9    QLC  N/A normal   29295616   27601920        30720
+  9 41:10   QLC  N/A normal   29295616   27601920        30720
+ 10 41:11   QLC  N/A normal   29295616   27603968        30720
+ 11 41:12   QLC  N/A normal   29295616   27604992        30720
+ 12 41:13   QLC  N/A normal   29295616   27606016        30720
+ 13 41:14   QLC  N/A normal   29295616   27604992        30720
+ 14 41:15   QLC  N/A normal   29295616   27604992        30720
+ 15 41:16   QLC  N/A normal   29295616   27602944        30720
+ 16 41:17   QLC  N/A normal   29295616   27606016        30720
+ 17 41:18   QLC  N/A normal   29295616   27601920        30720
+ 18 41:19   QLC  N/A normal   29295616   27601920        30720
+ 19 41:20   QLC  N/A normal   29295616   27602944        30720
+ 20 41:21   QLC  N/A normal   29295616   27606016        30720
+ 21 41:22   QLC  N/A normal   29295616   27601920        30720
+ 22 41:23   QLC  N/A normal   29295616   27601920        30720
+ 23 41:24   QLC  N/A normal   29295616   27602944        30720
+ 24 42:1    QLC  N/A normal   29295616   27601920        30720
+ 25 42:2    QLC  N/A normal   29295616   27601920        30720
+ 26 42:3    QLC  N/A normal   29295616   27601920        30720
+ 27 42:4    QLC  N/A normal   29295616   27601920        30720
+ 28 42:5    QLC  N/A normal   29295616   27601920        30720
+ 29 42:6    QLC  N/A normal   29295616   27604992        30720
+ 30 42:7    QLC  N/A normal   29295616   27601920        30720
+ 31 42:8    QLC  N/A normal   29295616   27601920        30720
+ 32 42:9    QLC  N/A normal   29295616   27601920        30720
+ 33 42:10   QLC  N/A normal   29295616   27601920        30720
+ 34 42:11   QLC  N/A normal   29295616   27606016        30720
+ 35 42:12   QLC  N/A normal   29295616   27603968        30720
+ 36 42:13   QLC  N/A normal   29295616   27606016        30720
+ 37 42:14   QLC  N/A normal   29295616   27603968        30720
+ 38 42:15   QLC  N/A normal   29295616   27604992        30720
+ 39 42:16   QLC  N/A normal   29295616   27603968        30720
+ 40 42:17   QLC  N/A normal   29295616   27604992        30720
+ 41 42:18   QLC  N/A normal   29295616   27604992        30720
+ 42 42:19   QLC  N/A normal   29295616   27601920        30720
+ 43 42:20   QLC  N/A normal   29295616   27606016        30720
+ 44 42:21   QLC  N/A normal   29295616   27604992        30720
+ 45 42:22   QLC  N/A normal   29295616   27602944        30720
+ 46 42:23   QLC  N/A normal   29295616   27601920        30720
+ 47 42:24   QLC  N/A normal   29295616   27603968        30720
+ 48 43:1    QLC  N/A normal   29295616   27601920        30720
+ 49 43:2    QLC  N/A normal   29295616   27601920        30720
+ 50 43:3    QLC  N/A normal   29295616   27601920        30720
+ 51 43:4    QLC  N/A normal   29295616   27601920        30720
+ 52 43:5    QLC  N/A normal   29295616   27601920        30720
+ 53 43:6    QLC  N/A normal   29295616   27604992        30720
+ 54 43:7    QLC  N/A normal   29295616   27604992        30720
+ 55 43:8    QLC  N/A normal   29295616   27606016        30720
+ 56 43:9    QLC  N/A normal   29295616   27601920        30720
+ 57 43:10   QLC  N/A normal   29295616   27606016        30720
+ 58 43:11   QLC  N/A normal   29295616   27604992        30720
+ 59 43:12   QLC  N/A normal   29295616   27606016        30720
+ 60 43:13   QLC  N/A normal   29295616   27604992        30720
+ 61 43:14   QLC  N/A normal   29295616   27604992        30720
+ 62 43:15   QLC  N/A normal   29295616   27606016        30720
+ 63 43:16   QLC  N/A normal   29295616   27604992        30720
+ 64 43:17   QLC  N/A normal   29295616   27606016        30720
+ 65 43:18   QLC  N/A normal   29295616   27604992        30720
+ 66 43:19   QLC  N/A normal   29295616   27602944        30720
+ 67 43:20   QLC  N/A normal   29295616   27604992        30720
+ 68 43:21   QLC  N/A normal   29295616   27604992        30720
+ 69 43:22   QLC  N/A normal   29295616   27601920        30720
+ 70 43:23   QLC  N/A normal   29295616   27603968        30720
+ 71 43:24   QLC  N/A normal   29295616   27604992        30720
+ 72 44:1    QLC  N/A normal   29295616   27601920        30720
+ 73 44:2    QLC  N/A normal   29295616   27601920        30720
+ 74 44:3    QLC  N/A normal   29295616   27601920        30720
+ 75 44:4    QLC  N/A normal   29295616   27601920        30720
+ 76 44:5    QLC  N/A normal   29295616   27604992        30720
+ 77 44:6    QLC  N/A normal   29295616   27606016        30720
+ 78 44:7    QLC  N/A normal   29295616   27604992        30720
+ 79 44:8    QLC  N/A normal   29295616   27604992        30720
+ 80 44:9    QLC  N/A normal   29295616   27601920        30720
+ 81 44:10   QLC  N/A normal   29295616   27604992        30720
+ 82 44:11   QLC  N/A normal   29295616   27604992        30720
+ 83 44:12   QLC  N/A normal   29295616   27602944        30720
+ 84 44:13   QLC  N/A normal   29295616   27606016        30720
+ 85 44:14   QLC  N/A normal   29295616   27601920        30720
+ 86 44:15   QLC  N/A normal   29295616   27603968        30720
+ 87 44:16   QLC  N/A normal   29295616   27606016        30720
+ 88 44:17   QLC  N/A normal   29295616   27604992        30720
+ 89 44:18   QLC  N/A normal   29295616   27606016        30720
+ 90 44:19   QLC  N/A normal   29295616   27604992        30720
+ 91 44:20   QLC  N/A normal   29295616   27604992        30720
+ 92 44:21   QLC  N/A normal   29295616   27604992        30720
+ 93 44:22   QLC  N/A normal   29295616   27606016        30720
+ 94 44:23   QLC  N/A normal   29295616   27603968        30720
+ 95 44:24   QLC  N/A normal   29295616   27604992        30720
+ 96 45:1    QLC  N/A normal   29295616   27601920        30720
+ 97 45:2    QLC  N/A normal   29295616   27601920        30720
+ 98 45:3    QLC  N/A normal   29295616   27601920        30720
+ 99 45:4    QLC  N/A normal   29295616   27606016        30720
+100 45:5    QLC  N/A normal   29295616   27604992        30720
+101 45:6    QLC  N/A normal   29295616   27606016        30720
+102 45:7    QLC  N/A normal   29295616   27604992        30720
+103 45:8    QLC  N/A normal   29295616   27604992        30720
+104 45:9    QLC  N/A normal   29295616   27604992        30720
+105 45:10   QLC  N/A normal   29295616   27604992        30720
+106 45:11   QLC  N/A normal   29295616   27601920        30720
+107 45:12   QLC  N/A normal   29295616   27603968        30720
+108 45:13   QLC  N/A normal   29295616   27606016        30720
+109 45:14   QLC  N/A normal   29295616   27601920        30720
+110 45:15   QLC  N/A normal   29295616   27601920        30720
+111 45:16   QLC  N/A normal   29295616   27606016        30720
+112 45:17   QLC  N/A normal   29295616   27606016        30720
+113 45:18   QLC  N/A normal   29295616   27606016        30720
+114 45:19   QLC  N/A normal   29295616   27606016        30720
+115 45:20   QLC  N/A normal   29295616   27606016        30720
+116 45:21   QLC  N/A normal   29295616   27606016        30720
+117 45:22   QLC  N/A normal   29295616   27604992        30720
+118 45:23   QLC  N/A normal   29295616   27603968        30720
+119 45:24   QLC  N/A normal   29295616   27606016        30720
+120 46:1    QLC  N/A normal   29295616   27601920        30720
+121 46:2    QLC  N/A normal   29295616   27602944        30720
+122 46:3    QLC  N/A normal   29295616   27601920        30720
+123 46:4    QLC  N/A normal   29295616   27601920        30720
+124 46:5    QLC  N/A normal   29295616   27606016        30720
+125 46:6    QLC  N/A normal   29295616   27604992        30720
+126 46:7    QLC  N/A normal   29295616   27604992        30720
+127 46:8    QLC  N/A normal   29295616   27606016        30720
+128 46:9    QLC  N/A normal   29295616   27606016        30720
+129 46:10   QLC  N/A normal   29295616   27606016        30720
+130 46:11   QLC  N/A normal   29295616   27606016        30720
+131 46:12   QLC  N/A normal   29295616   27606016        30720
+132 46:13   QLC  N/A normal   29295616   27604992        30720
+133 46:14   QLC  N/A normal   29295616   27606016        30720
+134 46:15   QLC  N/A normal   29295616   27604992        30720
+135 46:16   QLC  N/A normal   29295616   27606016        30720
+136 46:17   QLC  N/A normal   29295616   27601920        30720
+137 46:18   QLC  N/A normal   29295616   27606016        30720
+138 46:19   QLC  N/A normal   29295616   27606016        30720
+139 46:20   QLC  N/A normal   29295616   27606016        30720
+140 46:21   QLC  N/A normal   29295616   27606016        30720
+141 46:22   QLC  N/A normal   29295616   27606016        30720
+142 46:23   QLC  N/A normal   29295616   27606016        30720
+143 46:24   QLC  N/A normal   29295616   27602944        30720
+144 47:1    QLC  N/A normal   29295616   26839040        30720
+145 47:2    QLC  N/A normal   29295616   26840064        30720
+146 47:3    QLC  N/A normal   29295616   26841088        30720
+147 47:4    QLC  N/A normal   29295616   26840064        30720
+148 47:5    QLC  N/A normal   29295616   26839040        30720
+149 47:6    QLC  N/A normal   29295616   26839040        30720
+150 47:7    QLC  N/A normal   29295616   26840064        30720
+151 47:8    QLC  N/A normal   29295616   26839040        30720
+152 47:9    QLC  N/A normal   29295616   26839040        30720
+153 47:10   QLC  N/A normal   29295616   26841088        30720
+154 47:11   QLC  N/A normal   29295616   26842112        30720
+155 47:12   QLC  N/A normal   29295616   26839040        30720
+156 49:1    QLC  N/A normal   29295616   26839040        30720
+157 49:2    QLC  N/A normal   29295616   26840064        30720
+158 49:3    QLC  N/A normal   29295616   26840064        30720
+159 49:4    QLC  N/A normal   29295616   26841088        30720
+160 49:5    QLC  N/A normal   29295616   26839040        30720
+161 49:6    QLC  N/A normal   29295616   26839040        30720
+162 49:7    QLC  N/A normal   29295616   26839040        30720
+163 49:8    QLC  N/A normal   29295616   26839040        30720
+164 49:9    QLC  N/A normal   29295616   26839040        30720
+165 49:10   QLC  N/A normal   29295616   26841088        30720
+166 49:11   QLC  N/A normal   29295616   26842112        30720
+167 49:12   QLC  N/A normal   29295616   26839040        30720
+168 50:1    QLC  N/A normal   29295616   26839040        30720
+169 50:2    QLC  N/A normal   29295616   26841088        30720
+170 50:3    QLC  N/A normal   29295616   26840064        30720
+171 50:4    QLC  N/A normal   29295616   26841088        30720
+172 50:5    QLC  N/A normal   29295616   26840064        30720
+173 50:6    QLC  N/A normal   29295616   26839040        30720
+174 50:7    QLC  N/A normal   29295616   26842112        30720
+175 50:8    QLC  N/A normal   29295616   26839040        30720
+176 50:9    QLC  N/A normal   29295616   26842112        30720
+177 50:10   QLC  N/A normal   29295616   26839040        30720
+178 50:11   QLC  N/A normal   29295616   26839040        30720
+179 50:12   QLC  N/A normal   29295616   26839040        30720
+180 48:3    QLC  N/A normal   29295616   26844160        30720
+181 48:4    QLC  N/A normal   29295616   26839040        30720
+182 48:5    QLC  N/A normal   29295616   26843136        30720
+183 48:6    QLC  N/A normal   29295616   26840064        30720
+184 48:7    QLC  N/A normal   29295616   26843136        30720
+185 48:8    QLC  N/A normal   29295616   26839040        30720
+186 48:9    QLC  N/A normal   29295616   26842112        30720
+187 48:10   QLC  N/A normal   29295616   26841088        30720
+188 48:11   QLC  N/A normal   29295616   26843136        30720
+189 48:12   QLC  N/A normal   29295616   26843136        30720
+190 48:1    QLC  N/A normal   29295616   26844160        30720
+191 48:2    QLC  N/A normal   29295616   26844160        30720
+--------------------------------------------------------------
+192 total                   5624758272 5263330304
+$
+$ s4634 "showcage -pci"
+ Cage IOM Slot -Type-- Manufacturer --Model--- ----Serial----- -Rev- Firmware
+    1   1    1 Eth     Mellanox     CX6-DP-DX  MT2324T00530    n/a   22.36.1010
+    1   1    2 Eth     Mellanox     CX6-DP-DX  MT2324T0053J    n/a   22.36.1010
+    1   1    3 FC      HPE          HPE64004-B MYT346TXSF      10    14.2.807.6
+    1   1    4 Eth     Intel        E810-CSFP  40A6B78A9A30    n/a   4.5
+    1   2    1 Eth     Mellanox     CX6-DP-DX  MT2324T0052E    n/a   22.36.1010
+    1   2    2 Eth     Mellanox     CX6-DP-DX  MT2324T00524    n/a   22.36.1010
+    1   2    3 FC      HPE          HPE64004-B MYT346TXSH      10    14.2.807.6
+    1   2    4 Eth     Intel        E810-CSFP  40A6B78A9850    n/a   4.5
+    2   1    1 Eth     Mellanox     CX6-DP-DX  MT2324T00536    n/a   22.36.1010
+    2   1    2 Eth     Mellanox     CX6-DP-DX  MT2324T0053A    n/a   22.36.1010
+    2   1    3 FC      HPE          HPE64004-B MYT346TXRW      10    14.2.807.6
+    2   1    4 Eth     Intel        E810-CSFP  40A6B78A9810    n/a   4.5
+    2   2    1 Eth     Mellanox     CX6-DP-DX  MT2324T0056E    n/a   22.36.1010
+    2   2    2 Eth     Mellanox     CX6-DP-DX  MT2324T0051U    n/a   22.36.1010
+    2   2    3 FC      HPE          HPE64004-B MYT346TXSG      10    14.2.807.6
+    2   2    4 Eth     Intel        E810-CSFP  40A6B78A9680    n/a   4.5
+   41   1    1 Unknown Mellanox     CX6-DP-DX  MT2324T0053R    n/a   22.36.1010
+   41   2    1 Unknown Mellanox     CX6-DP-DX  MT2324T00514    n/a   22.36.1010
+   42   1    1 Unknown Mellanox     CX6-DP-DX  MT2324T004TG    n/a   22.36.1010
+   42   2    1 Unknown Mellanox     CX6-DP-DX  MT2324T004UD    n/a   22.36.1010
+   43   1    1 Unknown Mellanox     CX6-DP-DX  1I0345088M      n/a   22.42.1000
+   43   2    1 Unknown Mellanox     CX6-DP-DX  1I0345088S      n/a   22.42.1000
+   44   1    1 Unknown Mellanox     CX6-DP-DX  1I0345088P      n/a   22.42.1000
+   44   2    1 Unknown Mellanox     CX6-DP-DX  1I0345089J      n/a   22.42.1000
+   45   1    1 Unknown Mellanox     CX6-DP-DX  1I03450891      n/a   22.42.1000
+   45   2    1 Unknown Mellanox     CX6-DP-DX  1I03450896      n/a   22.42.1000
+   46   1    1 Unknown Mellanox     CX6-DP-DX  1I03450899      n/a   22.42.1000
+   46   2    1 Unknown Mellanox     CX6-DP-DX  1I0345089B      n/a   22.42.1000
+   47   1    1 Unknown Mellanox     CX6-DP-DX  1I0323031K      n/a   22.42.1000
+   47   2    1 Unknown Mellanox     CX6-DP-DX  1I0323035J      n/a   22.42.1000
+   48   1    1 Unknown Mellanox     CX6-DP-DX  1I03410087      n/a   22.42.1000
+   48   2    1 Unknown Mellanox     CX6-DP-DX  1I0341008S      n/a   22.42.1000
+   49   1    1 Unknown Mellanox     CX6-DP-DX  1I035101ST      n/a   22.42.1000
+   49   2    1 Unknown Mellanox     CX6-DP-DX  1I035101T2      n/a   22.42.1000
+   50   1    1 Unknown Mellanox     CX6-DP-DX  1I0341006R      n/a   22.42.1000
+   50   2    1 Unknown Mellanox     CX6-DP-DX  1I03410064      n/a   22.42.1000
+-------------------------------------------------------------------------------
+total                                                                36
+$
+$ 
+$ s4634 showcage
+Command not found
+$ 
+$ s4634 "showcage -sfp"
+                                                                                  -(Gbps)-
+ Cage IOM SFP Label Manufacturer PartNumber       SerialNumber Revision Qualified MaxSpeed TXDisable TXFault RXLoss RXPowerLow DDM -State-
+   41   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L1317D   A0       Yes          100.0 No        No      No     No         Yes OK
+   41   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L1311T   A0       Yes          100.0 No        No      No     No         Yes OK
+   42   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L130ZY   A0       Yes          100.0 No        No      No     No         Yes OK
+   42   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L130PM   A0       Yes          100.0 No        No      No     No         Yes OK
+   43   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L130N3   A0       Yes          100.0 No        No      No     No         Yes OK
+   43   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L131VH   A0       Yes          100.0 No        No      No     No         Yes OK
+   44   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN26L1310G   A0       Yes          100.0 No        No      No     No         Yes OK
+   44   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L1302S   A0       Yes          100.0 No        No      No     No         Yes OK
+   45   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605S2   A0       Yes          100.0 No        No      No     No         Yes OK
+   45   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605VG   A0       Yes          100.0 No        No      No     No         Yes OK
+   46   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605VH   A0       Yes          100.0 No        No      No     No         Yes OK
+   46   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605XH   A0       Yes          100.0 No        No      No     No         Yes OK
+   47   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN45L6017T   A0       Yes          100.0 No        No      No     No         Yes OK
+   47   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L60607   A0       Yes          100.0 No        No      No     No         Yes OK
+   48   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN45L6015S   A0       Yes          100.0 No        No      No     No         Yes OK
+   48   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605S3   A0       Yes          100.0 No        No      No     No         Yes OK
+   49   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L60608   A0       Yes          100.0 No        No      No     No         Yes OK
+   49   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN27L131SH   A0       Yes          100.0 No        No      No     No         Yes OK
+   50   1   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605X2   A0       Yes          100.0 No        No      No     No         Yes OK
+   50   2   1 DP-1  FINISAR CORP FCBN425QE2C02-PR CN44L605L8   A0       Yes          100.0 No        No      No     No         Yes OK
+------------------------------------------------------------------------------------------------------------------------------------------
+total                                                                                                                              20
+$ 

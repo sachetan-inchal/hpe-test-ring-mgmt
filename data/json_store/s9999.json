@@ -13,10 +13,10 @@
   "failed_cap_mib": 0,
   "config_type": "switched",
   "protocols_supported": [
-    "iSCSI",
     "FC",
-    "IP",
-    "NVMe"
+    "iSCSI",
+    "NVMe",
+    "IP"
   ],
   "components": [
     {

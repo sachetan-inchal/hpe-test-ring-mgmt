@@ -17,19 +17,29 @@ NEO4J_PASS = os.environ.get("NEO4J_PASS", "hpe_san_password")
 
 class Neo4jStore:
     def __init__(self, uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASS):
+        self.uri = uri
+        self.user = user
+        self.password = password
         self._driver = None
         self._available = False
+        self._init_driver()
+
+    def _init_driver(self):
         try:
             from neo4j import GraphDatabase
-            self._driver = GraphDatabase.driver(uri, auth=(user, password))
+            if self._driver:
+                try:
+                    self._driver.close()
+                except Exception:
+                    pass
+            self._driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
             self._driver.verify_connectivity()
             self._available = True
             self._create_constraints()
-            log.info(f"[neo4j] Connected to {uri}")
-        except ImportError:
-            log.warning("[neo4j] neo4j driver not installed. Run: pip install neo4j")
+            log.info(f"[neo4j] Connected to {self.uri}")
         except Exception as e:
-            log.warning(f"[neo4j] Unavailable: {e}")
+            log.warning(f"[neo4j] Connection failed: {e}")
+            self._available = False
 
     def _run(self, cypher, **params):
         with self._driver.session() as session:

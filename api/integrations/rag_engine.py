@@ -42,9 +42,10 @@ Notes:
 
 
 class RAGEngine:
-    def __init__(self, json_store=None, neo4j_loader=None):
+    def __init__(self, json_store=None, neo4j_loader=None, ontology_traversal=None):
         self.json_store = json_store
         self.neo4j_loader = neo4j_loader
+        self.ontology_traversal = ontology_traversal
         key = (os.environ.get("GROQ_API_KEY") or "").strip()
         self.client = Groq(api_key=key) if HAS_GROQ and key else None
 
@@ -123,6 +124,18 @@ Return ONLY the category word, nothing else."""
                     summary["failed_drives"].append({"pd_id": d["pd_id"], "state": st, "model": d.get("model")})
 
             context_parts.append(json.dumps(summary, indent=2, default=str))
+
+        # Add Ontology context if available
+        if self.ontology_traversal:
+            from integrations.ontology_engine import GraphTraversal
+            if isinstance(self.ontology_traversal, GraphTraversal):
+                nodes = self.ontology_traversal.get_nodes()
+                if nodes:
+                    ontology_summary = "Ontology Static Topology:\n"
+                    for n in nodes[:50]: # Cap for context length
+                        props = n.get("properties", {})
+                        ontology_summary += f"- {n.get('label')}: {props.get('name', n.get('node_id'))} (ID: {n.get('node_id')})\n"
+                    context_parts.append(ontology_summary)
 
         context = "\n\n---\n\n".join(context_parts)
         system = f"""You are an HPE SAN infrastructure expert assistant. Answer questions using ONLY the provided data.

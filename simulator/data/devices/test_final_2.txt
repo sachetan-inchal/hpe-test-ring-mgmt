@@ -1,0 +1,154 @@
+showsys
+                                                                     ------------------(MiB)------------------
+     ID -Name- ------------Model------------ --Serial-- Nodes Master TotalCap    AllocCap    FreeCap FailedCap
+ 0x1234 test_final_2 HPE Alletra Storage MP      FAKE104091     2      0 50000000    10000000    40000000         0
+--
++ shownode
+Node ----Name---- Encl:Bay Master InCluster Mem(MiB) -------Up_Since--------
+   0 FAKE104091-0      1:1 Yes    Yes         515539 2026-03-10 01:25:24 PDT
+   1 FAKE104091-1      1:2 No    Yes         515539 2026-03-10 01:25:24 PDT
+--
++ showport
+N:S:P Mode  State ----Node_WWN---- -Port_WWN/MAC-- Type Protocol Label
+0:1:1 target ready 2FF7FAKE104091 2FF7FAKE1040910011 host FC -
+0:1:2 target ready 2FF7FAKE104091 2FF7FAKE1040910012 host FC -
+0:1:3 target ready 2FF7FAKE104091 2FF7FAKE1040910013 host FC -
+0:1:4 target ready 2FF7FAKE104091 2FF7FAKE1040910014 host FC -
+0:2:1 target ready 2FF7FAKE104091 2FF7FAKE1040910021 host FC -
+0:2:2 target ready 2FF7FAKE104091 2FF7FAKE1040910022 host FC -
+0:2:3 target ready 2FF7FAKE104091 2FF7FAKE1040910023 host FC -
+0:2:4 target ready 2FF7FAKE104091 2FF7FAKE1040910024 host FC -
+0:3:1 target ready 2FF7FAKE104091 2FF7FAKE1040910031 host FC -
+0:3:2 target ready 2FF7FAKE104091 2FF7FAKE1040910032 host FC -
+0:3:3 target ready 2FF7FAKE104091 2FF7FAKE1040910033 host FC -
+0:3:4 target ready 2FF7FAKE104091 2FF7FAKE1040910034 host FC -
+1:1:1 target ready 2FF7FAKE104091 2FF7FAKE1040910111 host FC -
+1:1:2 target ready 2FF7FAKE104091 2FF7FAKE1040910112 host FC -
+1:1:3 target ready 2FF7FAKE104091 2FF7FAKE1040910113 host FC -
+1:1:4 target ready 2FF7FAKE104091 2FF7FAKE1040910114 host FC -
+1:2:1 target ready 2FF7FAKE104091 2FF7FAKE1040910121 host FC -
+1:2:2 target ready 2FF7FAKE104091 2FF7FAKE1040910122 host FC -
+1:2:3 target ready 2FF7FAKE104091 2FF7FAKE1040910123 host FC -
+1:2:4 target ready 2FF7FAKE104091 2FF7FAKE1040910124 host FC -
+1:3:1 target ready 2FF7FAKE104091 2FF7FAKE1040910131 host FC -
+1:3:2 target ready 2FF7FAKE104091 2FF7FAKE1040910132 host FC -
+1:3:3 target ready 2FF7FAKE104091 2FF7FAKE1040910133 host FC -
+1:3:4 target ready 2FF7FAKE104091 2FF7FAKE1040910134 host FC -
+--
++ showhost
+ Id Name          Persona       -WWN/iSCSI_Name- Port
+  0 host_0      Generic-ALUA  1000000000000000 0:1:1
+  1 host_1      Generic-ALUA  1000000000000001 0:1:1
+  2 host_2      Generic-ALUA  1000000000000002 0:1:1
+  3 host_3      Generic-ALUA  1000000000000003 0:1:1
+  4 host_4      Generic-ALUA  1000000000000004 0:1:1
+  5 host_5      Generic-ALUA  1000000000000005 0:1:1
+  6 host_6      Generic-ALUA  1000000000000006 0:1:1
+  7 host_7      Generic-ALUA  1000000000000007 0:1:1
+  8 host_8      Generic-ALUA  1000000000000008 0:1:1
+  9 host_9      Generic-ALUA  1000000000000009 0:1:1
+--
++ showswitch
+Switch -----------WWN----------- State Mode -Serial- -Temp-
+sw1    1000000000000001        Online Normal SWFAKE1040911 35
+sw2    1000000000000002        Online Normal SWFAKE1040912 36
+--
++ showcage -pci
+ Id Name  -State- -Detailed_State- Drives -Temp- ---Model--- FormFactor
+  0 cage0 Normal  Normal           7     30   CAGE-MODEL-A SFF
+  1 cage1 Normal  Normal           7     30   CAGE-MODEL-A SFF
+  2 cage2 Normal  Normal           7     30   CAGE-MODEL-A SFF
+  3 cage3 Normal  Normal           7     30   CAGE-MODEL-A SFF
+--
++ showpd -showcols Id,CagePos,Type,State,Total_MiB,Free_MiB,Cap_GB -noheading
+0,0:0,SSD,normal,1000000,500000,1000
+1,1:0,SSD,normal,1000000,500000,1000
+2,2:0,SSD,normal,1000000,500000,1000
+3,3:0,SSD,normal,1000000,500000,1000
+4,0:1,SSD,normal,1000000,500000,1000
+5,1:1,SSD,normal,1000000,500000,1000
+6,2:1,SSD,normal,1000000,500000,1000
+7,3:1,SSD,normal,1000000,500000,1000
+8,0:2,SSD,normal,1000000,500000,1000
+9,1:2,SSD,normal,1000000,500000,1000
+10,2:2,SSD,normal,1000000,500000,1000
+11,3:2,SSD,normal,1000000,500000,1000
+12,0:3,SSD,normal,1000000,500000,1000
+13,1:3,SSD,normal,1000000,500000,1000
+14,2:3,SSD,normal,1000000,500000,1000
+15,3:3,SSD,normal,1000000,500000,1000
+16,0:4,SSD,normal,1000000,500000,1000
+17,1:4,SSD,normal,1000000,500000,1000
+18,2:4,SSD,normal,1000000,500000,1000
+19,3:4,SSD,normal,1000000,500000,1000
+20,0:5,SSD,normal,1000000,500000,1000
+21,1:5,SSD,normal,1000000,500000,1000
+22,2:5,SSD,normal,1000000,500000,1000
+23,3:5,SSD,normal,1000000,500000,1000
+24,0:6,SSD,normal,1000000,500000,1000
+25,1:6,SSD,normal,1000000,500000,1000
+26,2:6,SSD,normal,1000000,500000,1000
+27,3:6,SSD,normal,1000000,500000,1000
+--
++ showpd -s -showcols Id,Manufacturer,Model,Serial,FW_Rev,Protocol -noheading
+0,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-0,1.0,NVMe
+1,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-1,1.0,NVMe
+2,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-2,1.0,NVMe
+3,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-3,1.0,NVMe
+4,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-4,1.0,NVMe
+5,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-5,1.0,NVMe
+6,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-6,1.0,NVMe
+7,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-7,1.0,NVMe
+8,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-8,1.0,NVMe
+9,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-9,1.0,NVMe
+10,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-10,1.0,NVMe
+11,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-11,1.0,NVMe
+12,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-12,1.0,NVMe
+13,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-13,1.0,NVMe
+14,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-14,1.0,NVMe
+15,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-15,1.0,NVMe
+16,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-16,1.0,NVMe
+17,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-17,1.0,NVMe
+18,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-18,1.0,NVMe
+19,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-19,1.0,NVMe
+20,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-20,1.0,NVMe
+21,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-21,1.0,NVMe
+22,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-22,1.0,NVMe
+23,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-23,1.0,NVMe
+24,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-24,1.0,NVMe
+25,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-25,1.0,NVMe
+26,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-26,1.0,NVMe
+27,FAKE-MFG,FAKE-MODEL,FAKE-DRIVE-27,1.0,NVMe
+--
++ showpd -i -showcols Id,SedState -noheading
+0,fips_capable
+1,fips_capable
+2,fips_capable
+3,fips_capable
+4,fips_capable
+5,fips_capable
+6,fips_capable
+7,fips_capable
+8,fips_capable
+9,fips_capable
+10,fips_capable
+11,fips_capable
+12,fips_capable
+13,fips_capable
+14,fips_capable
+15,fips_capable
+16,fips_capable
+17,fips_capable
+18,fips_capable
+19,fips_capable
+20,fips_capable
+21,fips_capable
+22,fips_capable
+23,fips_capable
+24,fips_capable
+25,fips_capable
+26,fips_capable
+27,fips_capable
+--
++ showversion -b
+Release version 10.9.0.0

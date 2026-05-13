@@ -25,7 +25,6 @@ COPY api ./api
 COPY discovery ./discovery
 COPY simulator ./simulator
 COPY data ./data
-COPY dashboard/dist ./dashboard/dist
 
 # Copy built frontend from Stage 1
 COPY --from=builder /app/dashboard/dist ./dashboard/dist

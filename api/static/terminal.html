@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HPE SAN CLI Terminal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --hpe-green: #01A982;
+            --bg-base: #0a0f0e;
+            --bg-surface: #141a19;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f2f4f5;
+            --text-muted: #90a4ae;
+            --accent: #01A982;
+            --danger: #ff5f57;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            height: 50px;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            justify-content: space-between;
+        }
+
+        .logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; color: var(--accent); }
+        .dots { display: flex; gap: 6px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .dot.red { background: #ff5f57; }
+        .dot.yellow { background: #febc2e; }
+        .dot.green { background: #28c840; }
+
+        .main-layout { display: flex; flex: 1; overflow: hidden; }
+
+        .sidebar {
+            width: 280px;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .sidebar h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 15px; }
+        
+        .device-item {
+            padding: 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .device-item:hover { border-color: var(--accent); background: rgba(1, 169, 130, 0.05); }
+        .device-ip { font-family: var(--font-mono); font-size: 12px; color: var(--accent); font-weight: 600; }
+        .device-file { font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px; }
+
+        .terminal-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #0d1111;
+        }
+
+        .terminal-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.6;
+            color: #c8d6d4;
+            white-space: pre-wrap;
+        }
+
+        .terminal-input-row {
+            padding: 12px 20px;
+            background: rgba(1, 169, 130, 0.03);
+            border-top: 1px solid rgba(1, 169, 130, 0.1);
+            display: flex;
+            align-items: center;
+        }
+
+        .prompt {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            color: var(--accent);
+            font-weight: 600;
+            margin-right: 10px;
+            white-space: nowrap;
+        }
+
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            color: #e8f0ee;
+        }
+
+        .info { color: #00cfff; }
+        .cmd { color: var(--accent); font-weight: 600; }
+        .error { color: var(--danger); }
+        .success { color: #28c840; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(1, 169, 130, 0.2); border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">⬡ SAN TERMINAL</div>
+        <div class="dots">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <div class="sidebar">
+            <h2>📡 Available Devices</h2>
+            <div id="device-list">
+                <div style="font-size: 12px; color: var(--text-muted);">Loading devices...</div>
+            </div>
+            
+            <h2 style="margin-top: 30px;">💡 Commands</h2>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.8;">
+                <code style="color:var(--accent)">connect &lt;ip&gt;</code><br>
+                <code>showsys</code><br>
+                <code>shownode</code><br>
+                <code>showport</code><br>
+                <code>showhost</code><br>
+                <code>showswitch</code><br>
+                <code>showpd</code><br>
+                <code>exit</code> / <code>clear</code>
+            </div>
+        </div>
+
+        <div class="terminal-container">
+            <div id="output" class="terminal-output"></div>
+            <div class="terminal-input-row">
+                <span id="prompt" class="prompt">SAN Simulator&gt;</span>
+                <input type="text" id="input" autofocus spellcheck="false" autocomplete="off" placeholder="Type command...">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const output = document.getElementById("output");
+        const input = document.getElementById("input");
+        const prompt = document.getElementById("prompt");
+        const deviceList = document.getElementById("device-list");
+
+        let state = { connected: false, device: null, name: null, ip: null, history: [], hIdx: -1 };
+
+        function append(text, type = "") {
+            const span = document.createElement("span");
+            span.className = type;
+            span.textContent = text;
+            output.appendChild(span);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function loadDevices() {
+            try {
+                const res = await fetch("/api/v1/san/devices");
+                const data = await res.json();
+                deviceList.innerHTML = data.devices.map(d => `
+                    <div class="device-item" onclick="connectTo('${d.ip || d.file}')">
+                        <span class="device-ip">${d.ip || 'Local File'}</span>
+                        <span class="device-file">${d.file}</span>
+                    </div>
+                `).join("");
+            } catch (e) {
+                deviceList.innerHTML = "Error loading devices.";
+            }
+        }
+
+        async function connectTo(ipOrFile) {
+            input.value = `connect ${ipOrFile}`;
+            input.focus();
+            processCommand(`connect ${ipOrFile}`);
+            input.value = "";
+        }
+
+        async function processCommand(cmd) {
+            append(`\n${prompt.textContent} ${cmd}\n`, "cmd");
+
+            if (cmd === "clear") { output.innerHTML = ""; return; }
+            if (cmd === "exit") {
+                if (state.connected) {
+                    append(`Connection to ${state.name} closed.\n`, "info");
+                    state = { ...state, connected: false, device: null };
+                    prompt.textContent = "SAN Simulator>";
+                } else {
+                    append("Not connected.\n", "info");
+                }
+                return;
+            }
+
+            if (cmd.startsWith("connect ")) {
+                const ip = cmd.split(" ")[1];
+                append(`Connecting to ${ip}...\n`, "info");
+                try {
+                    const res = await fetch("/api/v1/san/cli/connect", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ ip })
+                    });
+                    const data = await res.json();
+                    if (data.status === "connected") {
+                        state.connected = true;
+                        state.device = data.device_file;
+                        state.name = data.name;
+                        prompt.textContent = `${data.name}@${ip}#`;
+                        append(`Connected to ${data.model} (${data.name})\n`, "success");
+                    } else {
+                        append(`${data.message}\n`, "error");
+                    }
+                } catch (e) { append("Connection failed.\n", "error"); }
+                return;
+            }
+
+            if (!state.connected) {
+                append("Error: Not connected. Use 'connect <ip>'\n", "error");
+                return;
+            }
+
+            try {
+                const res = await fetch("/api/v1/san/cli/exec", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ device: state.device, command: cmd })
+                });
+                const data = await res.json();
+                append(data.output + "\n", "");
+            } catch (e) { append("Execution error.\n", "error"); }
+        }
+
+        input.addEventListener("keydown", e => {
+            if (e.key === "Enter") {
+                const cmd = input.value.trim();
+                if (cmd) {
+                    state.history.push(cmd);
+                    state.hIdx = state.history.length;
+                    processCommand(cmd);
+                }
+                input.value = "";
+            } else if (e.key === "ArrowUp") {
+                if (state.hIdx > 0) {
+                    state.hIdx--;
+                    input.value = state.history[state.hIdx];
+                }
+                e.preventDefault();
+            } else if (e.key === "ArrowDown") {
+                if (state.hIdx < state.history.length - 1) {
+                    state.hIdx++;
+                    input.value = state.history[state.hIdx];
+                } else {
+                    state.hIdx = state.history.length;
+                    input.value = "";
+                }
+                e.preventDefault();
+            }
+        });
+
+        append("HPE SAN CLI Simulator v2.0\n", "info");
+        append("Type 'connect <ip>' or select a device from the sidebar.\n\n", "info");
+        loadDevices();
+    </script>
+</body>
+</html>

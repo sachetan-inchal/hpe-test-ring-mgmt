@@ -21,12 +21,14 @@ import time
 import logging
 import threading
 
+# pyrefly: ignore [missing-import]
 from flask import Flask, request, jsonify, Response, send_from_directory
 from flask_cors import CORS
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MONOREPO = os.path.dirname(BASE_DIR)
 try:
+    # pyrefly: ignore [missing-import]
     from dotenv import load_dotenv
     load_dotenv(os.path.join(MONOREPO, ".env"))
 except ImportError:
@@ -44,6 +46,31 @@ from integrations.rag_engine import RAGEngine
 from integrations.neo4j_runner import run_cypher as neo4j_run_cypher
 from integrations.spreadsheet_pipeline import SpreadsheetPipeline
 from integrations.data_faker import DataFaker
+from integrations.topology_db import TopologyDB
+from integrations.ontology_engine import populate_graph, OntologyLLMEngine
+
+# ── Master API Logic (Merged from Editor) ──────────────────────────────────
+from api.master_logic import proxy as master_proxy
+from api.master_logic.universal_parser import parse_array_dump, parse_via_proxy
+from api.master_logic.topology_graph import topology_graph
+import networkx as nx
+
+# Import individual parsers
+from api.parsers.parse_showsys import parse_showsys
+from api.parsers.parse_showport import parse_showport
+from api.parsers.parse_showpd import parse_showpd
+from api.parsers.parse_shownode import parse_shownode
+from api.parsers.parse_showhost import parse_showhost
+from api.parsers.parse_showcage import parse_showcage
+
+_PARSERS = {
+    "showsys":  parse_showsys,
+    "showport": parse_showport,
+    "showpd":   parse_showpd,
+    "shownode": parse_shownode,
+    "showhost": parse_showhost,
+    "showcage": parse_showcage,
+}
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [api] %(message)s")
 log = logging.getLogger(__name__)
@@ -56,6 +83,14 @@ CORS(app)
 neo4j   = Neo4jStore()
 es      = ElasticsearchIndexer()
 
+@app.before_request
+def ensure_infrastructure():
+    """Attempt to connect to services if they weren't ready at startup."""
+    if not neo4j.available:
+        neo4j._init_driver()
+    if not es.available:
+        es._init_client()
+
 FIELD_DEF_PATH = os.path.join(MONOREPO, "data", "field_definitions.json")
 ALLOWED_CREATE_LABELS = frozenset({"Host", "Switch", "ArraySystem", "Cage", "Node", "PhysicalDisk"})
 
@@ -66,10 +101,17 @@ class _Neo4jRagBridge:
 
 
 _json_store = JsonStore(os.path.join(MONOREPO, "data", "json_store"))
+# Ontology Integration
+_topology_db = TopologyDB()
+_ontology_graph, _ontology_traversal, _ontology_source = populate_graph()
+_ontology_engine = OntologyLLMEngine(_ontology_traversal)
+
 _rag_engine = RAGEngine(
     json_store=_json_store,
     neo4j_loader=_Neo4jRagBridge() if neo4j.available else None,
+    ontology_traversal=_ontology_traversal
 )
+
 
 def _cypher_for_spreadsheet(query, params=None):
     if not neo4j.available:
@@ -103,17 +145,81 @@ def _valid_prop_key(k):
 discovery_crawler.neo4j = neo4j
 discovery_crawler.es    = es
 
+# ── Chatbot Proxy (Node.js) ───────────────────────────────────────────────────
+
+CHATBOT_URL = os.environ.get("CHATBOT_SERVICE_URL", "http://localhost:5010")
+
+@app.route("/chatbot/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@app.route("/chatbot/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+def chatbot_proxy(path):
+    """Proxy requests starting with /chatbot to the Node.js chatbot-service."""
+    import requests
+    
+    # Ensure the path starts with api/ if it's missing (as the dashboard strips it)
+    clean_path = path if path.startswith("api") else f"api/{path}"
+    target_url = f"{CHATBOT_URL}/{clean_path}"
+    
+    # Forward headers (optional but good for auth)
+    headers = {k: v for k, v in request.headers if k.lower() != 'host'}
+    
+    try:
+        resp = requests.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            data=request.get_data(),
+            cookies=request.cookies,
+            allow_redirects=False,
+            params=request.args
+        )
+        
+        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+        headers = [(name, value) for (name, value) in resp.raw.headers.items()
+                   if name.lower() not in excluded_headers]
+        
+        return Response(resp.content, resp.status_code, headers)
+    except Exception as e:
+        log.error(f"Proxy error: {e}")
+        return jsonify({"error": "Chatbot service unreachable", "details": str(e)}), 503
+
 # ── Frontend serving ──────────────────────────────────────────────────────────
 
-@app.route("/", defaults={"path": ""})
-@app.route("/<path:path>")
-def serve_react(path):
-    build_dir = app.static_folder
-    if build_dir and os.path.exists(os.path.join(build_dir, path)):
-        return send_from_directory(build_dir, path)
-    if build_dir and os.path.exists(os.path.join(build_dir, "index.html")):
-        return send_from_directory(build_dir, "index.html")
-    return jsonify({"message": "HPE SAN API running. Build the React dashboard for the UI."}), 200
+@app.route("/tester")
+def serve_tester():
+    static_dir = os.path.join(BASE_DIR, "static")
+    return send_from_directory(static_dir, "api_tester.html")
+
+@app.route("/terminal")
+def serve_terminal():
+    static_dir = os.path.join(BASE_DIR, "static")
+    return send_from_directory(static_dir, "terminal.html")
+
+@app.route("/api/v1/openapi.json")
+def v1_openapi():
+    return jsonify({
+        "openapi": "3.0.0",
+        "info": {"title": "HPE SAN Master API", "version": "1.0.0"},
+        "paths": {
+            "/api/v1/san/devices": {"get": {"summary": "List all devices"}},
+            "/api/v1/san/cli/exec": {"post": {"summary": "Execute CLI command"}},
+            "/api/v1/san/graph/cytoscape": {"get": {"summary": "Get topology graph"}},
+            "/api/v1/san/discovery/start": {"post": {"summary": "Start discovery"}},
+        }
+    })
+
+# ── API Aliases for Dashboard ──────────────────────────────────────────────────
+
+@app.route("/api/ontology/topology")
+@app.route("/api/graph/neo4j")
+def legacy_graph_alias():
+    # Force a re-check if it's currently unavailable
+    if not neo4j.available:
+        neo4j._init_driver()
+    return neo4j_graph()
+
+@app.route("/api/faker/san", methods=["POST"])
+def api_faker_san():
+    return fake_san()
 
 # ── Simulator endpoints ───────────────────────────────────────────────────────
 
@@ -193,8 +299,13 @@ def discovery_stream():
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 @app.route("/api/discover/status")
+@app.route("/api/v1/san/discovery/status")
 def discovery_status():
     return jsonify(discovery_crawler.get_status())
+
+@app.route("/api/v1/san/discovery/events")
+def discovery_events():
+    return jsonify({"events": discovery_crawler.events, "count": len(discovery_crawler.events)})
 
 # ── Topology / Graph endpoints ────────────────────────────────────────────────
 
@@ -220,6 +331,7 @@ def neo4j_graph():
 # ── RAG chat, ingest, faker ───────────────────────────────────────────────────
 
 @app.route("/api/chat", methods=["POST"])
+@app.route("/api/v1/san/rag/query", methods=["POST"])
 def chat():
     data = request.json or {}
     q = (data.get("query") or "").strip()
@@ -289,6 +401,81 @@ def schema_fields():
             json.dump(data, f, indent=2)
         return jsonify({"status": "ok"})
     except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+
+# ── Ontology Endpoints (Ported from Unmesh) ───────────────────────────────────
+
+@app.route("/api/ontology/topology", methods=["GET"])
+def get_ontology_topology():
+    try:
+        return jsonify(_topology_db.get_topology())
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ontology/nodes/<node_id>", methods=["PATCH"])
+def patch_ontology_node(node_id):
+    body = request.json or {}
+    try:
+        result = _topology_db.update_node(
+            node_id,
+            is_decommissioned=body.get("isDecommissioned"),
+            properties=body.get("properties")
+        )
+        # Re-populate graph after update to keep reasoning engine in sync
+        global _ontology_graph, _ontology_traversal, _ontology_source, _ontology_engine
+        _ontology_graph, _ontology_traversal, _ontology_source = populate_graph()
+        _ontology_engine = OntologyLLMEngine(_ontology_traversal)
+        return jsonify(result)
+    except KeyError as ex:
+        return jsonify({"error": str(ex)}), 404
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ontology/nodes", methods=["POST"])
+def create_ontology_node():
+    body = request.json or {}
+    try:
+        result = _topology_db.add_node(body)
+        # Re-populate graph
+        global _ontology_graph, _ontology_traversal, _ontology_source, _ontology_engine
+        _ontology_graph, _ontology_traversal, _ontology_source = populate_graph()
+        _ontology_engine = OntologyLLMEngine(_ontology_traversal)
+        return jsonify(result)
+    except ValueError as ex:
+        return jsonify({"error": str(ex)}), 400
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ontology/nodes/<node_id>", methods=["DELETE"])
+def delete_ontology_node(node_id):
+    try:
+        result = _topology_db.delete_node(node_id)
+        # Re-populate graph
+        global _ontology_graph, _ontology_traversal, _ontology_source, _ontology_engine
+        _ontology_graph, _ontology_traversal, _ontology_source = populate_graph()
+        _ontology_engine = OntologyLLMEngine(_ontology_traversal)
+        return jsonify(result)
+    except KeyError as ex:
+        return jsonify({"error": str(ex)}), 404
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ontology/chat", methods=["POST"])
+def ontology_chat():
+    data = request.json or {}
+    q = (data.get("query") or "").strip()
+    if not q:
+        return jsonify({"error": "Query is required"}), 400
+    try:
+        answer = _ontology_engine.process_query(q)
+        return jsonify({"answer": answer, "source": "ontology_graph"})
+    except Exception as ex:
+        log.exception("Ontology chat failed")
         return jsonify({"error": str(ex)}), 500
 
 
@@ -476,6 +663,7 @@ def create_graph_node():
         return jsonify({"error": str(ex)}), 400
 
 @app.route("/api/graph/cypher", methods=["POST"])
+@app.route("/api/v1/san/rag/cypher", methods=["POST"])
 def run_cypher():
     """Execute a raw Cypher query.
     Body: {"cypher": "MATCH (n) RETURN n LIMIT 25", "params": {}}
@@ -528,6 +716,318 @@ def health():
         "groq_configured": groq_key,
     })
 
+
+# ─── Legacy /api Compatibility (from Editor) ───────────────────────────────
+
+@app.route("/api/cli/exec", methods=["POST"])
+def legacy_cli_exec():
+    return v1_san_cli_exec()
+
+@app.route("/api/cli/connect", methods=["POST"])
+def legacy_cli_connect():
+    return v1_san_cli_connect()
+
+@app.route("/api/devices", methods=["GET"])
+def legacy_get_devices():
+    return v1_san_devices()
+
+@app.route("/api/topology")
+@app.route("/api/v1/san/topology")
+@app.route("/api/v1/san/graph/editor")
+@app.route("/api/v1/topology-json/topology")
+def legacy_get_topology():
+    return jsonify(topology_graph.to_dict())
+
+@app.route("/api/topology/node", methods=["POST"])
+@app.route("/api/v1/san/topology/node", methods=["POST"])
+def legacy_add_topology_node():
+    data = request.json or {}
+    node_id = data.get("id")
+    node_type = data.get("type", "Node")
+    if not node_id:
+        return jsonify({"error": "Node ID required"}), 400
+    topology_graph.add_node(node_id, node_type, **data)
+    return jsonify({"status": "ok"})
+
+@app.route("/api/topology/edge", methods=["POST"])
+@app.route("/api/v1/san/topology/edge", methods=["POST"])
+def legacy_add_topology_edge():
+    data = request.json or {}
+    source = data.get("source")
+    target = data.get("target")
+    edge_type = data.get("type", "CONNECTED_TO")
+    if not source or not target:
+        return jsonify({"error": "Source and target required"}), 400
+    topology_graph.add_edge(source, target, edge_type, **data)
+    return jsonify({"status": "ok"})
+
+@app.route("/api/topology/save", methods=["POST"])
+@app.route("/api/v1/san/topology/save", methods=["POST"])
+def legacy_save_topology():
+    result = topology_graph.export_to_neo4j(neo4j_driver=neo4j)
+    return jsonify(result)
+
+@app.route("/api/graph")
+@app.route("/api/v1/san/graph")
+@app.route("/api/v1/san/graph/cytoscape")
+def legacy_get_graph():
+    return jsonify({
+        "elements": topology_graph.to_cytoscape(),
+        "summary": {"total_nodes": len(topology_graph.get_nodes())}
+    })
+
+@app.route("/api/v1/san/neo4j/graph")
+def legacy_get_neo4j_graph():
+    return neo4j_graph()
+
+@app.route("/api/graph/path", methods=["POST"])
+def legacy_find_path():
+    return v1_graph_path()
+
+@app.route("/api/topology/export")
+def legacy_export_topology():
+    lines = ["id,type,label,state,parent"]
+    G = topology_graph.graph
+    for nid, attrs in G.nodes(data=True):
+        ntype = attrs.get("node_type", "")
+        label = attrs.get("name", nid)
+        state = attrs.get("state", "normal")
+        parent = ""
+        for pred in G.predecessors(nid):
+            parent = pred
+            break
+        lines.append(f"{nid},{ntype},{label},{state},{parent}")
+    return Response("\n".join(lines), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=topology.csv"})
+
+@app.route("/api/ingest/cli-dump", methods=["POST"])
+@app.route("/api/v1/san/ingest/cli-dump", methods=["POST"])
+def legacy_ingest_cli_dump():
+    data = request.json or {}
+    raw_text = data.get("raw_text", "")
+    device = data.get("device", "")
+    try:
+        if device:
+            parsed = parse_via_proxy(device)
+        elif raw_text:
+            parsed = parse_array_dump(raw_text)
+        else:
+            return jsonify({"error": "Provide 'raw_text' or 'device'"}), 400
+        _json_store.save_array(parsed)
+        counts = {
+            "nodes": len(parsed.get("nodes", [])),
+            "ports": len(parsed.get("ports", [])),
+            "switches": len(parsed.get("switches", [])),
+            "hosts": len(parsed.get("hosts", [])),
+            "cages": len(parsed.get("cages", [])),
+            "drives": len(parsed.get("drives", [])),
+        }
+        return jsonify({"array_name": parsed.get("name", "unknown"), "entity_counts": counts})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/arrays")
+@app.route("/api/v1/san/arrays")
+def legacy_get_arrays():
+    arrays = []
+    for name in _json_store.list_arrays():
+        data = _json_store.load_array(name)
+        if data:
+            arrays.append({
+                "name": data.get("name"),
+                "model": data.get("model"),
+                "serial": data.get("serial"),
+                "node_count": data.get("node_count"),
+                "total_cap_mib": data.get("total_cap_mib"),
+                "free_cap_mib": data.get("free_cap_mib"),
+            })
+    return jsonify({"arrays": arrays})
+
+@app.route("/api/arrays/<name>")
+@app.route("/api/v1/san/arrays/<name>")
+def legacy_get_array_detail(name):
+    data = _json_store.load_array(name)
+    if not data:
+        return jsonify({"error": f"Array '{name}' not found"}), 404
+    return jsonify(data)
+
+@app.route("/api/schema")
+@app.route("/api/v1/san/schema")
+def legacy_get_schema():
+    mermaid = """flowchart TD
+    A[ArraySystem] -->|HAS_NODE| B[Node]
+    B -->|HAS_PORT| C[Port]
+    A -->|HAS_SWITCH| D[Switch]
+    A -->|HAS_CAGE| E[Cage]
+    E -->|CONTAINS| F[PhysicalDisk]
+    C -->|CONNECTS_TO| G[Host]
+    G -->|CONNECTS_TO| A"""
+    return jsonify({"mermaid": mermaid, "entities": ["ArraySystem", "Node", "Port", "Switch", "Host", "Cage", "PhysicalDisk"]})
+
+@app.route("/api/v1/san/schema/fields")
+def legacy_get_schema_fields():
+    fields = {
+        "ArraySystem": ["array_id", "name", "model", "serial", "release_version", "release_type",
+                        "node_count", "total_cap_mib", "alloc_cap_mib", "free_cap_mib",
+                        "failed_cap_mib", "config_type", "protocols_supported"],
+        "Node": ["node_id", "name", "encl_bay", "is_master", "in_cluster", "memory_mib", "up_since"],
+        "Port": ["port_id", "node", "slot", "port_num", "mode", "state", "protocol", "type",
+                 "node_wwn_ip", "port_wwn_hw", "label"],
+        "Switch": ["name", "state", "mode", "serial", "temperature"],
+        "Host": ["wwn", "ports", "multipath_status", "missing_path"],
+        "Cage": ["cage_id", "name", "state", "detailed_state", "drives", "temp", "model", "form_factor"],
+        "PhysicalDisk": ["pd_id", "cage_pos", "type", "state", "total_mib", "free_mib",
+                         "capacity_gb", "manufacturer", "model", "serial", "fw_rev", "protocol",
+                         "sed_state"],
+    }
+    return jsonify(fields)
+
+# ── API v1 Compatibility & Advanced Features (Master API) ──────────────────
+
+@app.route("/api/v1/health")
+def v1_health():
+    return health()
+
+@app.route("/api/v1/catalog")
+def v1_catalog():
+    routes = []
+    for rule in sorted(app.url_map.iter_rules(), key=lambda r: r.rule):
+        if rule.rule.startswith("/api/v1/") and "<" not in rule.rule:
+            routes.append({
+                "path": rule.rule,
+                "methods": sorted(m for m in rule.methods if m not in ("HEAD", "OPTIONS")),
+            })
+    return jsonify({"routes": routes, "count": len(routes)})
+
+@app.route("/api/v1/san/devices")
+def v1_san_devices():
+    devices = []
+    for ip, f in master_proxy.DEVICE_REGISTRY.items():
+        cmds = master_proxy.list_device_commands(f)
+        devices.append({"ip": ip, "file": f, "available_commands": cmds})
+    all_files = master_proxy.list_devices()
+    registered_files = set(master_proxy.DEVICE_REGISTRY.values())
+    for f in all_files:
+        if f not in registered_files:
+            devices.append({"ip": None, "file": f, "available_commands": master_proxy.list_device_commands(f)})
+    return jsonify({"devices": devices, "count": len(devices)})
+
+@app.route("/api/v1/san/cli/exec", methods=["POST"])
+def v1_san_cli_exec():
+    data    = request.json or {}
+    device  = data.get("device", "")
+    command = data.get("command", "")
+    if not device or not command:
+        return jsonify({"error": "device and command are required"}), 400
+    output = master_proxy.get_command_output(device, command)
+    return jsonify({"device": device, "command": command, "output": output})
+
+@app.route("/api/v1/san/cli/connect", methods=["POST"])
+def v1_san_cli_connect():
+    ip = (request.json or {}).get("ip", "")
+    device_file = master_proxy.resolve_ip(ip)
+    if not device_file:
+        return jsonify({"status": "refused", "message": f"No device at {ip}"}), 404
+    sys_out = master_proxy.get_command_output(device_file, "showsys")
+    parsed  = parse_showsys(sys_out)
+    return jsonify({
+        "status": "connected",
+        "device_file": device_file,
+        "name":  parsed.get("name", device_file.replace(".txt", "")),
+        "model": parsed.get("model", "Unknown"),
+        "ip": ip,
+        "available_commands": master_proxy.list_device_commands(device_file),
+    })
+
+@app.route("/api/v1/san/discovery/start", methods=["POST"])
+def v1_discovery_start():
+    return start_discovery()
+
+@app.route("/api/v1/san/discovery/stream")
+def v1_discovery_stream():
+    return discovery_stream()
+
+@app.route("/api/v1/san/graph/cytoscape")
+def v1_graph_cytoscape():
+    return neo4j_graph()
+
+@app.route("/api/v1/san/graph/path", methods=["POST"])
+def v1_graph_path():
+    data = request.json or {}
+    src, dst = data.get("from"), data.get("to")
+    if not src or not dst:
+        return jsonify({"error": "from and to are required"}), 400
+    
+    # Build NetworkX graph from Neo4j data
+    if not neo4j.available:
+        return jsonify({"error": "Neo4j not available for pathfinding"}), 503
+    
+    try:
+        nodes_raw = neo4j._run("MATCH (n) RETURN elementId(n) AS eid")
+        edges_raw = neo4j._run("MATCH (a)-[r]->(b) RETURN elementId(a) AS src, elementId(b) AS tgt")
+        
+        G = nx.Graph()
+        for n in nodes_raw: G.add_node(n["eid"])
+        for e in edges_raw: G.add_edge(e["src"], e["tgt"])
+        
+        if src not in G or dst not in G:
+            return jsonify({"error": "One or both nodes not found in graph"}), 404
+            
+        path = nx.shortest_path(G, src, dst)
+        return jsonify({"path": path, "hops": len(path) - 1})
+    except nx.NetworkXNoPath:
+        return jsonify({"error": "No path found"}), 404
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+@app.route("/api/v1/san/parser/<command>", methods=["POST"])
+def v1_san_parser(command):
+    if command not in _PARSERS:
+        return jsonify({"error": f"Unknown parser '{command}'"}), 400
+    raw = (request.json or {}).get("raw_text", "")
+    if not raw:
+        return jsonify({"error": "Provide 'raw_text'"}), 400
+    try:
+        return jsonify(_PARSERS[command](raw))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ── Monorepo Proxy routes ──────────────────────────────────────────────────
+
+@app.route("/api/v1/monorepo/health")
+def v1_monorepo_health():
+    return health()
+
+@app.route("/api/v1/monorepo/sim/devices")
+def v1_monorepo_sim_devices():
+    return sim_devices()
+
+@app.route("/api/v1/monorepo/chat", methods=["POST"])
+def v1_monorepo_chat():
+    return chat()
+
+@app.route("/api/v1/monorepo/graph/neo4j")
+def v1_monorepo_neo4j():
+    return neo4j_graph()
+
+@app.route("/api/v1/monorepo/search")
+def v1_monorepo_search():
+    return everything_search()
+
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_react(path):
+    """Serve the React frontend assets and handle SPA routing."""
+    build_dir = app.static_folder
+    # 1. If path is empty or doesn't exist as a file, serve index.html (SPA fallback)
+    if not path or not os.path.isfile(os.path.join(build_dir, path)):
+        if build_dir and os.path.exists(os.path.join(build_dir, "index.html")):
+            return send_from_directory(build_dir, "index.html")
+        return jsonify({"message": "HPE SAN API running. Build the React dashboard for the UI."}), 200
+    
+    # 2. Serve the actual static file (JS, CSS, images)
+    return send_from_directory(build_dir, path)
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -538,6 +1038,22 @@ if __name__ == "__main__":
     print(f"  Elasticsearch:  {'connected' if es.available else 'unavailable'}")
     print(f"  Sim devices:    {len(virtual_network.list_devices())}")
     print("=" * 60)
+    print("=" * 60)
     print("  Start simulator first:  cd simulator && python simulator_manager.py")
     print("=" * 60)
+    
+    # Auto-index logic in background
+    def _auto_index():
+        time.sleep(2) # Wait for server to start
+        for dev in master_proxy.list_devices():
+            name = dev.replace('.txt', '')
+            if not _json_store.load_array(name):
+                try:
+                    data = parse_via_proxy(dev)
+                    _json_store.save_array(data)
+                    log.info(f"Auto-indexed: {data.get('name', dev)}")
+                except Exception:
+                    pass
+    threading.Thread(target=_auto_index, daemon=True).start()
+    
     app.run(debug=True, host="0.0.0.0", port=port, threaded=True)

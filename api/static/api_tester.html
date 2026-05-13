@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>HPE SAN API Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--surface:#111827;--card:#1a2235;--border:#1e2d45;
+  --accent:#3b82f6;--accent2:#8b5cf6;--green:#10b981;--orange:#f59e0b;--red:#ef4444;
+  --text:#e2e8f0;--muted:#64748b;--code:#a5f3fc;
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* HEADER */
+header{background:linear-gradient(135deg,#0f172a,#1e1b4b);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+header h1{font-size:1.1rem;font-weight:700;background:linear-gradient(90deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+header .badge{background:#1e3a5f;border:1px solid #3b82f650;color:#60a5fa;padding:3px 10px;border-radius:999px;font-size:.7rem;font-weight:600}
+.base-url-wrap{margin-left:auto;display:flex;gap:8px;align-items:center}
+.base-url-wrap label{color:var(--muted);font-size:.75rem}
+.base-url-wrap input{background:#0d1629;border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:.8rem;width:220px;font-family:'JetBrains Mono',monospace}
+#btnHealth{background:var(--accent);border:none;color:#fff;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;transition:.2s}
+#btnHealth:hover{background:#2563eb}
+
+/* LAYOUT */
+.layout{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR */
+aside{width:260px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sidebar-search{padding:10px;border-bottom:1px solid var(--border)}
+.sidebar-search input{width:100%;background:#0d1629;border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:.78rem}
+.sidebar-routes{overflow-y:auto;flex:1}
+.route-group{}
+.route-group-title{padding:8px 12px 4px;font-size:.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;position:sticky;top:0;background:var(--surface);z-index:1}
+.route-item{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;border-radius:0;transition:.15s;font-size:.75rem}
+.route-item:hover{background:var(--card)}
+.route-item.active{background:#1e3a5f;border-left:2px solid var(--accent)}
+.method-badge{font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:4px;min-width:36px;text-align:center}
+.GET{background:#064e3b;color:#34d399}.POST{background:#312e81;color:#a5b4fc}
+.DELETE{background:#7f1d1d;color:#fca5a5}.PATCH{background:#78350f;color:#fcd34d}
+.ANY{background:#1e1b4b;color:#c4b5fd}
+
+/* MAIN */
+main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* REQUEST PANEL */
+.req-panel{padding:16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.req-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+#reqMethod{background:#0d1629;border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:.82rem;font-weight:600}
+#reqUrl{flex:1;background:#0d1629;border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;font-size:.82rem;font-family:'JetBrains Mono',monospace}
+#btnSend{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;padding:7px 20px;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:700;transition:.2s;white-space:nowrap}
+#btnSend:hover{opacity:.9;transform:scale(1.02)}
+.body-row{display:flex;gap:8px;align-items:flex-start}
+.body-row label{color:var(--muted);font-size:.72rem;margin-top:6px;white-space:nowrap}
+#reqBody{flex:1;background:#0d1629;border:1px solid var(--border);color:var(--code);padding:8px 12px;border-radius:6px;font-size:.78rem;font-family:'JetBrains Mono',monospace;resize:vertical;min-height:56px;max-height:140px}
+.quick-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.qbtn{background:var(--card);border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:5px;cursor:pointer;font-size:.68rem;transition:.15s}
+.qbtn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* RESPONSE PANEL */
+.res-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.res-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 16px;flex-shrink:0}
+.tab-btn{padding:8px 16px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;transition:.15s}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.res-status{margin-left:auto;display:flex;align-items:center;gap:8px;padding:0 8px;font-size:.72rem}
+.status-pill{padding:2px 10px;border-radius:999px;font-weight:700}
+.s2xx{background:#064e3b;color:#34d399}.s4xx{background:#78350f;color:#fcd34d}.s5xx{background:#7f1d1d;color:#fca5a5}.s0{background:#1e293b;color:#64748b}
+.tab-pane{display:none;flex:1;overflow:auto;padding:12px 16px}
+.tab-pane.active{display:block}
+pre#resJson{font-family:'JetBrains Mono',monospace;font-size:.76rem;line-height:1.6;white-space:pre-wrap;color:var(--code)}
+#resGraph{width:100%;height:100%;min-height:300px;background:#0d1629;border-radius:8px}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:3px}
+
+/* Status bar */
+.statusbar{background:#0d1629;border-top:1px solid var(--border);padding:3px 16px;font-size:.68rem;color:var(--muted);display:flex;gap:16px;flex-shrink:0}
+.statusbar span b{color:var(--text)}
+
+/* Loading spinner */
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* JSON syntax highlight */
+.jk{color:#93c5fd}.jv-str{color:#86efac}.jv-num{color:#fde68a}.jv-bool{color:#f9a8d4}.jv-null{color:#94a3b8}
+</style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;align-items:center;gap:10px">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="#1e3a5f"/><path d="M5 12h14M12 5l7 7-7 7" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h1>HPE SAN API Explorer</h1>
+    <span class="badge">Master API v1</span>
+  </div>
+  <div class="base-url-wrap">
+    <label>Base URL</label>
+    <input id="baseUrl" value="" placeholder="http://localhost:8787"/>
+    <button id="btnHealth" onclick="checkHealth()">● Health</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="sidebar-search">
+      <input id="routeSearch" placeholder="🔍 Filter routes…" oninput="filterRoutes(this.value)"/>
+    </div>
+    <div class="sidebar-routes" id="routeList"></div>
+  </aside>
+
+  <main>
+    <div class="req-panel">
+      <div class="req-row">
+        <select id="reqMethod">
+          <option>GET</option><option>POST</option><option>PATCH</option><option>DELETE</option>
+        </select>
+        <input id="reqUrl" placeholder="/api/v1/health"/>
+        <button id="btnSend" onclick="sendRequest()">▶ Send</button>
+      </div>
+      <div class="body-row">
+        <label>Body JSON</label>
+        <textarea id="reqBody" placeholder='{"key": "value"}'></textarea>
+      </div>
+      <div class="quick-btns" id="quickBtns"></div>
+    </div>
+
+    <div class="res-panel">
+      <div class="res-tabs">
+        <button class="tab-btn active" onclick="switchTab('json',this)">JSON</button>
+        <button class="tab-btn" onclick="switchTab('graph',this)">Graph Viz</button>
+        <button class="tab-btn" onclick="switchTab('raw',this)">Raw</button>
+        <div class="res-status">
+          <span id="resTime" style="color:var(--muted)">—</span>
+          <span id="resPill" class="status-pill s0">—</span>
+        </div>
+      </div>
+      <div class="tab-pane active" id="pane-json"><pre id="resJson" style="color:var(--muted)">Send a request to see the response…</pre></div>
+      <div class="tab-pane" id="pane-graph"><div id="resGraph"></div></div>
+      <div class="tab-pane" id="pane-raw"><pre id="resRaw" style="font-family:'JetBrains Mono',monospace;font-size:.74rem;color:var(--muted);white-space:pre-wrap"></pre></div>
+    </div>
+  </main>
+</div>
+
+<div class="statusbar">
+  <span>Server: <b id="sbServer">—</b></span>
+  <span>Neo4j: <b id="sbNeo4j">—</b></span>
+  <span>Groq: <b id="sbGroq">—</b></span>
+  <span>Devices: <b id="sbDevices">—</b></span>
+  <span style="margin-left:auto" id="sbMsg"></span>
+</div>
+
+<script>
+// ── Route definitions ──────────────────────────────────────────────────────
+const ROUTES = [
+  {g:"Catalog",method:"GET",path:"/api/v1/health",desc:"Health check",body:null},
+  {g:"Catalog",method:"GET",path:"/api/v1/catalog",desc:"All routes",body:null},
+  {g:"Catalog",method:"GET",path:"/api/v1/openapi.json",desc:"OpenAPI spec",body:null},
+
+  {g:"Devices & CLI",method:"GET",path:"/api/v1/san/devices",desc:"List all devices"},
+  {g:"Devices & CLI",method:"POST",path:"/api/v1/san/cli/exec",desc:"Execute CLI command",
+    body:`{"device":"s4634.txt","command":"showsys"}`},
+  {g:"Devices & CLI",method:"POST",path:"/api/v1/san/cli/connect",desc:"Connect to device IP",
+    body:`{"ip":"10.20.10.5"}`},
+
+  {g:"Discovery",method:"POST",path:"/api/v1/san/discovery/start",desc:"Start BFS discovery",
+    body:`{"seed_ip":"10.20.10.5"}`},
+  {g:"Discovery",method:"GET",path:"/api/v1/san/discovery/events",desc:"All discovery events"},
+
+  {g:"Graph",method:"GET",path:"/api/v1/san/graph/editor",desc:"Editor topology"},
+  {g:"Graph",method:"GET",path:"/api/v1/san/graph/cytoscape",desc:"Cytoscape.js graph"},
+  {g:"Graph",method:"GET",path:"/api/v1/san/neo4j/graph",desc:"Neo4j graph (Cytoscape)"},
+  {g:"Graph",method:"POST",path:"/api/v1/san/graph/path",desc:"Shortest path",
+    body:`{"from":"NodeA","to":"NodeB"}`},
+
+  {g:"Topology",method:"POST",path:"/api/v1/san/topology/node",desc:"Add node",
+    body:`{"id":"NewArray","type":"ArraySystem"}`},
+  {g:"Topology",method:"POST",path:"/api/v1/san/topology/edge",desc:"Add edge",
+    body:`{"source":"NodeA","target":"NodeB","type":"CONNECTED_TO"}`},
+  {g:"Topology",method:"POST",path:"/api/v1/san/topology/save",desc:"Export → Neo4j"},
+  {g:"Topology",method:"GET",path:"/api/v1/san/topology/export",desc:"Download CSV"},
+
+  {g:"Arrays",method:"GET",path:"/api/v1/san/arrays",desc:"List all arrays"},
+  {g:"Arrays",method:"GET",path:"/api/v1/san/arrays/s4634",desc:"Array detail: s4634"},
+  {g:"Arrays",method:"GET",path:"/api/v1/san/arrays/s9999",desc:"Array detail: s9999"},
+  {g:"Arrays",method:"POST",path:"/api/v1/san/ingest/cli-dump",desc:"Ingest CLI dump",
+    body:`{"device":"s4634.txt"}`},
+  {g:"Arrays",method:"POST",path:"/api/v1/san/faker/generate",desc:"Generate fake device",
+    body:`{"seed_name":"synthetic_01"}`},
+
+  {g:"RAG & Cypher",method:"POST",path:"/api/v1/san/rag/query",desc:"NL query (GraphRAG)",
+    body:`{"query":"List all arrays and their capacity"}`},
+  {g:"RAG & Cypher",method:"POST",path:"/api/v1/san/rag/cypher",desc:"Raw Cypher",
+    body:`{"cypher":"MATCH (n:ArraySystem) RETURN n.name, n.model LIMIT 10"}`},
+
+  {g:"Parsers",method:"POST",path:"/api/v1/san/parser/showsys",desc:"Parse showsys",
+    body:`{"raw_text":"System: InServ S4634\\nModel: HPE 3PAR 8200\\n..."}`},
+  {g:"Parsers",method:"POST",path:"/api/v1/san/parser/showport",desc:"Parse showport",body:`{"raw_text":""}`},
+  {g:"Parsers",method:"POST",path:"/api/v1/san/parser/showpd",desc:"Parse showpd",body:`{"raw_text":""}`},
+  {g:"Parsers",method:"POST",path:"/api/v1/san/parser/shownode",desc:"Parse shownode",body:`{"raw_text":""}`},
+  {g:"Parsers",method:"POST",path:"/api/v1/san/parser/showcage",desc:"Parse showcage",body:`{"raw_text":""}`},
+
+  {g:"Schema",method:"GET",path:"/api/v1/san/schema",desc:"Schema + Mermaid"},
+  {g:"Schema",method:"GET",path:"/api/v1/san/schema/fields",desc:"Per-entity fields"},
+
+  {g:"Monorepo Proxy",method:"GET",path:"/api/v1/monorepo/health",desc:"Monorepo health"},
+  {g:"Monorepo Proxy",method:"GET",path:"/api/v1/monorepo/sim/devices",desc:"Sim devices"},
+  {g:"Monorepo Proxy",method:"POST",path:"/api/v1/monorepo/chat",desc:"Monorepo RAG chat",
+    body:`{"query":"How many nodes in the SAN?"}`},
+  {g:"Monorepo Proxy",method:"GET",path:"/api/v1/monorepo/graph/neo4j",desc:"Monorepo Neo4j graph"},
+
+  {g:"Topology JSON",method:"GET",path:"/api/v1/topology-json/topology",desc:"Unmesh database.json"},
+];
+
+// ── Render sidebar ─────────────────────────────────────────────────────────
+let activeRoute = null;
+function renderSidebar(filter=''){
+  const list = document.getElementById('routeList');
+  const lower = filter.toLowerCase();
+  const groups = {};
+  ROUTES.forEach(r=>{
+    if(filter && !r.path.toLowerCase().includes(lower) && !r.desc.toLowerCase().includes(lower)) return;
+    if(!groups[r.g]) groups[r.g]=[];
+    groups[r.g].push(r);
+  });
+  list.innerHTML = '';
+  Object.entries(groups).forEach(([g,routes])=>{
+    const gt = document.createElement('div');
+    gt.className='route-group-title'; gt.textContent=g; list.appendChild(gt);
+    routes.forEach(r=>{
+      const el = document.createElement('div');
+      el.className='route-item'+(r===activeRoute?' active':'');
+      el.innerHTML=`<span class="method-badge ${r.method}">${r.method}</span><span>${r.desc||r.path}</span>`;
+      el.onclick=()=>selectRoute(r,el);
+      list.appendChild(el);
+    });
+  });
+}
+function filterRoutes(v){ renderSidebar(v); }
+renderSidebar();
+
+// ── Select route ───────────────────────────────────────────────────────────
+function selectRoute(r,el){
+  activeRoute = r;
+  document.querySelectorAll('.route-item').forEach(e=>e.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('reqMethod').value = r.method;
+  document.getElementById('reqUrl').value = r.path;
+  document.getElementById('reqBody').value = r.body||'';
+  buildQuickBtns(r);
+}
+
+function buildQuickBtns(r){
+  const wrap = document.getElementById('quickBtns');
+  wrap.innerHTML = '';
+  if(r.g==='Devices & CLI'){
+    ['showsys','showport','showpd','shownode','showcage','showhost'].forEach(cmd=>{
+      const b=document.createElement('button'); b.className='qbtn'; b.textContent=cmd;
+      b.onclick=()=>{ document.getElementById('reqBody').value=`{"device":"s4634.txt","command":"${cmd}"}`; sendRequest(); };
+      wrap.appendChild(b);
+    });
+  }
+  if(r.g==='Arrays'){
+    ['s4634','s9999','s7777'].forEach(name=>{
+      const b=document.createElement('button'); b.className='qbtn'; b.textContent=name;
+      b.onclick=()=>{ document.getElementById('reqUrl').value=`/api/v1/san/arrays/${name}`; sendRequest(); };
+      wrap.appendChild(b);
+    });
+  }
+}
+
+// ── Send request ───────────────────────────────────────────────────────────
+async function sendRequest(){
+  const base = document.getElementById('baseUrl').value.replace(/\/$/,'');
+  const method = document.getElementById('reqMethod').value;
+  const path = document.getElementById('reqUrl').value;
+  const bodyTxt = document.getElementById('reqBody').value.trim();
+  const url = base + path;
+
+  document.getElementById('resJson').innerHTML='<span class="spin"></span> Loading…';
+  document.getElementById('resPill').className='status-pill s0';
+  document.getElementById('resPill').textContent='…';
+  document.getElementById('resTime').textContent='';
+  document.getElementById('sbMsg').textContent='→ '+method+' '+path;
+
+  const opts = { method, headers:{'Content-Type':'application/json'} };
+  if(bodyTxt && method!=='GET') { try{ opts.body=bodyTxt; JSON.parse(bodyTxt); }catch(e){} }
+
+  const t0 = performance.now();
+  try{
+    const resp = await fetch(url, opts);
+    const ms = Math.round(performance.now()-t0);
+    
+    // Check for download
+    const cd = resp.headers.get('Content-Disposition');
+    if (cd && cd.includes('attachment')) {
+      const blob = await resp.blob();
+      const filename = cd.split('filename=')[1] || 'download';
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setStatus(resp.status, ms);
+      document.getElementById('resJson').textContent = `File downloaded: ${filename}`;
+      return;
+    }
+
+    const text = await resp.text();
+    setStatus(resp.status, ms);
+    document.getElementById('resRaw').textContent = text;
+    try{
+      const data = JSON.parse(text);
+      document.getElementById('resJson').innerHTML = syntaxHL(JSON.stringify(data,null,2));
+      renderGraph(data);
+    }catch(e){
+      document.getElementById('resJson').textContent = text;
+    }
+  }catch(e){
+    document.getElementById('resJson').textContent = 'Error: '+e.message+'\n\nIs master_server.py running on '+base+'?';
+    setStatus(0,0);
+  }
+}
+
+function setStatus(code,ms){
+  const pill = document.getElementById('resPill');
+  pill.textContent = code||'ERR';
+  pill.className = 'status-pill '+(code>=200&&code<300?'s2xx':code>=400&&code<500?'s4xx':code>=500?'s5xx':'s0');
+  document.getElementById('resTime').textContent = ms?ms+'ms':'';
+  document.getElementById('sbMsg').textContent = code+' · '+ms+'ms';
+}
+
+// ── Graph render ───────────────────────────────────────────────────────────
+let cy = null;
+function renderGraph(data){
+  const container = document.getElementById('resGraph');
+  // Detect cytoscape-style elements
+  let elements = null;
+  if(Array.isArray(data?.elements)) elements = data.elements;
+  else if(data?.nodes && Array.isArray(data.nodes)){
+    elements = [
+      ...data.nodes.map(n=>({data:{id:n.data?.id||n.id,label:n.data?.label||n.label||n.data?.id||n.id,...(n.data||n)}})),
+      ...(data.edges||[]).map(e=>({data:{source:e.data?.source||e.source,target:e.data?.target||e.target,label:e.data?.label||e.label}}))
+    ];
+  }
+  if(!elements||elements.length===0) return;
+  if(cy){ cy.destroy(); cy=null; }
+  cy = cytoscape({
+    container,
+    elements,
+    style:[
+      {selector:'node',style:{'background-color':'#1e3a5f','border-color':'#3b82f6','border-width':1.5,'label':'data(label)','color':'#e2e8f0','font-size':10,'text-valign':'center','text-halign':'center','width':60,'height':60,'font-family':'Inter,sans-serif'}},
+      {selector:'edge',style:{'line-color':'#334155','target-arrow-color':'#334155','target-arrow-shape':'triangle','width':1.5,'label':'data(label)','color':'#64748b','font-size':9,'curve-style':'bezier','font-family':'Inter,sans-serif'}},
+      {selector:':selected',style:{'background-color':'#3b82f6','line-color':'#60a5fa'}},
+    ],
+    layout:{name:'cose',animate:true,animationDuration:600,nodeDimensionsIncludeLabels:true,padding:30},
+  });
+  switchTab('graph', document.querySelectorAll('.tab-btn')[1]);
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+function switchTab(id,el){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  if(el) el.classList.add('active');
+  document.getElementById('pane-'+id).classList.add('active');
+  if(id==='graph'&&cy) setTimeout(()=>cy.fit(undefined,30),50);
+}
+
+// ── Syntax highlight ───────────────────────────────────────────────────────
+function syntaxHL(json){
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,m=>{
+    if(/^"/.test(m)) return /:$/.test(m)?`<span class="jk">${m}</span>`:`<span class="jv-str">${m}</span>`;
+    if(/true|false/.test(m)) return `<span class="jv-bool">${m}</span>`;
+    if(/null/.test(m)) return `<span class="jv-null">${m}</span>`;
+    return `<span class="jv-num">${m}</span>`;
+  });
+}
+
+// ── Health check ───────────────────────────────────────────────────────────
+async function checkHealth(){
+  const base = document.getElementById('baseUrl').value.replace(/\/$/,'');
+  try{
+    const resp = await fetch(base+'/api/v1/health');
+    const d = await resp.json();
+    document.getElementById('sbServer').textContent = d.status||'?';
+    document.getElementById('sbNeo4j').textContent = d.neo4j?'✓ connected':'✗ unavailable';
+    document.getElementById('sbGroq').textContent = d.groq?'✓ set':'✗ not set';
+    document.getElementById('sbDevices').textContent = (d.devices||[]).join(', ')||'none';
+    document.getElementById('resJson').innerHTML = syntaxHL(JSON.stringify(d,null,2));
+    setStatus(resp.status,0);
+  }catch(e){
+    document.getElementById('sbServer').textContent='unreachable';
+    document.getElementById('sbMsg').textContent='Cannot reach '+base;
+  }
+}
+
+// Set dynamic base URL on load
+const currentOrigin = window.location.origin;
+if (currentOrigin && !currentOrigin.includes('file://')) {
+  document.getElementById('baseUrl').value = currentOrigin;
+} else {
+  document.getElementById('baseUrl').value = "http://localhost:8787";
+}
+
+// Auto health on load after small delay
+setTimeout(checkHealth, 500);
+
+// Enter to send
+document.getElementById('reqUrl').addEventListener('keydown',e=>{ if(e.key==='Enter') sendRequest(); });
+</script>
+</body>
+</html>

@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 function BlockRenderer({ block }) {
   if (block.type === 'markdown') {
     return (
       <div className="chat-md">
-        <ReactMarkdown>{block.content || ''}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{block.content || ''}</ReactMarkdown>
       </div>
     )
   }
@@ -156,7 +157,7 @@ export default function ChatPanel({ apiBase, open, onClose, seedMessage, onConsu
               <div className="chat-bubble assistant">
                 {m.blocks?.length
                   ? m.blocks.map((b, j) => <BlockRenderer key={j} block={b} />)
-                  : m.assistant}
+                  : <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.assistant}</ReactMarkdown>}
               </div>
             )}
           </div>

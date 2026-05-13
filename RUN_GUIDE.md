@@ -25,11 +25,12 @@ This monorepo unifies the SAN Simulator, Discovery Engine, React Dashboard, AI A
 Start the graph and search engines via Docker:
 ```powershell
 cd monorepo
-docker-compose up -d neo4j elasticsearch
+docker-compose up -d neo4j elasticsearch mongo
 ```
 
 - **Neo4j Browser**: [http://localhost:7474](http://localhost:7474) (User: `neo4j`, Pass: `hpe_san_password`)
 - **Elasticsearch**: [http://localhost:9200](http://localhost:9200)
+- **MongoDB**: [mongodb://localhost:27017](mongodb://localhost:27017)
 
 ## 3. Application Execution
 
@@ -47,22 +48,36 @@ cd monorepo
 py api/app.py
 ```
 
-### C. Dashboard (Port 3000)
+### C. Chatbot Service (Port 5010)
+```powershell
+cd monorepo/chatbot-service
+npm install
+npm run dev
+```
+
+### D. Dashboard (Port 3000)
 ```powershell
 cd monorepo/dashboard
 npm install
 npm run dev
 ```
 
+### D. API Explorer (Port 5005)
+The Master API now includes a built-in interactive developer tool:
+- **URL (API Explorer)**: [http://localhost:5005/tester](http://localhost:5005/tester)
+- **URL (Standalone Terminal)**: [http://localhost:5005/terminal](http://localhost:5005/terminal)
+- Use these to test SAN CLI commands, run graph pathfinding, and explore all API endpoints without writing code.
+
 ---
 
 ## Using the Dashboard
 
-1. **Topology Canvas**: Visualizes the SAN network. Click nodes for details.
-2. **Start Discovery**: Click the button in the header to run the BFS crawler against the simulated network.
-3. **AI Assistant**: Natural language chat over the topology. Supports hybrid RAG (JSON store + Neo4j).
-4. **Admin Panel**: Add/Delete nodes, ingest CSV data, or generate synthetic device files.
-5. **Node Terminal**: Click an IP in the sidebar to open a terminal for executing CLI commands on simulated devices.
+1. **Discovery Tab**: Live BFS network scan visualization.
+2. **Topology Tab**: Ported from Unmesh — interactive SAN diagram with decommission management.
+3. **Emulator Tab**: Execute CLI commands on simulated devices via terminal.
+4. **AI Assistant**: Full-page chat with dual engine support (Gemini/Groq) and persistent history.
+5. **Admin Tab**: Comprehensive device CRUD, schema management, and synthetic data generation.
+6. **Health Tab**: System health metrics, capacity charts, and AI-driven recommendations.
 
 ## Project Structure
 
