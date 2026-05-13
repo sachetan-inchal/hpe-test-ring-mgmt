@@ -1,0 +1,54 @@
+services:
+  # 1. Neo4j (Graph Database)
+  - type: pserv
+    name: neo4j
+    runtime: image
+    image:
+      url: neo4j:5.18
+    envVars:
+      - key: NEO4J_AUTH
+        value: neo4j/hpe_san_password
+      - key: NEO4J_PLUGINS
+        value: '["apoc"]'
+    disk:
+      name: neo4j-data
+      mountPath: /data
+      sizeGB: 1
+
+  # 2. Elasticsearch (Search Engine)
+  - type: pserv
+    name: elasticsearch
+    runtime: image
+    image:
+      url: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    envVars:
+      - key: discovery.type
+        value: single-node
+      - key: xpack.security.enabled
+        value: "false"
+      - key: ES_JAVA_OPTS
+        value: "-Xms512m -Xmx1g"
+    disk:
+      name: es-data
+      mountPath: /usr/share/elasticsearch/data
+      sizeGB: 1
+
+  # 3. Master API (Flask + Built Dashboard)
+  - type: web
+    name: master-api
+    env: docker
+    dockerContext: .
+    dockerfilePath: api/Dockerfile
+    envVars:
+      - key: NEO4J_URI
+        value: bolt://neo4j:7687
+      - key: NEO4J_USER
+        value: neo4j
+      - key: NEO4J_PASS
+        value: hpe_san_password
+      - key: ES_HOST
+        value: http://elasticsearch:9200
+      - key: GROQ_API_KEY
+        sync: false # Set this manually in Render Dashboard for security
+      - key: PORT
+        value: 5005

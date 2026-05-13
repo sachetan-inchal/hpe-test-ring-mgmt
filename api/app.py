@@ -48,7 +48,7 @@ from integrations.data_faker import DataFaker
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [api] %(message)s")
 log = logging.getLogger(__name__)
 
-app = Flask(__name__, static_folder=os.path.join(MONOREPO, "dashboard", "build"), static_url_path="")
+app = Flask(__name__, static_folder=os.path.join(MONOREPO, "dashboard", "dist"), static_url_path="")
 CORS(app)
 
 # ── Infrastructure ────────────────────────────────────────────────────────────
@@ -531,12 +531,13 @@ def health():
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5005))
     print("=" * 60)
-    print("  HPE SAN Monorepo API — http://localhost:5005")
+    print(f"  HPE SAN Monorepo API — http://localhost:{port}")
     print(f"  Neo4j:          {'connected' if neo4j.available else 'unavailable'}")
     print(f"  Elasticsearch:  {'connected' if es.available else 'unavailable'}")
     print(f"  Sim devices:    {len(virtual_network.list_devices())}")
     print("=" * 60)
     print("  Start simulator first:  cd simulator && python simulator_manager.py")
     print("=" * 60)
-    app.run(debug=True, host="0.0.0.0", port=5005, threaded=True)
+    app.run(debug=True, host="0.0.0.0", port=port, threaded=True)
