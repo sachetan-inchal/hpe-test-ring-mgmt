@@ -1094,8 +1094,8 @@ def wait_for_services(timeout=60):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5005))
     
-    # Wait for databases to wake up before starting the web server
-    wait_for_services()
+    # Wait for databases to wake up before starting the web server (reduced timeout so it doesn't hang forever)
+    wait_for_services(timeout=2)
 
     print("=" * 60)
     print(f"  HPE SAN Monorepo API — http://localhost:{port}")
