@@ -40,33 +40,23 @@ docker-compose up -d neo4j elasticsearch mongo
 
 ## 3. Application Execution
 
-For the best experience, run all three components in separate terminals:
+### The Easy Way (One-Command Startup)
+This is the recommended way for daily development. It starts Docker, watches for file changes, and runs everything in one terminal.
 
-### A. Simulator (Port 5001)
 ```powershell
-cd monorepo
-py simulator/simulator_manager.py
-```
-
-### B. Main API (Port 5005)
-```powershell
-cd monorepo
-py api/app.py
-```
-
-### C. Chatbot Service (Port 5010)
-```powershell
-cd monorepo/chatbot-service
+# In the monorepo root
 npm install
-npm run dev
+npm start
 ```
 
-### D. Dashboard (Port 3000)
-```powershell
-cd monorepo/dashboard
-npm install
-npm run dev
-```
+### The Manual Way (Separate Terminals)
+Use this if you need to debug a specific component.
+
+1. **Start Databases**: `docker-compose up -d neo4j elasticsearch mongo`
+2. **Simulator**: `py simulator/simulator_manager.py`
+3. **API**: `py api/app.py`
+4. **Chatbot**: `cd chatbot-service && npm run dev`
+5. **Dashboard**: `cd dashboard && npm run dev`
 
 ### D. API Explorer (Port 5005)
 The Master API now includes a built-in interactive developer tool:
