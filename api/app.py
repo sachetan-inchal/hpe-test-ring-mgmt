@@ -277,6 +277,33 @@ def sim_topology():
             edges.append({"source": d["ip"], "target": peer, "type": "REMOTE_COPY"})
     return jsonify({"nodes": nodes, "edges": edges})
 
+@app.route("/api/sim/mock-topology", methods=["GET"])
+def sim_mock_topology():
+    import json, os
+    filepath = os.path.join(MONOREPO, "simulator", "data", "network_meta", "network_topology.json")
+    try:
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        nodes = []
+        edges = []
+        for arr in data.get('arrays', []):
+            arr_id = arr['ip_address']
+            nodes.append({
+                'id': arr_id, 'name': arr['name'], 'type': 'Array', 'status': 'normal', 'category': 'main',
+                'model': arr.get('model'), 'serialNumber': arr.get('serial')
+            })
+            for sw in arr.get('switches', []):
+                sw_id = sw['ip_address']
+                nodes.append({'id': sw_id, 'name': sw['name'], 'type': 'Switch', 'status': 'normal', 'category': 'main'})
+                edges.append({'from': arr_id, 'to': sw_id, 'label': 'HAS_SWITCH'})
+            for h in arr.get('hosts', []):
+                h_id = h['ip_address']
+                nodes.append({'id': h_id, 'name': h['name'], 'type': 'Host', 'status': 'normal', 'category': 'main', 'os_type': h.get('os_type')})
+                edges.append({'from': sw['ip_address'] if arr.get('switches') else arr_id, 'to': h_id, 'label': 'HAS_HOST'})
+        return jsonify({"nodes": nodes, "edges": edges})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/sim/status", methods=["GET"])
 def sim_status():
     proxied = _proxy_to_sim("/sim/status")

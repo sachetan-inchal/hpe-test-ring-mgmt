@@ -15,21 +15,27 @@ export default function InventoryPage({ apiBase }) {
     async function load() {
       setLoading(true)
       try {
-        const res = await fetch(`${apiBase}/api/graph/neo4j`)
+        let res = await fetch(`${apiBase}/api/graph/neo4j`).catch(() => ({ ok: false }))
+        if (!res.ok) res = await fetch(`${apiBase}/api/ontology/topology`).catch(() => ({ ok: false }))
+        if (!res.ok) res = await fetch(`${apiBase}/api/sim/mock-topology`).catch(() => ({ ok: false }))
+        if (!res.ok) res = await fetch(`https://hpe-ontology-and-graph.onrender.com/topology`).catch(() => ({ ok: false }))
+        if (!res.ok) throw new Error('Failed to load inventory from any source')
+        
         const json = await res.json()
         
         const normalizedNodes = (json.nodes || []).map(n => ({
           id: n.data?.id || n.id,
           name: n.data?.name || n.name,
           type: n.data?.label || n.type,
-          status: n.data?.status || 'normal',
-          category: n.data?.category || 'main',
-          ...n.data
+          status: n.data?.status || n.status || 'normal',
+          category: n.data?.category || n.category || 'main',
+          ...n.data,
+          ...n // fallback for flat structure
         }))
         
         const normalizedEdges = (json.edges || []).map(e => ({
-          from: e.data?.source || e.source,
-          to: e.data?.target || e.target,
+          from: e.data?.source || e.source || e.from,
+          to: e.data?.target || e.target || e.to,
           label: e.data?.label || e.label || ''
         }))
         
