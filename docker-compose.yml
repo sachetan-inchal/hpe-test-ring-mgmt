@@ -38,6 +38,9 @@ services:
       MONGO_URI: ${MONGO_URI}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       JWT_SECRET: ${JWT_SECRET}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASS: hpe_san_password
       CHATBOT_PORT: 5010
     restart: unless-stopped
 

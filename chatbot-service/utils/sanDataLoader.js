@@ -1,6 +1,56 @@
 import fs from 'fs/promises';
 import path from 'path';
 import SANData from '../models/SANData.js';
+import neo4j from 'neo4j-driver';
+
+// Initialize Neo4j Driver
+const driver = neo4j.driver(
+  process.env.NEO4J_URI || 'bolt://localhost:7687',
+  neo4j.auth.basic(process.env.NEO4J_USER || 'neo4j', process.env.NEO4J_PASS || 'hpe_san_password')
+);
+
+/**
+ * Fetches live SAN data from Neo4j to provide real-time context for GraphRAG.
+ */
+export const getLiveNeo4jData = async () => {
+  const session = driver.session();
+  try {
+    const result = await session.run(`
+      MATCH (n)
+      OPTIONAL MATCH (n)-[r]->(m)
+      RETURN collect(DISTINCT {
+        id: n.id,
+        name: n.name,
+        type: labels(n)[0],
+        status: n.status,
+        ip_address: n.ip_address,
+        model: n.model,
+        serialNumber: n.serialNumber,
+        firmware: n.firmware,
+        totalCapacityTb: n.totalCapacityTb,
+        usedCapacityTb: n.usedCapacityTb,
+        parentId: n.parentId,
+        isDecommissioned: n.isDecommissioned
+      }) as nodes,
+      collect(DISTINCT {
+        from: startNode(r).id,
+        to: endNode(r).id,
+        label: type(r)
+      }) as edges
+    `);
+    const record = result.records[0];
+    const nodes = record.get('nodes').filter(n => n.id !== null);
+    const edges = record.get('edges').filter(e => e.from !== null && e.to !== null);
+    
+    if (nodes.length === 0) return null;
+    return { nodes, edges };
+  } catch (error) {
+    console.error('Neo4j GraphRAG Error:', error);
+    return null;
+  } finally {
+    await session.close();
+  }
+};
 
 // The provided SAN infrastructure data
 const SAN_INFRASTRUCTURE_DATA = {
@@ -754,6 +804,13 @@ export const loadSANData = async () => {
 // Get SAN data for AI context
 export const getSANDataForAI = async () => {
   try {
+    // Try live Neo4j data first
+    const liveData = await getLiveNeo4jData();
+    if (liveData) {
+      console.log('Using live Neo4j data for AI context');
+      return liveData;
+    }
+
     const sanData = await SANData.findOne({});
     if (!sanData) {
       // Load data if not exists

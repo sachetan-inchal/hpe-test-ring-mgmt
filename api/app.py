@@ -148,6 +148,21 @@ discovery_crawler.es    = es
 # ── Chatbot Proxy (Node.js) ───────────────────────────────────────────────────
 
 CHATBOT_URL = os.environ.get("CHATBOT_SERVICE_URL", "http://localhost:5010")
+SIMULATOR_URL = os.environ.get("SIMULATOR_URL", "")
+
+def _proxy_to_sim(path, method="GET", data=None):
+    if not SIMULATOR_URL:
+        return None
+    import requests
+    url = f"{SIMULATOR_URL}{path}"
+    try:
+        if method == "GET":
+            res = requests.get(url, timeout=3)
+        else:
+            res = requests.post(url, json=data, timeout=3)
+        return res.json()
+    except Exception:
+        return None
 
 @app.route("/chatbot/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 @app.route("/chatbot/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
@@ -226,14 +241,19 @@ def api_faker_san():
 @app.route("/api/sim/devices", methods=["GET"])
 def sim_devices():
     """List all virtual devices in the simulated SAN."""
+    proxied = _proxy_to_sim("/api/devices")
+    if proxied is not None:
+        return jsonify(proxied)
     return jsonify(virtual_network.list_devices())
 
 @app.route("/api/sim/exec", methods=["POST"])
 def sim_exec():
-    """Execute a CLI command on a simulated device.
-    Body: {"ip": "10.20.10.5", "command": "showsys"}
-    """
+    """Execute a CLI command on a simulated device."""
     data = request.json or {}
+    proxied = _proxy_to_sim("/api/exec", method="POST", data=data)
+    if proxied is not None:
+        return jsonify(proxied)
+    
     ip      = data.get("ip", "")
     command = data.get("command", "")
     if not ip or not command:
@@ -245,6 +265,10 @@ def sim_exec():
 @app.route("/api/sim/topology", methods=["GET"])
 def sim_topology():
     """D3-ready node-link of the simulated network."""
+    proxied = _proxy_to_sim("/api/topology")
+    if proxied is not None:
+        return jsonify(proxied)
+    
     devices = virtual_network.list_devices()
     nodes = [{"id": d["ip"], "label": d.get("name", d["ip"]), "type": d.get("type")} for d in devices]
     edges = []
@@ -255,6 +279,10 @@ def sim_topology():
 
 @app.route("/api/sim/status", methods=["GET"])
 def sim_status():
+    proxied = _proxy_to_sim("/api/status")
+    if proxied is not None:
+        return jsonify(proxied)
+    
     count = len(virtual_network.list_devices())
     return jsonify({"status": "running" if count > 0 else "idle", "device_count": count})
 
@@ -707,13 +735,25 @@ def search_status():
 @app.route("/api/health")
 def health():
     groq_key = bool((os.environ.get("GROQ_API_KEY") or "").strip())
+    # Check if simulator is reachable
+    sim_reachable = "ok"
+    try:
+        from simulator.network_sim import SIMULATOR_URL
+        import requests
+        res = requests.get(f"{SIMULATOR_URL}/sim/status", timeout=0.5)
+        if not res.ok: sim_reachable = "error"
+    except Exception:
+        sim_reachable = "error"
+
     return jsonify({
         "status": "ok",
+        "version": "2.0",
         "sim_devices": len(virtual_network.list_devices()),
-        "neo4j": neo4j.available,
-        "elasticsearch": es.available,
+        "neo4j": "ok" if neo4j.available else "unavailable",
+        "elasticsearch": "ok" if es.available else "unavailable",
         "discovery_running": discovery_crawler.running,
         "groq_configured": groq_key,
+        "simulator": sim_reachable
     })
 
 

@@ -31,13 +31,24 @@ class ElasticsearchIndexer:
     def _init_client(self):
         try:
             from elasticsearch import Elasticsearch
-            self._client = Elasticsearch(self.host)
+            # For ES 8.x/9.x, explicitly handle security-disabled environments
+            self._client = Elasticsearch(
+                self.host,
+                verify_certs=False,
+                request_timeout=5
+            )
+            # Try a direct HEAD request or info() which is more reliable than ping() in some versions
             if self._client.ping():
                 self._available = True
                 self._ensure_indices()
                 log.info(f"[indexer] Elasticsearch connected at {self.host}")
             else:
-                log.warning(f"[indexer] Elasticsearch ping failed at {self.host}")
+                # Fallback check
+                info = self._client.info()
+                if info:
+                    self._available = True
+                    self._ensure_indices()
+                    log.info(f"[indexer] Elasticsearch connected via info() at {self.host}")
         except ImportError:
             log.warning("[indexer] elasticsearch-py not installed. Run: pip install elasticsearch")
         except Exception as e:

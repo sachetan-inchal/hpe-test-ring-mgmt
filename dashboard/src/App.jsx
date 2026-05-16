@@ -8,7 +8,8 @@ import EmulatorPage from './pages/EmulatorPage'
 import ChatPage from './pages/ChatPage'
 import AdminPage from './pages/AdminPage'
 import HealthPage from './pages/HealthPage'
-import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight } from 'lucide-react'
+import InventoryPage from './pages/InventoryPage'
+import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database } from 'lucide-react'
 
 const FLASK_API = ''
 const CHATBOT_API = '/chatbot'
@@ -16,6 +17,7 @@ const CHATBOT_API = '/chatbot'
 const NAV_ITEMS = [
   { path: '/discovery', label: 'Discovery', icon: Radar, desc: 'Live BFS network scan' },
   { path: '/topology', label: 'Topology', icon: Map, desc: 'SAN diagram & graph' },
+  { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
   { path: '/emulator', label: 'Emulator', icon: Terminal, desc: 'CLI terminal' },
   { path: '/chat', label: 'AI Assistant', icon: MessageSquare, desc: 'Intelligent chat' },
   { path: '/admin', label: 'Admin', icon: Settings, desc: 'Device & schema mgmt' },
@@ -123,6 +125,7 @@ export default function App() {
                   <Route path="/" element={<Navigate to="/discovery" replace />} />
                   <Route path="/discovery" element={<DiscoveryPage apiBase={FLASK_API} />} />
                   <Route path="/topology" element={<TopologyPage apiBase={FLASK_API} />} />
+                  <Route path="/inventory" element={<InventoryPage apiBase={FLASK_API} />} />
                   <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} />} />
                   <Route path="/chat" element={<ChatPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="/admin" element={<AdminPage apiBase={FLASK_API} />} />

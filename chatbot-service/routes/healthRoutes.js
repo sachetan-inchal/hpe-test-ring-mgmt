@@ -20,6 +20,26 @@ router.get('/ai', async (req, res) => {
   }
 });
 
+// Database health check
+router.get('/db', async (req, res) => {
+  const mongoose = (await import('mongoose')).default;
+  const state = mongoose.connection.readyState;
+  const states = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting',
+    99: 'uninitialized',
+  };
+  
+  res.json({
+    status: state === 1 ? 'success' : 'failed',
+    connection_state: states[state] || 'unknown',
+    uri_present: !!process.env.MONGO_URI,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // General health check
 router.get('/', (req, res) => {
   res.json({

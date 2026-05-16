@@ -11,6 +11,7 @@
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
     "@xyflow/react": "^12.3.6",
+    "dagre": "^0.8.5",
     "html-to-image": "^1.11.11",
     "lucide-react": "^0.436.0",
     "react": "^18.3.1",

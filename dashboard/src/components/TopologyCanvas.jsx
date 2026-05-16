@@ -82,25 +82,37 @@ function hexToRgb(hex) {
   return `${r}, ${g}, ${b}`
 }
 
-// ── Auto-layout: tier-based y, spread x ──────────────────────────────────────
-function autoLayout(nodes) {
-  const tiers = {}
-  nodes.forEach(n => {
-    const t = getTypeMeta(n.type).yTier
-    if (!tiers[t]) tiers[t] = []
-    tiers[t].push(n)
+import dagre from 'dagre'
+
+// ── Auto-layout using Dagre ──────────────────────────────────────────────────
+const nodeWidth = 200
+const nodeHeight = 80
+
+const getLayoutedElements = (nodes, edges, direction = 'TB') => {
+  const dagreGraph = new dagre.graphlib.Graph()
+  dagreGraph.setDefaultEdgeLabel(() => ({}))
+  dagreGraph.setGraph({ rankdir: direction, ranksep: 100, nodesep: 80 })
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
   })
-  const laid = []
-  Object.entries(tiers).forEach(([tier, tierNodes]) => {
-    const y = parseInt(tier)
-    const spacingX = 200
-    const totalW = (tierNodes.length - 1) * spacingX
-    const startX = -(totalW / 2)
-    tierNodes.forEach((n, i) => {
-      laid.push({ ...n, position: { x: startX + i * spacingX, y } })
-    })
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.from || edge.source, edge.to || edge.target)
   })
-  return laid
+
+  dagre.layout(dagreGraph)
+
+  return nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id)
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - nodeWidth / 2,
+        y: nodeWithPosition.y - nodeHeight / 2,
+      },
+    }
+  })
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -109,9 +121,9 @@ export default function TopologyCanvas({ nodes, edges, selectedNode, onNodeClick
   const exportRef = useRef(null)
 
   const rfNodes = useMemo(() => {
-    const withLayout = autoLayout(nodes)
-    return withLayout.map(n => buildCustomNode(n, highlightedIps, selectedId, pulsingIds))
-  }, [nodes, highlightedIps, selectedId, pulsingIds])
+    const laid = getLayoutedElements(nodes, edges)
+    return laid.map(n => buildCustomNode(n, highlightedIps, selectedId, pulsingIds))
+  }, [nodes, edges, highlightedIps, selectedId, pulsingIds])
 
   const exportPng = useCallback(async () => {
     const el = exportRef.current

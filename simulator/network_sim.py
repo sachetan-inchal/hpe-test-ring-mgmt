@@ -43,17 +43,18 @@ class VirtualNetwork:
         
         # If not local, try to see if it exists on the remote simulator
         try:
-            # print(f"[network_sim] Checking remote simulator for {ip} at {SIMULATOR_URL}")
+            # log.info(f"[network_sim] Checking remote simulator for {ip} at {SIMULATOR_URL}")
             resp = requests.get(f"{SIMULATOR_URL}/sim/devices", timeout=2.0) # Increased timeout
             if resp.ok:
                 devices = resp.json()
                 for d in devices:
                     if d["ip"] == ip:
                         return RemoteProxyTerminal(ip)
+                # print(f"[network_sim] Device {ip} not found in remote simulator device list.")
             else:
-                print(f"[network_sim] Remote simulator returned status {resp.status_code}")
+                print(f"[network_sim] Remote simulator error: {resp.status_code} at {SIMULATOR_URL}")
         except Exception as e:
-            print(f"[network_sim] Remote simulator check failed: {e}")
+            print(f"[network_sim] Failed to connect to remote simulator at {SIMULATOR_URL}: {e}")
         return None
 
     def execute(self, ip: str, command: str) -> str:

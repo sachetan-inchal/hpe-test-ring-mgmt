@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import dagre from 'dagre'
 import { Search, Download, Image, Trash2, Plus, ChevronDown, ChevronRight, X, Database, Edit2, Eye, EyeOff, Filter } from 'lucide-react'
 
 const API_BASE = '/api/ontology'
@@ -152,26 +153,34 @@ export default function TopologyPage({ apiBase }) {
   }, [activeNodes, data.edges])
 
   // React Flow nodes/edges
-  const rfNodes = useMemo(() => {
-    const mainNodes = activeNodes.filter(n => n.category === 'main' || !n.parentId)
-    const typeGroups = {}
-    mainNodes.forEach(n => { const t = n.type || 'Other'; if (!typeGroups[t]) typeGroups[t] = []; typeGroups[t].push(n) })
-    const result = []; let y = 0
-    Object.entries(typeGroups).forEach(([type, nodes]) => {
-      nodes.forEach((n, i) => {
-        result.push({ id: n.id, type: 'sanNode', position: { x: i * 200, y }, data: { ...n, label: n.name, focused: n.id === focusedId, onClick: () => setFocusedId(n.id) } })
-        if (expandedIds.includes(n.id)) {
-          const children = activeNodes.filter(c => c.parentId === n.id)
-          children.forEach((c, ci) => {
-            result.push({ id: c.id, type: 'sanNode', position: { x: i * 200 + (ci % 3) * 160, y: y + 80 + Math.floor(ci / 3) * 70 },
-              data: { ...c, label: c.name, focused: c.id === focusedId, onClick: () => setFocusedId(c.id) } })
-          })
-        }
-      })
-      y += expandedIds.some(eid => nodes.find(n => n.id === eid)) ? 280 : 120
+  // --- Dagre Layout ---
+  const getLayoutedElements = useCallback((nodes, edges, direction = 'TB') => {
+    const dagreGraph = new dagre.graphlib.Graph()
+    dagreGraph.setDefaultEdgeLabel(() => ({}))
+    dagreGraph.setGraph({ rankdir: direction, ranksep: 100, nodesep: 80 })
+
+    nodes.forEach((node) => dagreGraph.setNode(node.id, { width: 180, height: 40 }))
+    edges.forEach((edge) => dagreGraph.setEdge(edge.from, edge.to))
+
+    dagre.layout(dagreGraph)
+
+    return nodes.map((node) => {
+      const nodeWithPosition = dagreGraph.node(node.id)
+      return {
+        ...node,
+        position: { x: nodeWithPosition.x - 90, y: nodeWithPosition.y - 20 }
+      }
     })
-    return result
-  }, [activeNodes, focusedId, expandedIds])
+  }, [])
+
+  // React Flow nodes/edges
+  const rfNodes = useMemo(() => {
+    const laid = getLayoutedElements(activeNodes, activeEdges)
+    return laid.map(n => ({
+      id: n.id, type: 'sanNode', position: n.position,
+      data: { ...n, label: n.name, focused: n.id === focusedId, onClick: () => handleNodeClick(n.id) }
+    }))
+  }, [activeNodes, activeEdges, focusedId, getLayoutedElements])
 
   const rfEdges = useMemo(() => activeEdges.map((e, i) => ({
     id: `e-${i}`, source: e.from, target: e.to, label: e.label,

@@ -199,6 +199,7 @@ body {
   font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid;
 }
 .badge-ok { background: rgba(63,185,80,0.12); border-color: rgba(63,185,80,0.35); color: var(--status-ok); }
+.badge-info { background: rgba(88,166,255,0.12); border-color: rgba(88,166,255,0.35); color: var(--accent-blue); }
 .badge-warn { background: rgba(210,153,34,0.12); border-color: rgba(210,153,34,0.35); color: var(--status-warn); }
 .badge-crit { background: rgba(248,81,73,0.12); border-color: rgba(248,81,73,0.35); color: var(--status-critical); }
 .section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }

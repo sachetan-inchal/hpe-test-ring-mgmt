@@ -22,11 +22,17 @@ This monorepo unifies the SAN Simulator, Discovery Engine, React Dashboard, AI A
 
 ## 2. Infrastructure
 
-Start the graph and search engines via Docker:
+Start the graph and search engines via Docker. **IMPORTANT**: Only start the database services if you plan to run the API and Chatbot locally.
+
 ```powershell
+# You MUST be in the monorepo directory
 cd monorepo
+# Only start databases (Recommended for development)
 docker-compose up -d neo4j elasticsearch mongo
 ```
+
+> [!WARNING]
+> Do NOT run `docker-compose up -d` without service names if you are also running `py api/app.py`. This will cause a port conflict on **5005**.
 
 - **Neo4j Browser**: [http://localhost:7474](http://localhost:7474) (User: `neo4j`, Pass: `hpe_san_password`)
 - **Elasticsearch**: [http://localhost:9200](http://localhost:9200)
@@ -62,11 +68,36 @@ npm install
 npm run dev
 ```
 
-### D. API Explorer (Port 5005)
-The Master API now includes a built-in interactive developer tool:
-- **URL (API Explorer)**: [http://localhost:5005/tester](http://localhost:5005/tester)
-- **URL (Standalone Terminal)**: [http://localhost:5005/terminal](http://localhost:5005/terminal)
-- Use these to test SAN CLI commands, run graph pathfinding, and explore all API endpoints without writing code.
+---
+
+## 4. Run Everything at Once (Recommended)
+
+You can now start all services (Simulator, API, Chatbot, and Dashboard) with a single command. This setup uses `concurrently` to manage processes and `nodemon` for hot-reloading.
+
+1. **One-time Setup**:
+   ```powershell
+   cd monorepo
+   npm install
+   ```
+
+2. **Start All Services**:
+   ```powershell
+   npm run dev
+   ```
+
+- **Hot-Reloading**: Python services (`api` and `simulator`) will automatically restart when `.py` or `.json` files are modified.
+- **Unified Logging**: All logs are color-coded in one terminal window.
+
+---
+
+## 5. Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| **Red "Unavailable" Services** | Ensure you are NOT running the `api` or `chatbot` Docker containers. Run `docker stop hpe_san_api hpe_chatbot`. |
+| **Elasticsearch 400 Error** | Ensure you have `elasticsearch<9.0` installed. Run `pip install "elasticsearch<9.0"`. |
+| **Discovery Seed IP fails** | Ensure the Simulator is running on port `5001`. The default seed is `10.20.10.5`. |
+| **Chatbot logic errors** | Check the `.env` file in the monorepo root; the chatbot-service loads config from there. |
 
 ---
 

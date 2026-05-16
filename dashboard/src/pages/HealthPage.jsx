@@ -106,10 +106,10 @@ export default function HealthPage({ apiBase, chatbotApi }) {
 
   const services = [
     { name: 'Flask Master API', ok: !!health, detail: health ? `v${health.version || '2.0'} · ${health.neo4j || 'unknown'}` : 'Down' },
-    { name: 'Neo4j Graph DB', ok: health?.neo4j === 'connected' || health?.neo4j === 'ok', detail: health?.neo4j || 'Unknown' },
-    { name: 'Elasticsearch', ok: health?.elasticsearch === 'connected' || health?.elasticsearch === 'ok', detail: health?.elasticsearch || 'Unknown' },
+    { name: 'Neo4j Graph DB', ok: health?.neo4j === 'connected' || health?.neo4j === 'ok' || health?.neo4j === true, detail: String(health?.neo4j || 'Unknown') },
+    { name: 'Elasticsearch', ok: health?.elasticsearch === 'connected' || health?.elasticsearch === 'ok' || health?.elasticsearch === true, detail: String(health?.elasticsearch || 'Unknown') },
     { name: 'Chatbot Service', ok: !!sanData || !!chatbotApi, detail: sanData ? 'Running' : 'Check port 5010' },
-    { name: 'Simulator', ok: health?.simulator !== 'error', detail: health?.simulator || 'Unknown' },
+    { name: 'Simulator', ok: health?.simulator === 'ok' || health?.simulator === true, detail: String(health?.simulator || 'Unknown') },
   ]
 
   // Recommendations

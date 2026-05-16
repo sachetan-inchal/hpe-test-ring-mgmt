@@ -66,6 +66,11 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         })
         const data = await res.json()
         answer = data.answer || data.response || 'No response from GraphRAG engine.'
+        
+        // Append Cypher query if available so it's displayed in the UI
+        if (data.cypher) {
+          answer += `\n\n**Neo4j Cypher Query:**\n\`\`\`cypher\n${data.cypher}\n\`\`\``
+        }
       } else {
         // Standard mode — uses chatbot service's Gemini AI with SAN context
         const res = await fetch(`${chatbotApi}/chat/send`, {
@@ -147,7 +152,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Sparkles size={18} style={{ color: 'var(--hpe-green)' }} />
             <span style={{ fontWeight: 600, fontSize: 14 }}>HPE SAN AI Assistant</span>
-            <span className={`badge ${aiMode === 'graphrag' ? 'badge-warn' : 'badge-ok'}`}>
+            <span className={`badge ${aiMode === 'graphrag' ? 'badge-info' : 'badge-ok'}`}>
               {aiMode === 'standard' ? 'Standard RAG' : 'GraphRAG'}
             </span>
           </div>
