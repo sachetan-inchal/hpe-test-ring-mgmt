@@ -4,7 +4,8 @@
  * Shows flooding animation progress, device-by-device discovery,
  * command execution, parsed entity counts, and Neo4j/ES indexing status.
  */
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 
 const EV_COLORS = {
   start:          '#58a6ff',
@@ -37,33 +38,68 @@ const EV_ICONS = {
 }
 
 function EventRow({ event, index }) {
+  const [expanded, setExpanded] = useState(false)
   const color = EV_COLORS[event.type] || '#8b949e'
   const icon = EV_ICONS[event.type] || '•'
+  const isCommand = event.type === 'command'
+
   return (
     <div style={{
-      display: 'flex', gap: 8, alignItems: 'flex-start',
-      padding: '3px 0',
-      opacity: event.type === 'command' ? 0.65 : 1,
+      display: 'flex', flexDirection: 'column',
+      padding: '4px 0',
       borderLeft: event.type === 'connected' || event.type === 'complete' ? `2px solid ${color}` : '2px solid transparent',
       paddingLeft: 8,
+      transition: 'all 0.2s ease',
     }}>
-      <span style={{ fontSize: 11, flexShrink: 0, marginTop: 1 }}>{icon}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ fontSize: 11, color, lineHeight: 1.6, wordBreak: 'break-all' }}>
-          {event.msg || JSON.stringify(event)}
-        </span>
-        {event.entity_counts && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 3 }}>
-            {Object.entries(event.entity_counts).filter(([, v]) => v > 0).map(([k, v]) => (
-              <span key={k} style={{
-                padding: '0 6px', borderRadius: 20, fontSize: 9, fontWeight: 700,
-                background: 'rgba(57, 197, 207, 0.12)', color: '#39c5cf',
-                border: '1px solid rgba(57, 197, 207, 0.3)',
-              }}>{k}: {v}</span>
-            ))}
-          </div>
-        )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <span style={{ fontSize: 11, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ 
+            fontSize: 11, color, lineHeight: 1.6, wordBreak: 'break-all',
+            opacity: isCommand ? 0.75 : 1
+          }}>
+            {event.msg || JSON.stringify(event)}
+          </span>
+          {isCommand && event.output && (
+            <button 
+              onClick={() => setExpanded(!expanded)}
+              style={{
+                background: 'transparent', border: 'none', color: 'var(--muted)',
+                padding: 0, display: 'flex', cursor: 'pointer',
+                transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease'
+              }}
+            >
+              <ChevronRight size={12} />
+            </button>
+          )}
+        </div>
       </div>
+      
+      {expanded && isCommand && event.output && (
+        <div className="rise-in" style={{
+          marginTop: 6, marginBottom: 4,
+          padding: '8px 10px', background: 'rgba(0,0,0,0.3)',
+          borderRadius: 6, border: '1px solid var(--line)',
+          fontSize: 10, color: '#e6edf3', fontFamily: 'var(--font-mono)',
+          whiteSpace: 'pre-wrap', maxHeight: 250, overflowY: 'auto',
+          boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.5)'
+        }}>
+          {event.output}
+        </div>
+      )}
+
+      {event.entity_counts && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5, paddingLeft: 22 }}>
+          {Object.entries(event.entity_counts).filter(([, v]) => v > 0).map(([k, v]) => (
+            <span key={k} style={{
+              padding: '0 6px', borderRadius: 20, fontSize: 9, fontWeight: 700,
+              background: 'rgba(57, 197, 207, 0.12)', color: '#39c5cf',
+              border: '1px solid rgba(57, 197, 207, 0.3)',
+            }}>{k}: {v}</span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

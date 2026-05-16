@@ -331,9 +331,44 @@ def discovery_stream():
 def discovery_status():
     return jsonify(discovery_crawler.get_status())
 
-@app.route("/api/v1/san/discovery/events")
-def discovery_events():
-    return jsonify({"events": discovery_crawler.events, "count": len(discovery_crawler.events)})
+@app.route("/api/discover/ingest", methods=["POST"])
+def ingest_log_discovery():
+    """Upload a .txt log file and start discovery from it."""
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    f = request.files['file']
+    if not f.filename.endswith('.txt'):
+        return jsonify({"error": "Only .txt files allowed"}), 400
+    
+    # Save to simulator/data/devices
+    safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', f.filename.replace('.txt', ''))
+    filename = f"{safe_name}.txt"
+    dest = os.path.join(MONOREPO, "simulator", "data", "devices", filename)
+    f.save(dest)
+    
+    # Register a fake IP for this file
+    import random
+    fake_ip = f"10.255.{random.randint(1,254)}.{random.randint(1,254)}"
+    from api.master_logic.proxy import DEVICE_REGISTRY
+    DEVICE_REGISTRY[fake_ip] = filename
+    
+    # Start discovery
+    def _run():
+        discovery_crawler.discover([fake_ip], delay_ms=100) # Slower for better animation
+    threading.Thread(target=_run, daemon=True).start()
+    
+    return jsonify({"status": "ingested", "ip": fake_ip, "filename": filename})
+
+@app.route("/api/graph/wipe", methods=["POST"])
+def wipe_graph():
+    """Clear all nodes and edges from Neo4j."""
+    if not neo4j.available:
+        return jsonify({"error": "Neo4j not available"}), 503
+    try:
+        neo4j._run("MATCH (n) DETACH DELETE n")
+        return jsonify({"status": "cleared"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ── Topology / Graph endpoints ────────────────────────────────────────────────
 
@@ -401,13 +436,24 @@ def ingest_spreadsheet():
 def faker_generate():
     data = request.json or {}
     name = data.get("name") or data.get("seed_name") or "synthetic_array"
+    switches = int(data.get("switches", 2))
+    hosts = int(data.get("hosts", 10))
+    disks = int(data.get("disks", 24))
+    
     try:
-        path = _data_faker.generate_array(str(name))
+        path = _data_faker.generate_array(
+            seed_name=str(name), 
+            switches_count=switches, 
+            hosts_count=hosts, 
+            drives_count=disks
+        )
         return jsonify({
+            "status": "success",
             "path": path,
-            "hint": "File written to simulator/data/devices. Reload simulator devices if your process caches file list.",
+            "hint": "File written to simulator/data/devices.",
         })
     except Exception as ex:
+        log.exception("Faker generation failed")
         return jsonify({"error": str(ex)}), 500
 
 

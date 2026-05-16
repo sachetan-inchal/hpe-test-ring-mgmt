@@ -36,7 +36,7 @@ function buildCustomNode(n, highlighted, selected, pulsingIds) {
   const isSelected = selected === n.id
   return {
     id: n.id,
-    position: { x: 0, y: 0 }, // layout applied below
+    position: n.position || { x: Math.random() * 400, y: meta.yTier },
     data: {
       label: (
         <div style={{
@@ -91,26 +91,35 @@ const nodeHeight = 80
 const getLayoutedElements = (nodes, edges, direction = 'TB') => {
   const dagreGraph = new dagre.graphlib.Graph()
   dagreGraph.setDefaultEdgeLabel(() => ({}))
-  dagreGraph.setGraph({ rankdir: direction, ranksep: 100, nodesep: 80 })
+  dagreGraph.setGraph({ rankdir: direction, ranksep: 120, nodesep: 100 })
 
   nodes.forEach((node) => {
     dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
   })
 
   edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.from || edge.source, edge.to || edge.target)
+    const src = edge.from || edge.source
+    const tgt = edge.to || edge.target
+    if (src && tgt) {
+      dagreGraph.setNode(src, { width: nodeWidth, height: nodeHeight })
+      dagreGraph.setNode(tgt, { width: nodeWidth, height: nodeHeight })
+      dagreGraph.setEdge(src, tgt)
+    }
   })
 
   dagre.layout(dagreGraph)
 
   return nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id)
+    const meta = getTypeMeta(node.type)
+    
+    // Fallback if Dagre doesn't have a position for this node yet
+    const x = nodeWithPosition && !isNaN(nodeWithPosition.x) ? nodeWithPosition.x - nodeWidth / 2 : Math.random() * 500
+    const y = nodeWithPosition && !isNaN(nodeWithPosition.y) ? nodeWithPosition.y - nodeHeight / 2 : meta.yTier
+
     return {
       ...node,
-      position: {
-        x: nodeWithPosition.x - nodeWidth / 2,
-        y: nodeWithPosition.y - nodeHeight / 2,
-      },
+      position: { x, y },
     }
   })
 }

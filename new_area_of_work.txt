@@ -1,0 +1,281 @@
+
+
+Connect to array using ssh output
+
+ssh root@s1234
+Warning: the RSA host key for 's1234' differs from the key for the IP address '10.157.204.242'
+Are you sure you want to continue connecting (yes/no)? yes
+Password:
+root@4UW0001234-2:~# showhost
+Id Name            Persona      -WWN/iSCSI_Name/NQN- Port
+  4 host-alpha-001 Generic-ALUA 1000D000000000A1     0:3:1
+                                1000D000000000A2     3:3:1
+                                1000D000000000A1     1:3:1
+                                1000D000000000A2     2:3:1
+ 0 host-beta-002  Generic-ALUA 51402EC0000000B1     0:3:1
+                                51402EC0000000B2     0:3:1
+                                51402EC0000000B2     3:3:1
+                                51402EC0000000B1     3:3:1
+                                51402EC0000000B1     2:3:1
+                                51402EC0000000B2     2:3:1
+                                51402EC0000000B1     1:3:1
+                                51402EC0000000B2     1:3:1
+
+############################
+
+Connect to host using ssh output
+ssh root@c3-dl380g11-25
+Warning: the ECDSA host key for 'c3-dl380g11-25' differs from the key for the IP address '10.157.169.172'
+Are you sure you want to continue connecting (yes/no)? yes
+root@c3-dl380g11-25's password:
+
+To know port_name,port_state and speed of the HBA of host
+
+extract these fields per HBA:
+
+Class Device (host adapter ID)
+port_name (WWPN)
+port_state
+speed
+supported_speeds
+From your sample, extracted result:
+
+host5 → WWPN 0x1000aaaabbbb0001, state Online, speed 16 Gbit, supported 4/8/16 Gbit
+host6 → WWPN 0x1000aaaabbbb0002, state Online, speed 16 Gbit, supported 4/8/16 Gbit
+
+systool -c fc_host -v | grep -E 'Class Device|port_state|port_name|speed'
+  Class Device = "host5"
+  Class Device path = "/sys/devices/pci0000:09/0000:09:00.0/0000:0a:00.0/host5/fc_host/host5"
+    port_name           = "0x1000aaaabbbb0001"
+    port_state          = "Online"
+    speed               = "16 Gbit"
+    supported_speeds    = "4 Gbit, 8 Gbit, 16 Gbit"
+  Class Device = "host6"
+  Class Device path = "/sys/devices/pci0000:09/0000:09:00.0/0000:0a:00.1/host6/fc_host/host6"
+    port_name           = "0x1000aaaabbbb0002"
+    port_state          = "Online"
+    speed               = "16 Gbit"
+    supported_speeds    = "4 Gbit, 8 Gbit, 16 Gbit"
+
+
+extract exactly:
+
+HBA model: HPE StoreFabric SN1200E 2-Port 16Gb FC (Emulex LPe32000)
+Driver: lpfc
+PCI slots: 0a:00.0, 0a:00.1
+
+lspci -nnk | grep -A3 -i 'fibre|fc|emulex|qlogic|lpfc|qlgc'
+0a:00.0 Fibre Channel [0c04]: Emulex Corporation LPe31000/LPe32000 Series 16Gb/32Gb Fibre Channel Adapter [10df:e300] (rev 01)
+        Subsystem: Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]
+        Kernel driver in use: lpfc
+        Kernel modules: lpfc
+0a:00.1 Fibre Channel [0c04]: Emulex Corporation LPe31000/LPe32000 Series 16Gb/32Gb Fibre Channel Adapter [10df:e300] (rev 01)
+        Subsystem: Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]
+        Kernel driver in use: lpfc
+        Kernel modules: lpfc
+1f:00.0 PCI bridge [0604]: Intel Corporation Sky Lake-E PCI Express Root Port A [8086:2030] (rev 04)
+        Kernel driver in use: pcieport
+1f:05.0 System peripheral [0880]: Intel Corporation Sky Lake-E VT-d [8086:2034] (rev 04)
+
+HBA:       HPE StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter (Emulex LPe32000)
+Driver:    lpfc
+PCI slots: 0a:00.0, 0a:00.1
+
+
+###########################
+
+showportdev 
+
+showportdev ns -nohdtot 0:3:1
+
+From showportdev ns output, list each host with OS, WWPN, HBA firmware/driver versions, and whether the path is active (host shown) or missing (-)
+
+What to extract
+Array identity: model + serial + array port (0:3:1)
+Host short name (HN: value)
+OS (OS: value)
+Host HBA WWPN (the 1000... value in each host row)
+HBA card/firmware/driver version (FV..., DV...)
+Path status (connected if last column has host name, partial if -)
+
+0xc0200 0x00  0x00 2FF70000DUMMY001 20310000DUMMY001 0x8800 0x0012 n/a    0x0800 20310000DUMMY001 HPE Alletra Storage MP - DUMMY000999 - fw:105600                                                              0:3:1
+0xc1100 0x0a  0x00 2000AAAABBBB1001 1000AAAABBBB1001 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 Emulex SN1600E1P FV14.0.499.29 DV14.0.499.31 HN:host-lnx-222.example.local OS:Linux                             host-lnx-222
+0xc1000 0x09  0x00 2000AAAABBBB1002 1000AAAABBBB1002 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 Emulex SN1600E2P FV14.0.499.29 DV14.0.499.31 HN:host-lnx-114.example.local OS:Linux                             host-lnx-114
+0xc0400 0x00  0x00 2FF70000DUMMY001 21310000DUMMY001 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 n/a                                                                                                          1:3:1
+0xc0f00 0x0b  0x00 2000AAAABBBB1003 1000AAAABBBB1003 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 Emulex SN1200E2P FV14.0.499.29 DV14.0.499.31 HN:host-lnx-132.example.local OS:Linux                             host-lnx-132
+0x641600 0x05  0x00 2000AAAABBBB1004 1000AAAABBBB1004 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 Emulex SN1200E2P FV14.4.473.14 DV14.4.0.40 HN:host-esx-131.example.local OS:VMware ESXi 8.0.3                  -
+0x4b1900 0x06  0x00 2000AAAABBBB1005 1000AAAABBBB1005 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 Emulex SN1200E2P FV14.2.589.5 DV14.2.0.12 HN:host-lnx-174.example.local OS:Linux                              host-lnx-174
+0x750800 0x07  0x00 5140CCCCDDDD1001 5140CCCCDDDD1000 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 SN1610Q FW:v9.14.01 DVR:v10.02.09.300-k                                                                      -
+0x420d00 0x03  0x00 2000AAAABBBB1006 1000AAAABBBB1006 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 Emulex SN1200E2P FV14.0.499.21 DV14.0.169.26 HN:host-esx-126.example.local OS:VMware ESXi 7.0.3                  -
+0x420e00 0x02  0x00 2000AAAABBBB1007 1000AAAABBBB1007 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 Emulex SN1200E2P FV14.0.499.21 DV14.0.0.4 HN:host-lnx-289.example.local OS:Linux                              -
+0x70200  0x04  0x00 2000AAAABBBB1008 1000AAAABBBB1008 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 Emulex SN1200E2P FV14.0.499.21 DV14.0.0.21 HN:host-lnx-127.example.local OS:Linux                             -
+0x611400 0x08  0x00 2000AAAABBBB1009 1000AAAABBBB1009 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 Emulex SN1600E2P FV14.4.473.30 DV14.0.0.4 HN:host-lnx-322.example.local OS:Linux                              -
+0xc0201 0x00  0x00 2FF70100DUMMY001 20310100DUMMY001 0x8800 0x0012 n/a    0x0800 20310100DUMMY001 HPE Alletra Storage MP - DUMMY000999 - fw:105600                                                              -
+0xc0401 0x00  0x00 2FF70100DUMMY001 21310100DUMMY001 0x0000 0x0000 0x0000 0x0000 20310100DUMMY001 n/a                                                                                                          - 
+
+
+showportdev ns -nohdtot 1:3:1
+ 
+0xc0400 0x00  0x00 2FF70000DUMMY001 21310000DUMMY001 0x8800 0x0012 n/a    0x0800 21310000DUMMY001 HPE Alletra Storage MP - DUMMY000999 - fw:105600                                                              1:3:1
+0xc1200 0x09  0x00 2000AAAABBBB0001 1000AAAABBBB0001 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 Emulex SN1600E1P FV14.0.499.29 DV14.0.499.31 HN:host-lnx-222.example.local OS:Linux                             host-lnx-222
+0xc1000 0x08  0x00 2000AAAABBBB0002 1000AAAABBBB0002 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 Emulex SN1600E2P FV14.0.499.29 DV14.0.499.31 HN:host-lnx-114.example.local OS:Linux                             host-lnx-114
+0xc0200 0x00  0x00 2FF70000DUMMY001 20310000DUMMY001 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 n/a                                                                                                          0:3:1
+0xc0f00 0x0a  0x00 2000AAAABBBB0003 1000AAAABBBB0003 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 Emulex SN1200E2P FV14.0.499.29 DV14.0.499.31 HN:host-lnx-132.example.local OS:Linux                             host-lnx-132
+0x641600 0x06  0x00 2000AAAABBBB0004 1000AAAABBBB0004 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 Emulex SN1200E2P FV14.4.473.14 DV14.4.0.40 HN:host-esx-131.example.local OS:VMware ESXi 8.0.3                  -
+0x4b1a00 0x0b  0x00 2000AAAABBBB0005 1000AAAABBBB0005 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 Emulex SN1200E2P FV14.2.589.5 DV14.2.0.12 HN:host-lnx-174.example.local OS:Linux                              host-lnx-174
+0x1e1100 0x05  0x00 5140CCCCDDDD0001 5140CCCCDDDD0000 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 SN1610Q FW:v9.14.01 DVR:v10.02.09.300-k                                                                      -
+0x420d00 0x03  0x00 2000AAAABBBB0006 1000AAAABBBB0006 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 Emulex SN1200E2P FV14.0.499.21 DV14.0.169.26 HN:host-esx-126.example.local OS:VMware ESXi 7.0.3                  -
+0x420e00 0x02  0x00 2000AAAABBBB0007 1000AAAABBBB0007 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 Emulex SN1200E2P FV14.0.499.21 DV14.0.0.4 HN:host-lnx-289.example.local OS:Linux                              -
+0x70200  0x04  0x00 2000AAAABBBB0008 1000AAAABBBB0008 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 Emulex SN1200E2P FV14.0.499.21 DV14.0.0.21 HN:host-lnx-127.example.local OS:Linux                             -
+0x611400 0x07  0x00 2000AAAABBBB0009 1000AAAABBBB0009 0x0000 0x0000 0x0000 0x0000 21310000DUMMY001 Emulex SN1600E2P FV14.4.473.30 DV14.0.0.4 HN:host-lnx-322.example.local OS:Linux                              -
+0xc0201 0x00  0x00 2FF70100DUMMY001 20310100DUMMY001 0x0000 0x0000 0x0000 0x0000 21310100DUMMY001 n/a                                                                                                          -
+0xc0401 0x00  0x00 2FF70100DUMMY001 21310100DUMMY001 0x8800 0x0012 n/a    0x0800 21310100DUMMY001 HPE Alletra Storage MP - DUMMY000999 - fw:105600                                                              -
+
+##################
+
+Connect to switch output
+
+ssh admin@switch-lab-01
+admin@switch-lab-01's password:
+switch-lab-01:FID100:admin>
+
+To know how many switches are in fabric, if asked it should list the name of the switches,ID and WWN
+
+extract:
+
+Fabric Name
+Total switch count
+Per-switch fields:
+Switch ID (domain)
+Switch WWN
+Ethernet IP
+Switch name
+
+fabricshow
+Switch ID   Worldwide Name          Enet IP Addr    FC IP Addr      Name
+-------------------------------------------------------------------------
+  1: dmyc01 10:00:aa:aa:aa:aa:aa:01 192.168.10.11   0.0.0.0         "sw-core-01"
+  2: dmyc02 10:00:aa:aa:aa:aa:aa:02 192.168.10.12   0.0.0.0         "sw-core-02"
+  3: dmyc03 10:00:aa:aa:aa:aa:aa:03 192.168.10.13   0.0.0.0         "sw-core-03"
+  4: dmyc04 10:00:aa:aa:aa:aa:aa:04 192.168.10.14   0.0.0.0         "sw-core-04"
+  5: dmyc05 10:00:aa:aa:aa:aa:aa:05 192.168.10.15   0.0.0.0         "sw-core-05"
+  6: dmyc06 10:00:aa:aa:aa:aa:aa:06 192.168.10.16   0.0.0.0         "sw-core-06"
+  7: dmyc07 10:00:aa:aa:aa:aa:aa:07 192.168.10.17   0.0.0.0         "sw-core-07"
+  8: dmyc08 10:00:aa:aa:aa:aa:aa:08 192.168.10.18   0.0.0.0         "sw-core-08"
+  9: dmyc09 10:00:aa:aa:aa:aa:aa:09 192.168.10.19   0.0.0.0         "sw-core-09"
+ 10: dmyc0a 10:00:aa:aa:aa:aa:aa:0a 192.168.10.20   0.0.0.0         "sw-core-10"
+ 11: dmyc0b 10:00:aa:aa:aa:aa:aa:0b 192.168.10.21   0.0.0.0         "sw-core-11"
+ 12: dmyc0c 10:00:aa:aa:aa:aa:aa:0c 192.168.10.22   0.0.0.0         "sw-core-12"
+ 13: dmyc0d 10:00:aa:aa:aa:aa:aa:0d 192.168.10.23   0.0.0.0         "sw-core-13"
+ 14: dmyc0e 10:00:aa:aa:aa:aa:aa:0e 192.168.10.24   0.0.0.0         "sw-core-14"
+ 15: dmyc0f 10:00:aa:aa:aa:aa:aa:0f 192.168.10.25   0.0.0.0         "sw-core-15"
+ 16: dmyc10 10:00:aa:aa:aa:aa:aa:10 192.168.10.26   0.0.0.0         "sw-core-16"
+ 17: dmyc11 10:00:aa:aa:aa:aa:aa:11 192.168.10.27   0.0.0.0         "sw-core-17"
+ 18: dmyc12 10:00:aa:aa:aa:aa:aa:12 192.168.10.28   0.0.0.0         "sw-core-18"
+ 19: dmyc13 10:00:aa:aa:aa:aa:aa:13 192.168.10.29   0.0.0.0         "sw-core-19"
+ 30: dmyc1e 10:00:aa:aa:aa:aa:aa:1e 192.168.10.30   0.0.0.0         "sw-core-30"
+ 31: dmyc1f 10:00:aa:aa:aa:aa:aa:1f 192.168.10.31   0.0.0.0         "sw-core-31"
+ 32: dmyc20 10:00:aa:aa:aa:aa:aa:20 192.168.10.32   0.0.0.0         "sw-core-32"
+ 61: dmyc3d 10:00:aa:aa:aa:aa:aa:3d 192.168.10.61   0.0.0.0         "sw-edge-61"
+ 66: dmyc42 10:00:aa:aa:aa:aa:aa:42 192.168.10.66   0.0.0.0         "sw-edge-66"
+ 67: dmyc43 10:00:aa:aa:aa:aa:aa:43 192.168.10.67   0.0.0.0         "sw-edge-67"
+ 73: dmyc49 10:00:aa:aa:aa:aa:aa:49 192.168.10.73   0.0.0.0         "sw-edge-73"
+ 74: dmyc4a 10:00:aa:aa:aa:aa:aa:4a 192.168.10.74   0.0.0.0         "sw-edge-74"
+ 75: dmyc4b 10:00:aa:aa:aa:aa:aa:4b 192.168.10.75   0.0.0.0         "sw-edge-75"
+ 76: dmyc4c 10:00:aa:aa:aa:aa:aa:4c 192.168.10.76   0.0.0.0         "sw-edge-76"
+ 77: dmyc4d 10:00:aa:aa:aa:aa:aa:4d 192.168.10.77   0.0.0.0         "sw-edge-77"
+ 78: dmyc4e 10:00:aa:aa:aa:aa:aa:4e 192.168.10.78   0.0.0.0         "sw-edge-78"
+ 79: dmyc4f 10:00:aa:aa:aa:aa:aa:4f 192.168.10.79   0.0.0.0         "sw-edge-79"
+ 97: dmyc61 10:00:aa:aa:aa:aa:aa:61 192.168.10.97   0.0.0.0         "sw-edge-97"
+ 99: dmyc63 10:00:aa:aa:aa:aa:aa:63 192.168.10.99   0.0.0.0         "sw-edge-99"
+100: dmyc64 10:00:aa:aa:aa:aa:aa:64 192.168.10.100  0.0.0.0         "sw-edge-100"
+101: dmyc65 10:00:aa:aa:aa:aa:aa:65 192.168.10.101  0.0.0.0         "sw-edge-101"
+116: dmyc74 10:00:aa:aa:aa:aa:aa:74 192.168.10.116  0.0.0.0         "sw-edge-116"
+117: dmyc75 10:00:aa:aa:aa:aa:aa:75 192.168.10.117  0.0.0.0         "sw-edge-117"
+173: dmycad 10:00:aa:aa:aa:aa:aa:ad 192.168.10.173  0.0.0.0         "sw-edge-173"
+201: dmycc9 10:00:aa:aa:aa:aa:aa:c9 192.168.10.201  0.0.0.0         "sw-edge-201"
+
+The Fabric has 40 switches
+Fabric Name: FABRIC_DUMMY_01
+
+
+
+What to extract
+Switch-level
+
+switchName, switchDomain, switchId, switchWwn
+switchState, switchRole, switchMode
+Fabric Name, zoning status
+Port-level
+
+Count of Online ports
+Count of No_Light ports
+E-Ports (ISLs/trunks) vs F-Ports (device-facing)
+
+switchshow
+switchName:     sw-fabric-99
+switchType:     109.1
+switchState:    Online
+switchMode:     Native
+switchRole:     Subordinate
+switchDomain:   99
+switchId:       dmyc63
+switchWwn:      10:00:aa:bb:cc:dd:ee:99
+zoning:         ON (FABRIC_DUMMY_1)
+switchBeacon:   OFF
+FC Router:      OFF
+Fabric Name:    FABRIC_DUMMY_01
+HIF Mode:       OFF
+Allow XISL Use: OFF
+LS Attributes:  [FID: 128, Base Switch: No, Default Switch: Yes, Address Mode 0]
+
+Index Port Address  Media Speed   State       Proto
+==================================================
+   0   0   630000   id    N16     Online      FC  E-Port  10:00:aa:bb:cc:00:00:08 "sw-bridge-08" (Trunk master)
+   1   1   630100   id    N16     Online      FC  E-Port  (Trunk port, master is Port  0 )
+   2   2   630200   id    N16     Online      FC  E-Port  10:00:aa:bb:cc:00:00:01 "sw-core-01" (upstream)(Trunk master)
+   3   3   630300   id    N16     Online      FC  E-Port  (Trunk port, master is Port  2 )
+   4   4   630400   id    N16     No_Light    FC
+   5   5   630500   id    N16     No_Light    FC
+   6   6   630600   id    N16     No_Light    FC
+   7   7   630700   id    N16     No_Light    FC
+   8   8   630800   id    N16     No_Light    FC
+   9   9   630900   id    N16     No_Light    FC
+  10  10   630a00   id    N16     No_Light    FC
+  11  11   630b00   id    N16     No_Light    FC
+  12  12   630c00   id    N16     No_Light    FC
+  13  13   630d00   id    N16     No_Light    FC
+  14  14   630e00   id    N16     No_Light    FC
+  15  15   630f00   id    N16     No_Light    FC
+  16  16   631000   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:10
+  17  17   631100   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:11
+  18  18   631200   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:12
+  19  19   631300   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:13
+  20  20   631400   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:14
+  21  21   631500   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:15
+  22  22   631600   id    N16     No_Light    FC
+  23  23   631700   id    N16     No_Light    FC
+  24  24   631800   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:18
+  25  25   631900   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:19
+  26  26   631a00   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:1a
+  27  27   631b00   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:1b
+  28  28   631c00   id    N16     No_Light    FC
+  29  29   631d00   id    N16     No_Light    FC
+  30  30   631e00   id    N16     No_Light    FC
+  31  31   631f00   id    N16     No_Light    FC
+  32  32   632000   id    N16     No_Light    FC
+  33  33   632100   id    N16     No_Light    FC
+  34  34   632200   id    N16     No_Light    FC
+  35  35   632300   id    N16     No_Light    FC
+  36  36   632400   id    N16     No_Light    FC
+  37  37   632500   id    N16     No_Light    FC
+  38  38   632600   id    N16     No_Light    FC
+  39  39   632700   id    N16     No_Light    FC
+  40  40   632800   id    N16     No_Light    FC
+  41  41   632900   id    N16     No_Light    FC
+  42  42   632a00   id    N16     No_Light    FC
+  43  43   632b00   id    N16     No_Light    FC
+  44  44   632c00   id    N16     No_Light    FC
+  45  45   632d00   id    N16     No_Light    FC
+  46  46   632e00   id    N16     No_Light    FC
+  47  47   632f00   id    N16     No_Light    FC

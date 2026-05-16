@@ -2,8 +2,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import TopologyCanvas from '../components/TopologyCanvas'
 import AggregateSidebar from '../components/AggregateSidebar'
 import DiscoveryPanel from '../components/DiscoveryPanel'
+import DiscoveryResultGrid from '../components/DiscoveryResultGrid'
+import NeuralGraph from '../components/NeuralGraph'
 import NodeTerminal from '../components/NodeTerminal'
 import StatusBar from '../components/StatusBar'
+import { LayoutGrid, Network, Zap } from 'lucide-react'
 
 export default function DiscoveryPage({ apiBase }) {
   const API = apiBase || ''
@@ -13,6 +16,7 @@ export default function DiscoveryPage({ apiBase }) {
   const [discoveryRunning, setDiscoveryRunning] = useState(false)
   const [discoveryEvents, setDiscoveryEvents] = useState([])
   const [discoveryPane, setDiscoveryPane] = useState(false)
+  const [viewMode, setViewMode] = useState('graph') // 'graph', 'grid', 'neural'
   const [highlightedIps, setHighlightedIps] = useState(new Set())
   const [pulsingIds, setPulsingIds] = useState(new Set())
   const [apiHealth, setApiHealth] = useState(null)
@@ -118,6 +122,29 @@ export default function DiscoveryPage({ apiBase }) {
     drives: graph.nodes.filter(n => n.type === 'PhysicalDisk').length,
   }
 
+  const wipeGraph = async () => {
+    if (!window.confirm("This will clear the entire topology graph. Continue?")) return
+    try {
+      await fetch(`${API}/api/graph/wipe`, { method: 'POST' })
+      setGraph({ nodes: [], edges: [] })
+      setSelectedNode(null)
+    } catch (e) { console.error("Wipe failed", e) }
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    setDiscoveryEvents([]); setDiscoveryRunning(true); setDiscoveryPane(true)
+    try {
+      const res = await fetch(`${API}/api/discover/ingest`, { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.ip) startDiscovery([data.ip], 150) // Slower delay for better "expansion" feel
+    } catch (err) { setDiscoveryRunning(false); alert("Upload failed") }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Controls bar */}
@@ -127,22 +154,47 @@ export default function DiscoveryPage({ apiBase }) {
           <p className="page-subtitle">BFS crawler scans simulated SAN topology in real-time</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input className="input" style={{ width: 220 }} placeholder="Search nodes..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          <div className="sub-tabs" style={{ marginBottom: 0, marginRight: 8 }}>
+            <button className={`sub-tab ${viewMode === 'graph' ? 'active' : ''}`} onClick={() => setViewMode('graph')} title="Topology Graph">
+              <Network size={16} />
+            </button>
+            <button className={`sub-tab ${viewMode === 'neural' ? 'active' : ''}`} onClick={() => setViewMode('neural')} title="Neural View">
+              <Zap size={16} />
+            </button>
+            <button className={`sub-tab ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')} title="Card Grid">
+              <LayoutGrid size={16} />
+            </button>
+          </div>
+          <input className="input" style={{ width: 120 }} placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          
+          <button className="btn" onClick={wipeGraph} title="Clear all nodes">🗑 Wipe</button>
+          
+          <label className="btn" style={{ cursor: 'pointer' }}>
+            📁 Log
+            <input type="file" accept=".txt" style={{ display: 'none' }} onChange={handleFileUpload} />
+          </label>
+
           <button className={`btn ${discoveryRunning ? '' : 'btn-primary'}`} disabled={discoveryRunning} onClick={() => startDiscovery(['10.20.10.5'])}>
             {discoveryRunning ? '⟳ Scanning...' : '▶ Start Discovery'}
           </button>
-          <button className={`btn ${discoveryPane ? 'btn-primary' : ''}`} onClick={() => setDiscoveryPane(p => !p)}>Discovery Log</button>
-          <button className="btn" onClick={fetchGraph}>↺ Refresh</button>
+          <button className={`btn ${discoveryPane ? 'btn-primary' : ''}`} onClick={() => setDiscoveryPane(p => !p)}>Log</button>
+          <button className="btn" onClick={fetchGraph}>↺</button>
         </div>
       </div>
 
       <StatusBar stats={stats} apiHealth={apiHealth} discoveryEvents={discoveryEvents} />
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 0 }}>
-        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-          <TopologyCanvas nodes={filteredNodes} edges={filteredEdges} selectedNode={selectedNode}
-            onNodeClick={node => { setSelectedNode(node); setTerminalNode(null) }}
-            highlightedIps={highlightedIps} discoveryRunning={discoveryRunning} pulsingIds={pulsingIds} />
+        <div style={{ flex: 1, minWidth: 0, position: 'relative', overflowY: viewMode === 'grid' ? 'auto' : 'hidden', padding: viewMode === 'grid' ? '0 24px' : 0 }}>
+          {viewMode === 'graph' ? (
+            <TopologyCanvas nodes={filteredNodes} edges={filteredEdges} selectedNode={selectedNode}
+              onNodeClick={node => { setSelectedNode(node); setTerminalNode(null) }}
+              highlightedIps={highlightedIps} discoveryRunning={discoveryRunning} pulsingIds={pulsingIds} />
+          ) : viewMode === 'neural' ? (
+            <NeuralGraph nodes={filteredNodes} edges={filteredEdges} onNodeClick={node => { setSelectedNode(node); setTerminalNode(null) }} />
+          ) : (
+            <DiscoveryResultGrid nodes={filteredNodes} onNodeClick={node => { setSelectedNode(node); setTerminalNode(null) }} />
+          )}
         </div>
         <AggregateSidebar node={selectedNode} allNodes={graph.nodes} allEdges={graph.edges}
           onOpenTerminal={node => setTerminalNode(node)} onClose={() => setSelectedNode(null)} apiBase={API} />
