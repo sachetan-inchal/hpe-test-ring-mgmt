@@ -1073,21 +1073,42 @@ def serve_react(path):
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+def wait_for_services(timeout=60):
+    """Wait for Neo4j and Elasticsearch to be ready before starting."""
+    start_time = time.time()
+    log.info("Waiting for infrastructure (Neo4j/Elasticsearch) to be ready...")
+    while time.time() - start_time < timeout:
+        if not neo4j.available:
+            neo4j._init_driver()
+        if not es.available:
+            es._init_client()
+        
+        if neo4j.available and es.available:
+            log.info("All infrastructure services are online!")
+            return True
+        
+        log.info(f"Still waiting... (Neo4j: {'ok' if neo4j.available else 'wait'}, ES: {'ok' if es.available else 'wait'})")
+        time.sleep(5)
+    return False
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5005))
+    
+    # Wait for databases to wake up before starting the web server
+    wait_for_services()
+
     print("=" * 60)
     print(f"  HPE SAN Monorepo API — http://localhost:{port}")
     print(f"  Neo4j:          {'connected' if neo4j.available else 'unavailable'}")
     print(f"  Elasticsearch:  {'connected' if es.available else 'unavailable'}")
     print(f"  Sim devices:    {len(virtual_network.list_devices())}")
     print("=" * 60)
-    print("=" * 60)
-    print("  Start simulator first:  cd simulator && python simulator_manager.py")
-    print("=" * 60)
     
     # Auto-index logic in background
     def _auto_index():
-        time.sleep(2) # Wait for server to start
+        time.sleep(5) # Wait for server to stabilize
+        if not es.available:
+            return
         for dev in master_proxy.list_devices():
             name = dev.replace('.txt', '')
             if not _json_store.load_array(name):

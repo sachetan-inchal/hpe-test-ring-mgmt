@@ -12,8 +12,8 @@ import sanRoutes from './routes/sanRoutes.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load .env from monorepo root
-dotenv.config({ path: join(__dirname, '..', '.env') });
+// Load .env from monorepo root (force override to clear cached Atlas strings)
+dotenv.config({ path: join(__dirname, '..', '.env'), override: true });
 
 const app = express();
 const PORT = process.env.CHATBOT_PORT || 5010;
