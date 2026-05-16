@@ -47,15 +47,16 @@ Ring-Test-Management-Tool--HPE-CPP3/build/
 .env.*.local
 *.env
 
-# ── Databases ────────────────────────────────────────────────
+# ── Neo4j ────────────────────────────────────────────────────
 neo4j/data/
 neo4j/logs/
 neo4j/import/
 neo4j/plugins/
+
+# ── Elasticsearch ────────────────────────────────────────────
 elasticsearch/data/
 elasticsearch/logs/
 elasticsearch/.data/
-mongodb_data/
 
 # ── Project-specific generated data ─────────────────────────
 # Keep example device files, ignore auto-generated ones
@@ -87,3 +88,6 @@ logs/
 *.log
 temp/
 tmp/
+
+# ── MongoDB Data ─────────────────────────────────────────────
+mongodb_data/
