@@ -14,18 +14,30 @@ export default function TopologyPage({ apiBase }) {
   const [activeTab, setActiveTab] = useState('diagram')
   const [showImport, setShowImport] = useState(false)
 
-  // Fetch topology from backend (tries ontology endpoint, falls back to Neo4j, then Render API)
+  // Fetch topology from backend
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
-        let res = await fetch(`${apiBase}/api/ontology/topology`).catch(() => ({ ok: false }))
-        if (!res.ok) res = await fetch(`${apiBase}/api/graph/neo4j`).catch(() => ({ ok: false }))
-        if (!res.ok) res = await fetch(`${apiBase}/api/sim/mock-topology`).catch(() => ({ ok: false }))
-        if (!res.ok) res = await fetch(`https://hpe-ontology-and-graph.onrender.com/topology`).catch(() => ({ ok: false }))
-        if (!res.ok) throw new Error('Failed to load topology from any source')
+        const fetchWithData = async (url) => {
+          try {
+            const res = await fetch(url);
+            if (!res.ok) return null;
+            const data = await res.json();
+            if (!data.nodes || data.nodes.length === 0) return null;
+            return data;
+          } catch {
+            return null;
+          }
+        };
+
+        let json = await fetchWithData(`${apiBase}/api/ontology/topology`)
+        if (!json) json = await fetchWithData(`${apiBase}/api/graph/neo4j`)
+        if (!json) json = await fetchWithData(`${apiBase}/api/sim/mock-topology`)
+        if (!json) json = await fetchWithData(`https://hpe-ontology-and-graph.onrender.com/topology`)
         
-        const json = await res.json()
+        if (!json) throw new Error('Failed to load topology from any source or databases are empty')
+        
         // Normalize: Neo4j format has nodes[].data / edges[].data
         if (json.nodes?.[0]?.data) {
           setData({

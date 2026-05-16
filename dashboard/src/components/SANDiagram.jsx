@@ -47,7 +47,7 @@ export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeCl
   // Filter out decommissioned from standard view
   const activeNodes = useMemo(() => nodes.filter(n => !n.isDecommissioned), [nodes]);
 
-  const arrays = activeNodes.filter(n => n.category === "main" && n.type === "Array");
+  const arrays = activeNodes.filter(n => n.category === "main" && (n.type === "Array" || n.type === "ArraySystem"));
   const switches = activeNodes.filter(n => n.category === "main" && n.type === "Switch");
   const hosts = activeNodes.filter(n => n.category === "main" && n.type === "Host");
 

@@ -13,17 +13,22 @@ import {
 import "@xyflow/react/dist/style.css";
 import * as htmlToImage from "html-to-image";
 
-// Custom node style inspired by reference VisualMap
-const customNodeStyle = {
-  background: 'var(--surface-1)',
-  color: 'var(--foreground)',
-  border: '1px solid var(--line-strong)',
-  borderRadius: '8px',
-  padding: '10px 15px',
-  fontSize: '12px',
-  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-  minWidth: '150px',
-  fontFamily: 'var(--font-sans)'
+import dagre from 'dagre';
+
+function hexToRgb(hex) {
+  if (!hex || hex.length < 7) return '139, 148, 158';
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `${r}, ${g}, ${b}`
+}
+
+const getTypeMeta = (type) => {
+  const t = type || 'Unknown';
+  if (t === 'Array' || t === 'ArraySystem') return { color: '#58a6ff', yTier: 100, icon: '📦' };
+  if (t === 'Switch') return { color: '#bc8cff', yTier: 300, icon: '🔁' };
+  if (t === 'Host') return { color: '#3fb950', yTier: 500, icon: '🖥️' };
+  return { color: '#8b949e', yTier: 700, icon: '⚙️' };
 };
 
 const getStatusColor = (status) => {
@@ -37,144 +42,105 @@ export default function TopologyCanvas({ data, onClose, onNodeClick }) {
 
   const { nodes: rawNodes = [], edges: rawEdges = [] } = data || {};
 
-  // Auto-layout simple algorithm from reference: 
-  // Hosts Y=50, Switches Y=350, Arrays Y=700
-  // X=spacing based on index in tier
-  const hostNodes = rawNodes.filter(n => n.type === 'Host');
-  const switchNodes = rawNodes.filter(n => n.type === 'Switch');
-  const arrayNodes = rawNodes.filter(n => n.type === 'Array');
-  // Anything else goes into 'other' at the bottom
-  const otherNodes = rawNodes.filter(n =>
-    n.type !== 'Host' &&
-    n.type !== 'Switch' && n.type !== 'Array'
-  );
+  const { initialNodes, initialEdges } = useMemo(() => {
+    const dagreGraph = new dagre.graphlib.Graph();
+    dagreGraph.setDefaultEdgeLabel(() => ({}));
+    
+    // Config: TB means top-to-bottom
+    const nodeWidth = 220;
+    const nodeHeight = 80;
+    dagreGraph.setGraph({ rankdir: 'TB', ranksep: 120, nodesep: 80 });
 
-  const initialNodes = [];
+    rawNodes.forEach((node) => {
+      dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+    });
 
-  const layoutTier = (tierNodes, startY) => {
-    const spacingX = 400; // Increased spacing to give ample breathing room
-    const totalWidth = (tierNodes.length - 1) * spacingX;
-    const startX = -(totalWidth / 2);
+    rawEdges.forEach((edge) => {
+      const src = edge.from || edge.source;
+      const tgt = edge.to || edge.target;
+      if (src && tgt) {
+        dagreGraph.setEdge(src, tgt);
+      }
+    });
 
-    tierNodes.forEach((node, idx) => {
-      initialNodes.push({
-        id: node.id,
-        position: { x: startX + (idx * spacingX), y: startY },
+    dagre.layout(dagreGraph);
+
+    const laidNodes = rawNodes.map((n) => {
+      const nodeWithPosition = dagreGraph.node(n.id);
+      const meta = getTypeMeta(n.type);
+      const x = nodeWithPosition && !isNaN(nodeWithPosition.x) ? nodeWithPosition.x - nodeWidth / 2 : Math.random() * 500;
+      const y = nodeWithPosition && !isNaN(nodeWithPosition.y) ? nodeWithPosition.y - nodeHeight / 2 : meta.yTier;
+      
+      const isSelected = false;
+      const isPulsing = false;
+      const isHighlighted = false;
+
+      return {
+        id: n.id,
+        position: { x, y },
         data: {
           label: (
-            <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getStatusColor(node.status) }} />
-                <span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600 }}>{node.type}</span>
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+              textAlign: 'left',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <span style={{ fontSize: 14 }}>{meta.icon}</span>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+                  textTransform: 'uppercase', color: meta.color,
+                }}>{n.type}</span>
               </div>
-              <strong style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', fontSize: 13 }}>{node.name}</strong>
-              <span style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{node.id}</span>
+              <strong style={{ fontSize: 13, color: '#e6edf3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }} title={n.name || n.id}>{n.name || n.id}</strong>
+              <span style={{ fontSize: 10, color: '#8b949e', fontFamily: 'JetBrains Mono, monospace' }} title={n.id}>{n.id}</span>
+              {n.model && <span style={{ fontSize: 9, color: '#8b949e' }}>{n.model}</span>}
             </div>
           )
         },
-        style: customNodeStyle,
-      });
+        style: {
+          background: isSelected ? `rgba(${hexToRgb(meta.color)}, 0.2)` : '#161b22',
+          border: `1.5px solid ${isSelected ? meta.color : isHighlighted || isPulsing ? meta.color : '#30363d'}`,
+          borderRadius: 10,
+          padding: '12px 16px',
+          fontSize: 12,
+          color: '#e6edf3',
+          minWidth: 200,
+          boxShadow: isPulsing
+            ? `0 0 0 4px rgba(${hexToRgb(meta.color)}, 0.55), 0 0 24px rgba(${hexToRgb(meta.color)}, 0.35)`
+            : isHighlighted
+              ? `0 0 0 3px rgba(${hexToRgb(meta.color)}, 0.4), 0 0 20px rgba(${hexToRgb(meta.color)}, 0.2)`
+              : isSelected ? `0 0 0 2px ${meta.color}` : '0 2px 8px rgba(0,0,0,0.4)',
+          transition: 'all 0.3s ease',
+        }
+      };
     });
-  };
 
-  layoutTier(hostNodes, 50);
-  layoutTier(switchNodes, 350); // Increased vertical spacing
-  layoutTier(arrayNodes, 700); // Increased vertical spacing
+    const laidEdges = rawEdges.map(e => ({
+      id: e.id || `e-${e.from || e.source}-${e.to || e.target}`,
+      source: e.from || e.source,
+      target: e.to || e.target,
+      label: e.label,
+      animated: true,
+      style: { stroke: 'var(--accent-blue)', strokeWidth: 2, opacity: 0.7 },
+      labelStyle: { fill: 'var(--muted)', fontSize: 10, fontWeight: 600 },
+      labelBgStyle: { fill: 'var(--surface-1)' },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: 'var(--accent-blue)',
+      },
+    }));
 
-  // Arrange other sub-components under their parents
-  const drawnIds = new Set(initialNodes.map(n => n.id));
-  const parentGroups = {};
-
-  otherNodes.forEach(n => {
-    const pid = n.parentId || 'orphan';
-    if (!parentGroups[pid]) parentGroups[pid] = [];
-    parentGroups[pid].push(n);
-  });
-
-  let orphanIdx = 0;
-
-  Object.keys(parentGroups).forEach(parentId => {
-    const children = parentGroups[parentId];
-
-    if (parentId !== 'orphan' && drawnIds.has(parentId)) {
-      const parentNode = initialNodes.find(n => n.id === parentId);
-      if (!parentNode) return;
-
-      const cols = Math.min(children.length, 4); // Grid layout, up to 4 cols
-      const spacingX = 180;
-      const spacingY = 90;
-      const startX = parentNode.position.x - ((cols - 1) * spacingX) / 2;
-      const startY = parentNode.position.y + 140; // Push down nicely under parent
-
-      children.forEach((child, idx) => {
-        if (drawnIds.has(child.id)) return;
-        const row = Math.floor(idx / cols);
-        const col = idx % cols;
-
-        initialNodes.push({
-          id: child.id,
-          position: { x: startX + (col * spacingX), y: startY + (row * spacingY) },
-          data: {
-            label: (
-              <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getStatusColor(child.status) }} />
-                  <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--muted)' }}>{child.type}</span>
-                </div>
-                <strong style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>{child.name}</strong>
-              </div>
-            )
-          },
-          style: { ...customNodeStyle, padding: '8px 12px', minWidth: '140px' },
-        });
-        drawnIds.add(child.id);
-      });
-    } else {
-      // Orphans
-      children.forEach(child => {
-        if (drawnIds.has(child.id)) return;
-        const x = (orphanIdx * 250) - ((children.length - 1) * 125);
-        const y = 950; // Throw at the very bottom
-        orphanIdx++;
-
-        initialNodes.push({
-          id: child.id,
-          position: { x, y },
-          data: {
-            label: (
-              <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: getStatusColor(child.status) }} />
-                  <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--muted)' }}>{child.type}</span>
-                </div>
-                <strong style={{ fontSize: 12 }}>{child.name}</strong>
-              </div>
-            )
-          },
-          style: { ...customNodeStyle, padding: '8px 12px', minWidth: '140px' },
-        });
-        drawnIds.add(child.id);
-      });
-    }
-  });
-
-  const initialEdges = rawEdges.map(e => ({
-    id: e.id || `e-${e.from}-${e.to}`,
-    source: e.from,
-    target: e.to,
-    label: e.label,
-    animated: true,
-    style: { stroke: 'var(--accent-blue)', strokeWidth: 2, opacity: 0.7 },
-    labelStyle: { fill: 'var(--muted)', fontSize: 10, fontWeight: 600 },
-    labelBgStyle: { fill: 'var(--surface-1)' },
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      color: 'var(--accent-blue)',
-    },
-  }));
+    return { initialNodes: laidNodes, initialEdges: laidEdges };
+  }, [rawNodes, rawEdges]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Update react flow internal state when the useMemo initialNodes change
+  useEffect(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [initialNodes, initialEdges]);
 
   const downloadImage = useCallback(() => {
     // The viewport element inside react flow wrapper
