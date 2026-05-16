@@ -25,6 +25,9 @@ class VirtualNetwork:
         self._registry: Dict[str, object] = {}  # ip → terminal
         self._metadata: Dict[str, dict] = {}    # ip → device metadata
         self._lock = threading.Lock()
+        self._device_cache = None
+        self._last_cache_time = 0
+        self._cache_ttl = 5.0 # Cache for 5 seconds
 
     def register(self, ip: str, terminal, metadata: dict = None):
         """Register a device terminal at a given IP."""
@@ -43,16 +46,10 @@ class VirtualNetwork:
         
         # If not local, try to see if it exists on the remote simulator
         try:
-            # log.info(f"[network_sim] Checking remote simulator for {ip} at {SIMULATOR_URL}")
-            resp = requests.get(f"{SIMULATOR_URL}/sim/devices", timeout=2.0) # Increased timeout
-            if resp.ok:
-                devices = resp.json()
-                for d in devices:
-                    if d["ip"] == ip:
-                        return RemoteProxyTerminal(ip)
-                # print(f"[network_sim] Device {ip} not found in remote simulator device list.")
-            else:
-                print(f"[network_sim] Remote simulator error: {resp.status_code} at {SIMULATOR_URL}")
+            devices = self.list_devices()
+            for d in devices:
+                if d["ip"] == ip:
+                    return RemoteProxyTerminal(ip)
         except Exception as e:
             print(f"[network_sim] Failed to connect to remote simulator at {SIMULATOR_URL}: {e}")
         return None
@@ -69,19 +66,32 @@ class VirtualNetwork:
 
     def list_devices(self) -> list:
         """List all registered device IPs and their metadata."""
-        # Try remote first if we are in proxy mode
+        # If we have local registry, we ARE the simulator. Return local data directly.
+        if self._registry:
+            with self._lock:
+                return [
+                    {"ip": ip, **meta}
+                    for ip, meta in self._metadata.items()
+                ]
+
+        import time
+        now = time.time()
+        
+        # Check cache
+        if self._device_cache and (now - self._last_cache_time < self._cache_ttl):
+            return self._device_cache
+
+        # Try remote first if we are in proxy mode (Master API)
         try:
             resp = requests.get(f"{SIMULATOR_URL}/sim/devices", timeout=0.5)
             if resp.ok:
-                return resp.json()
+                self._device_cache = resp.json()
+                self._last_cache_time = now
+                return self._device_cache
         except Exception:
             pass
 
-        with self._lock:
-            return [
-                {"ip": ip, **meta}
-                for ip, meta in self._metadata.items()
-            ]
+        return []
 
     def get_metadata(self, ip: str) -> dict:
         # Try remote first

@@ -148,7 +148,7 @@ discovery_crawler.es    = es
 # ── Chatbot Proxy (Node.js) ───────────────────────────────────────────────────
 
 CHATBOT_URL = os.environ.get("CHATBOT_SERVICE_URL", "http://localhost:5010")
-SIMULATOR_URL = os.environ.get("SIMULATOR_URL", "")
+SIMULATOR_URL = os.environ.get("SIMULATOR_URL", "http://localhost:5001")
 
 def _proxy_to_sim(path, method="GET", data=None):
     if not SIMULATOR_URL:
@@ -241,7 +241,7 @@ def api_faker_san():
 @app.route("/api/sim/devices", methods=["GET"])
 def sim_devices():
     """List all virtual devices in the simulated SAN."""
-    proxied = _proxy_to_sim("/api/devices")
+    proxied = _proxy_to_sim("/sim/devices")
     if proxied is not None:
         return jsonify(proxied)
     return jsonify(virtual_network.list_devices())
@@ -250,7 +250,7 @@ def sim_devices():
 def sim_exec():
     """Execute a CLI command on a simulated device."""
     data = request.json or {}
-    proxied = _proxy_to_sim("/api/exec", method="POST", data=data)
+    proxied = _proxy_to_sim("/sim/exec", method="POST", data=data)
     if proxied is not None:
         return jsonify(proxied)
     
@@ -265,7 +265,7 @@ def sim_exec():
 @app.route("/api/sim/topology", methods=["GET"])
 def sim_topology():
     """D3-ready node-link of the simulated network."""
-    proxied = _proxy_to_sim("/api/topology")
+    proxied = _proxy_to_sim("/sim/topology")
     if proxied is not None:
         return jsonify(proxied)
     
@@ -279,7 +279,7 @@ def sim_topology():
 
 @app.route("/api/sim/status", methods=["GET"])
 def sim_status():
-    proxied = _proxy_to_sim("/api/status")
+    proxied = _proxy_to_sim("/sim/status")
     if proxied is not None:
         return jsonify(proxied)
     
@@ -739,9 +739,12 @@ def health():
     sim_reachable = "ok"
     try:
         from simulator.network_sim import SIMULATOR_URL
-        import requests
-        res = requests.get(f"{SIMULATOR_URL}/sim/status", timeout=0.5)
-        if not res.ok: sim_reachable = "error"
+        if SIMULATOR_URL and SIMULATOR_URL.startswith("http"):
+            import requests
+            res = requests.get(f"{SIMULATOR_URL}/sim/status", timeout=2.0)
+            if not res.ok: sim_reachable = "error"
+        else:
+            sim_reachable = "error"
     except Exception:
         sim_reachable = "error"
 

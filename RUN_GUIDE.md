@@ -68,29 +68,14 @@ npm install
 npm run dev
 ```
 
----
-
-## 4. Run Everything at Once (Recommended)
-
-You can now start all services (Simulator, API, Chatbot, and Dashboard) with a single command. This setup uses `concurrently` to manage processes and `nodemon` for hot-reloading.
-
-1. **One-time Setup**:
-   ```powershell
-   cd monorepo
-   npm install
-   ```
-
-2. **Start All Services**:
-   ```powershell
-   npm run dev
-   ```
-
-- **Hot-Reloading**: Python services (`api` and `simulator`) will automatically restart when `.py` or `.json` files are modified.
-- **Unified Logging**: All logs are color-coded in one terminal window.
+### D. API Explorer (Port 5005)
+The Master API now includes a built-in interactive developer tool:
+- **URL (API Explorer)**: [http://localhost:5005/tester](http://localhost:5005/tester)
+- **URL (Standalone Terminal)**: [http://localhost:5005/terminal](http://localhost:5005/terminal)
 
 ---
 
-## 5. Troubleshooting
+## 4. Troubleshooting
 
 | Issue | Solution |
 |-------|----------|

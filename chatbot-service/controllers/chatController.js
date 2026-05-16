@@ -61,7 +61,8 @@ export const sendMessage = async (req, res) => {
     res.json({
       chatId: chat._id,
       title: chat.title,
-      messages: chat.messages
+      messages: chat.messages,
+      response: aiResponseText
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

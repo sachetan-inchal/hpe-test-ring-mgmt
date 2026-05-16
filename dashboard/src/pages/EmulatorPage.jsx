@@ -30,12 +30,13 @@ export default function EmulatorPage({ apiBase }) {
     if (!selectedDevice || running) return
     const trimmed = (cmd || commandInput).trim(); if (!trimmed) return
     setCommandInput('')
-    setHistory(prev => [...prev, { type: 'cmd', text: `${selectedDevice}# ${trimmed}` }])
+    const deviceName = selectedDevice.name || selectedDevice.ip
+    setHistory(prev => [...prev, { type: 'cmd', text: `${deviceName}# ${trimmed}` }])
     setRunning(true)
     try {
-      const res = await fetch(`${API}/api/cli/execute`, {
+      const res = await fetch(`${API}/api/sim/exec`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device: selectedDevice, command: trimmed })
+        body: JSON.stringify({ ip: selectedDevice.ip, command: trimmed })
       })
       const data = await res.json()
       if (data.error) setHistory(prev => [...prev, { type: 'error', text: data.error }])
@@ -76,12 +77,12 @@ export default function EmulatorPage({ apiBase }) {
             {devices.map(d => {
               const name = typeof d === 'string' ? d.replace('.txt', '') : d.name || d
               return (
-                <button key={name} onClick={() => { setSelectedDevice(name); setHistory([{ type: 'info', text: `Connected to ${name}` }]) }}
+                <button key={name} onClick={() => { setSelectedDevice(d); setHistory([{ type: 'info', text: `Connected to ${name}` }]) }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px',
-                    borderRadius: 8, border: selectedDevice === name ? '1px solid var(--hpe-green)' : '1px solid transparent',
-                    background: selectedDevice === name ? 'var(--hpe-green-light)' : 'transparent',
-                    color: selectedDevice === name ? 'var(--hpe-green)' : 'var(--foreground)',
+                    borderRadius: 8, border: selectedDevice?.ip === d.ip ? '1px solid var(--hpe-green)' : '1px solid transparent',
+                    background: selectedDevice?.ip === d.ip ? 'var(--hpe-green-light)' : 'transparent',
+                    color: selectedDevice?.ip === d.ip ? 'var(--hpe-green)' : 'var(--foreground)',
                     cursor: 'pointer', fontSize: 12, fontWeight: 500, textAlign: 'left', fontFamily: 'var(--font-mono)',
                     transition: 'all 0.15s', marginBottom: 2,
                   }}>
@@ -111,7 +112,7 @@ export default function EmulatorPage({ apiBase }) {
               <span className="terminal-dot yellow" />
               <span className="terminal-dot green" />
               <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8, flex: 1 }}>
-                {selectedDevice ? `${selectedDevice} — HPE CLI` : 'Select a device to connect'}
+                {selectedDevice ? `${selectedDevice.name || selectedDevice.ip} — HPE CLI` : 'Select a device to connect'}
               </span>
               <button className="btn btn-sm" onClick={() => setHistory([])} style={{ padding: '2px 8px' }}>
                 <RotateCcw size={12} />Clear
@@ -129,7 +130,7 @@ export default function EmulatorPage({ apiBase }) {
               {running && <div className="terminal-line info" style={{ opacity: 0.6 }}>Executing...</div>}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--line)', padding: '8px 12px', gap: 8 }}>
-              <span className="terminal-prompt">{selectedDevice ? `${selectedDevice}#` : '$'}</span>
+              <span className="terminal-prompt">{selectedDevice ? `${selectedDevice.name || selectedDevice.ip}#` : '$'}</span>
               <input style={{
                 flex: 1, background: 'transparent', border: 'none', color: '#c9d1d9',
                 fontFamily: 'var(--font-mono)', fontSize: 12, outline: 'none'

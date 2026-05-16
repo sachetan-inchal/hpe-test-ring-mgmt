@@ -1,19 +1,18 @@
 {
   "name": "hpe-san-monorepo",
   "version": "1.0.0",
-  "description": "Unified orchestration for HPE SAN services",
-  "main": "index.js",
-  "type": "module",
+  "description": "Unified HPE SAN Simulator, Discovery, API, and Dashboard",
   "scripts": {
-    "dev:simulator": "nodemon --watch simulator --ignore \"simulator/data/*\" --ext py,json --exec \"py simulator/simulator_manager.py\"",
-    "dev:api": "nodemon --watch api --ext py,json --exec \"py api/app.py\"",
-    "dev:chatbot": "npm --prefix chatbot-service run dev",
-    "dev:dashboard": "npm --prefix dashboard run dev",
-    "dev": "concurrently -n \"SIM,API,BOT,DSH\" -c \"magenta,cyan,green,yellow\" \"npm run dev:simulator\" \"npm run dev:api\" \"npm run dev:chatbot\" \"npm run dev:dashboard\"",
-    "install-all": "npm install && npm --prefix chatbot-service install && npm --prefix dashboard install"
+    "postinstall": "npm install --prefix chatbot-service && npm install --prefix dashboard",
+    "prestart": "docker-compose up -d",
+    "start": "concurrently \"npm run start:simulator\" \"npm run start:api\" \"npm run start:chatbot\" \"npm run start:dashboard\"",
+    "start:simulator": "nodemon --watch simulator -e py --exec \"python simulator/simulator_manager.py\"",
+    "start:api": "nodemon --watch api -e py --exec \"python api/app.py\"",
+    "start:chatbot": "npm run dev --prefix chatbot-service",
+    "start:dashboard": "npm run dev --prefix dashboard"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.0.1"
   }
 }

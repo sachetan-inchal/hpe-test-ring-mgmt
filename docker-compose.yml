@@ -44,6 +44,16 @@ services:
       CHATBOT_PORT: 5010
     restart: unless-stopped
 
+  # Local MongoDB Fallback
+  mongo:
+    image: mongo:latest
+    container_name: hpe_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongodb_data:/data/db
+    restart: unless-stopped
+
   # Unified Flask API (Serves Dashboard + Discovery + Proxy to Chatbot)
   api:
     build:

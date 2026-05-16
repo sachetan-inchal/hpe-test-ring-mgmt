@@ -28,13 +28,25 @@ export default function ChatPage({ apiBase, chatbotApi }) {
   const scrollBottom = () => msgEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   useEffect(scrollBottom, [messages])
 
+  const fetchHistory = useCallback(async () => {
+    if (!user?.token) return
+    try {
+      const res = await fetch(`${chatbotApi}/chat`, { 
+        headers: { Authorization: `Bearer ${user.token}` } 
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setChatHistory(Array.isArray(data) ? data : data.chats || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch chat history', err)
+    }
+  }, [chatbotApi, user])
+
   // Load chat history from chatbot service
   useEffect(() => {
-    if (!user?.token) return
-    fetch(`${chatbotApi}/chat`, { headers: { Authorization: `Bearer ${user.token}` } })
-      .then(r => r.ok ? r.json() : []).then(d => setChatHistory(Array.isArray(d) ? d : d.chats || []))
-      .catch(() => {})
-  }, [chatbotApi, user])
+    fetchHistory()
+  }, [fetchHistory])
 
   const loadChat = async (chatId) => {
     setActiveChatId(chatId)
@@ -73,7 +85,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         }
       } else {
         // Standard mode — uses chatbot service's Gemini AI with SAN context
-        const res = await fetch(`${chatbotApi}/chat/send`, {
+        const res = await fetch(`${chatbotApi}/chat/message`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(user?.token ? { Authorization: `Bearer ${user.token}` } : {}) },
           body: JSON.stringify({
@@ -83,8 +95,12 @@ export default function ChatPage({ apiBase, chatbotApi }) {
           })
         })
         const data = await res.json()
-        answer = data.response || data.message || data.answer || 'No response from AI.'
-        if (data.chatId && !activeChatId) setActiveChatId(data.chatId)
+        answer = data.response || data.message || data.answer || (data.messages ? data.messages[data.messages.length - 1].content : 'No response from AI.')
+        
+        if (data.chatId && !activeChatId) {
+          setActiveChatId(data.chatId)
+          fetchHistory() // Refresh sidebar to show the new chat entry
+        }
       }
       setMessages(prev => [...prev, { role: 'assistant', text: answer }])
     } catch (err) {

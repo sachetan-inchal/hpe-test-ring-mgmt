@@ -32,6 +32,11 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
+# Silence Flask logging
+import logging
+log_werkzeug = logging.getLogger('werkzeug')
+log_werkzeug.setLevel(logging.ERROR)
+
 # ── Boot sequence ──────────────────────────────────────────────────────────────
 
 def boot():
