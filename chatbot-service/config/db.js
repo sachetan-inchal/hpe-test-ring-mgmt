@@ -1,8 +1,10 @@
 import mongoose from 'mongoose';
 
 const connectDB = async () => {
-  console.log(`Attempting to connect to MongoDB: ${process.env.MONGO_URI}`);
-  let retries = 10;
+  const isCloud = process.env.MONGO_URI.includes('mongodb.net');
+  console.log(`Connecting to ${isCloud ? 'Cloud (Atlas)' : 'Local'} MongoDB...`);
+  
+  let retries = isCloud ? 3 : 10; // Fewer retries for cloud as it should be stable
   while (retries > 0) {
     try {
       const conn = await mongoose.connect(process.env.MONGO_URI, {

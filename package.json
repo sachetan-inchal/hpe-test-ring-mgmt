@@ -4,7 +4,7 @@
   "description": "Unified HPE SAN Simulator, Discovery, API, and Dashboard",
   "scripts": {
     "postinstall": "npm install --prefix chatbot-service && npm install --prefix dashboard",
-    "prestart": "docker-compose up -d mongo neo4j elasticsearch",
+    "start:infra": "docker-compose up -d mongo neo4j elasticsearch",
     "clean-db": "docker-compose down -v && powershell -Command \"Remove-Item -Recurse -Force mongodb_data/*\"",
     "start": "concurrently \"npm run start:simulator\" \"npm run start:api\" \"npm run start:chatbot\" \"npm run start:dashboard\"",
     "start:simulator": "nodemon --watch simulator -e py --exec \"py simulator/simulator_manager.py\"",

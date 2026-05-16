@@ -13,10 +13,9 @@ class DataFaker:
         )
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def generate_array(self, seed_name):
+    def generate_array(self, seed_name, switches_count=2, hosts_count=10, drives_count=24):
         serial = f"FAKE{random.randint(100000, 999999)}"
-        nodes_count = random.choice([2, 4])
-        drives_count = random.randint(24, 192)
+        nodes_count = 2 # Standard for fake
 
         lines = []
         lines.append("showsys")
@@ -43,23 +42,24 @@ class DataFaker:
 
         lines.append("--\n+ showhost")
         lines.append(" Id Name          Persona       -WWN/iSCSI_Name- Port")
-        for h in range(10):
+        for h in range(hosts_count):
             lines.append(f"  {h} host_{h}      Generic-ALUA  100000000000000{h} 0:1:1")
 
         lines.append("--\n+ showswitch")
         lines.append("Switch -----------WWN----------- State Mode -Serial- -Temp-")
-        lines.append(f"sw1    1000000000000001        Online Normal SW{serial}1 35")
-        lines.append(f"sw2    1000000000000002        Online Normal SW{serial}2 36")
+        for s in range(switches_count):
+            lines.append(f"sw{s}    100000000000000{s}        Online Normal SW{serial}{s} 35")
 
         lines.append("--\n+ showcage -pci")
         lines.append(" Id Name  -State- -Detailed_State- Drives -Temp- ---Model--- FormFactor")
-        for c in range(4):
-            lines.append(f"  {c} cage{c} Normal  Normal           {drives_count//4}     30   CAGE-MODEL-A SFF")
+        cage_count = max(1, drives_count // 24)
+        for c in range(cage_count):
+            lines.append(f"  {c} cage{c} Normal  Normal           {min(24, drives_count)}     30   CAGE-MODEL-A SFF")
 
         lines.append("--\n+ showpd -showcols Id,CagePos,Type,State,Total_MiB,Free_MiB,Cap_GB -noheading")
         for d in range(drives_count):
-            cage_id = d % 4
-            slot = d // 4
+            cage_id = d % cage_count
+            slot = d // cage_count
             lines.append(f"{d},{cage_id}:{slot},SSD,normal,1000000,500000,1000")
 
         lines.append("--\n+ showpd -s -showcols Id,Manufacturer,Model,Serial,FW_Rev,Protocol -noheading")
