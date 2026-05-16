@@ -52,3 +52,26 @@ services:
         sync: false # Set this manually in Render Dashboard for security
       - key: PORT
         value: 5005
+
+  # 4. Chatbot Service (Node.js)
+  - type: web
+    name: chatbot-service
+    env: node
+    rootDir: chatbot-service
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: NEO4J_URI
+        value: bolt://neo4j:7687
+      - key: NEO4J_USER
+        value: neo4j
+      - key: NEO4J_PASS
+        value: hpe_san_password
+      - key: PORT
+        value: 5010
