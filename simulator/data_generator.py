@@ -208,6 +208,58 @@ class ArrayDumpBuilder:
         self._add(f"NUMA node0 CPU(s):   0-23")
         self._add(f"NUMA node1 CPU(s):   24-47")
 
+    def build_showportdev_ns(self):
+        c = self.c
+        self._cmd("showportdev ns -nohdtot 0:3:1")
+        self._add(f"0xc0200 0x00  0x00 2FF70000DUMMY001 20310000DUMMY001 0x8800 0x0012 n/a    0x0800 20310000DUMMY001 HPE {c['model']} - DUMMY000999 - fw:105600                                                              0:3:1")
+        for i, h in enumerate(c["hosts"]):
+            wwn1 = "2" + h["wwn"].replace(":", "")[1:]
+            wwn2 = "1" + h["wwn"].replace(":", "")[1:]
+            hostname = h['name']
+            os = "Linux" if "linux" in h.get("os_type", "").lower() else "Windows"
+            status = hostname if i % 2 == 0 else "-"
+            self._add(f"0xc1100 0x0a  0x00 {wwn1} {wwn2} 0x0000 0x0000 0x0000 0x0000 20310000DUMMY001 Emulex SN1600E1P FV14.0.499.29 DV14.0.499.31 HN:{hostname}.local OS:{os}                             {status}")
+            
+    def build_fabricshow(self):
+        c = self.c
+        self._cmd("fabricshow")
+        self._add("Switch ID   Worldwide Name          Enet IP Addr    FC IP Addr      Name")
+        self._add("-------------------------------------------------------------------------")
+        for i, s in enumerate(c["switches"]):
+            self._add(f"  {i+1}: dmyc0{i+1} {s['wwn']} {s['ip_address']}   0.0.0.0         \"{s['name']}\"")
+        self._add(f"The Fabric has {len(c['switches'])} switches")
+        self._add("Fabric Name: FABRIC_DUMMY_01")
+        
+    def build_switchshow_detailed(self):
+        c = self.c
+        self._cmd("switchshow")
+        s = c["switches"][0] if c["switches"] else None
+        if s:
+            self._add(f"switchName:     {s['name']}")
+            self._add(f"switchType:     109.1")
+            self._add(f"switchState:    {s['state']}")
+            self._add(f"switchMode:     Native")
+            self._add(f"switchRole:     Subordinate")
+            self._add(f"switchDomain:   1")
+            self._add(f"switchId:       dmyc63")
+            self._add(f"switchWwn:      {s['wwn']}")
+            self._add(f"zoning:         ON (FABRIC_DUMMY_1)")
+            self._add(f"switchBeacon:   OFF")
+            self._add(f"FC Router:      OFF")
+            self._add(f"Fabric Name:    FABRIC_DUMMY_01")
+            self._add(f"HIF Mode:       OFF")
+            self._add(f"Allow XISL Use: OFF")
+            self._add(f"LS Attributes:  [FID: 128, Base Switch: No, Default Switch: Yes, Address Mode 0]")
+            self._add("")
+            self._add("Index Port Address  Media Speed   State       Proto")
+            self._add("==================================================")
+            self._add("   0   0   630000   id    N16     Online      FC  E-Port  10:00:aa:bb:cc:00:00:08 \"sw-bridge-08\" (Trunk master)")
+            self._add("   1   1   630100   id    N16     Online      FC  E-Port  (Trunk port, master is Port  0 )")
+            self._add("   2   2   630200   id    N16     Online      FC  E-Port  10:00:aa:bb:cc:00:00:01 \"sw-core-01\" (upstream)(Trunk master)")
+            self._add("   3   3   630300   id    N16     Online      FC  E-Port  (Trunk port, master is Port  2 )")
+            for p in range(4, 20):
+                self._add(f"  {p:2}  {p:2}   630{p:x}00   id    N16     No_Light    FC")
+
     def build(self):
         self.build_showsys()
         self.build_shownode()
@@ -221,6 +273,9 @@ class ArrayDumpBuilder:
         self.build_showpd_i()
         self.build_showversion()
         self.build_lscpu()
+        self.build_showportdev_ns()
+        self.build_fabricshow()
+        self.build_switchshow_detailed()
         return "\n".join(self.lines)
 
 

@@ -192,6 +192,29 @@ class LinuxHostTerminal(BaseTerminal):
                 "  hostname              This host's name"
             )
 
+        elif cmd == "systool -c fc_host -v | grep -E 'Class Device|port_state|port_name|speed'":
+            wwn = c.get("wwn", "10:00:00:00:c9:00:00:01").replace(":", "").lower()
+            return (
+                f'  Class Device = "host5"\n'
+                f'  Class Device path = "/sys/devices/pci0000:09/0000:09:00.0/0000:0a:00.0/host5/fc_host/host5"\n'
+                f'    port_name           = "0x{wwn}"\n'
+                f'    port_state          = "Online"\n'
+                f'    speed               = "16 Gbit"\n'
+                f'    supported_speeds    = "4 Gbit, 8 Gbit, 16 Gbit"'
+            )
+
+        elif cmd == "lspci -nnk | grep -A3 -i 'fibre|fc|emulex|qlogic|lpfc|qlgc'":
+            return (
+                "0a:00.0 Fibre Channel [0c04]: Emulex Corporation LPe31000/LPe32000 Series 16Gb/32Gb Fibre Channel Adapter [10df:e300] (rev 01)\n"
+                "        Subsystem: Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]\n"
+                "        Kernel driver in use: lpfc\n"
+                "        Kernel modules: lpfc\n"
+                "0a:00.1 Fibre Channel [0c04]: Emulex Corporation LPe31000/LPe32000 Series 16Gb/32Gb Fibre Channel Adapter [10df:e300] (rev 01)\n"
+                "        Subsystem: Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]\n"
+                "        Kernel driver in use: lpfc\n"
+                "        Kernel modules: lpfc"
+            )
+
         else:
             return f"bash: {cmd}: command not found"
 
