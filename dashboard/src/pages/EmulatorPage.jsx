@@ -1,13 +1,56 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Monitor, Play, RotateCcw, Server } from 'lucide-react'
 
-const COMMANDS = [
-  { label: 'showsys', desc: 'System overview' }, { label: 'shownode', desc: 'Node details' },
-  { label: 'showport', desc: 'Port info' }, { label: 'showpd', desc: 'Physical disks' },
-  { label: 'showvv', desc: 'Virtual volumes' }, { label: 'showhost', desc: 'Connected hosts' },
-  { label: 'showcage', desc: 'Drive cages' }, { label: 'showalert', desc: 'Alerts' },
-  { label: 'showversion', desc: 'Firmware version' }, { label: 'shownet', desc: 'Network config' },
+const ARRAY_CMDS = [
+  { label: 'showsys', desc: 'System overview' },
+  { label: 'shownode', desc: 'Node details' },
+  { label: 'showport', desc: 'Port info' },
+  { label: 'showpd', desc: 'Physical disks' },
+  { label: 'showhost', desc: 'Connected hosts' },
+  { label: 'showcage', desc: 'Drive cages' },
+  { label: 'showportdev ns -nohdtot 0:3:1', desc: 'Port device NS (port 0:3:1)' },
+  { label: 'showversion -b', desc: 'Firmware version' },
 ]
+
+const SWITCH_CMDS = [
+  { label: 'fabricshow', desc: 'FC fabric topology' },
+  { label: 'switchshow', desc: 'Switch state + port table' },
+  { label: 'help', desc: 'Available commands' },
+]
+
+const HOST_LINUX_CMDS = [
+  { label: 'uname -a', desc: 'OS info' },
+  { label: 'hostname', desc: 'Hostname' },
+  { label: 'ip addr show', desc: 'Network interfaces' },
+  { label: 'multipath -ll', desc: 'Multipath status' },
+  { label: "systool -c fc_host -v | grep -E 'Class Device|port_state|port_name|speed'", desc: 'HBA FC info' },
+  { label: "lspci -nnk | grep -A3 -i 'fibre|fc|emulex|qlogic|lpfc|qlgc'", desc: 'PCI FC adapters' },
+]
+
+const HOST_WIN_CMDS = [
+  { label: 'Get-PhysicalDisk | Select-Object DeviceId, Model, FirmwareVersion', desc: 'Physical disks' },
+  { label: 'Get-ComputerInfo', desc: 'OS & hardware' },
+  { label: 'Get-HBaPort', desc: 'FC HBA ports' },
+]
+
+function getDeviceCmds(device) {
+  const t = (device?.type || '').toLowerCase()
+  const os = (device?.os || device?.os_name || '').toLowerCase()
+  if (t === 'switch') return SWITCH_CMDS
+  if (t === 'array' || t === 'arraysystem') return ARRAY_CMDS
+  if (os.includes('windows')) return HOST_WIN_CMDS
+  return HOST_LINUX_CMDS
+}
+
+function getDevicePrompt(device) {
+  if (!device) return '$'
+  const t = (device?.type || '').toLowerCase()
+  const os = (device?.os || '').toLowerCase()
+  if (t === 'switch') return `${device.name}:FID100:admin>`
+  if (t === 'array' || t === 'arraysystem') return `${device.name}#`
+  if (os.includes('windows')) return 'PS C:\\>'
+  return `${device.name}$`
+}
 
 export default function EmulatorPage({ apiBase }) {
   const API = apiBase || ''
@@ -97,10 +140,10 @@ export default function EmulatorPage({ apiBase }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Quick commands */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {COMMANDS.map(c => (
+            {getDeviceCmds(selectedDevice).map(c => (
               <button key={c.label} className="btn btn-sm" disabled={!selectedDevice || running}
                 onClick={() => runCommand(c.label)} title={c.desc}
-                style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 11, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {c.label}
               </button>
             ))}
@@ -130,7 +173,7 @@ export default function EmulatorPage({ apiBase }) {
               {running && <div className="terminal-line info" style={{ opacity: 0.6 }}>Executing...</div>}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--line)', padding: '8px 12px', gap: 8 }}>
-              <span className="terminal-prompt">{selectedDevice ? `${selectedDevice.name || selectedDevice.ip}#` : '$'}</span>
+              <span className="terminal-prompt">{getDevicePrompt(selectedDevice)}</span>
               <input style={{
                 flex: 1, background: 'transparent', border: 'none', color: '#c9d1d9',
                 fontFamily: 'var(--font-mono)', fontSize: 12, outline: 'none'

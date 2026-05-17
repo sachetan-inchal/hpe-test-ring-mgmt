@@ -849,6 +849,34 @@ def sim_status():
     count = len(virtual_network.list_devices())
     return jsonify({"status": "running" if count > 0 else "idle", "device_count": count})
 
+@app.route("/api/sim/ssh/connect/<path:ip>", methods=["GET"])
+def sim_ssh_connect(ip):
+    """Return SSH handshake metadata for a simulated device."""
+    proxied = _proxy_to_sim(f"/sim/ssh/connect/{ip}")
+    if proxied is not None:
+        return jsonify(proxied)
+    # Fallback: synthesize from virtual_network metadata
+    meta = virtual_network.get_metadata(ip)
+    if not meta:
+        return jsonify({"error": f"No device at {ip}"}), 404
+    name = meta.get("name", ip)
+    key_type = meta.get("ssh_key_type")
+    login_user = meta.get("login_user", "root")
+    dev_type = meta.get("type", "host")
+    prompt = meta.get("prompt", "$ ")
+    lines = []
+    if key_type:
+        lines.append(f"Warning: the {key_type} host key for '{name}' differs from the key for the IP address '{ip}'")
+        lines.append("Are you sure you want to continue connecting (yes/no)?")
+        lines.append("")
+    password_prompt = "Password:" if dev_type == "array" else f"{login_user}@{name}'s password:"
+    return jsonify({
+        "name": name, "ip": ip, "type": dev_type,
+        "key_type": key_type, "login_user": login_user,
+        "prompt": prompt, "handshake_lines": lines,
+        "password_prompt": password_prompt,
+    })
+
 # ── Discovery endpoints ───────────────────────────────────────────────────────
 
 @app.route("/api/discover", methods=["POST"])

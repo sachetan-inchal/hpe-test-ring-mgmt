@@ -24,7 +24,7 @@ sys.path.insert(0, BASE_DIR)
 
 from data_generator import generate_and_save, DATA_DIR, META_DIR
 from network_sim import virtual_network
-from device_terminal import HPEArrayTerminal, LinuxHostTerminal, WindowsHostTerminal
+from device_terminal import HPEArrayTerminal, LinuxHostTerminal, WindowsHostTerminal, BrocadeSwitchTerminal
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [simulator] %(message)s")
 log = logging.getLogger(__name__)
@@ -72,24 +72,33 @@ def boot():
             "model": arr["model"],
             "serial": arr["serial"],
             "connected_to": arr.get("connected_array_ips", []),
+            "ssh_key_type": "RSA",             # Arrays: RSA key warning on connect
+            "login_user": "root",
+            "prompt": "cli% ",
         })
         log.info(f"  [Array] {arr['name']} @ {arr['ip_address']} — ready")
 
-        # 3. Spin up Switch terminals (simple HPE-like CLI)
+        # 3. Spin up Switch terminals — use BrocadeSwitchTerminal for FC switches
         for sw in arr.get("switches", []):
-            sw_terminal = HPEArrayTerminal(
+            sw_config = {
+                **sw,
+                "wwn": sw.get("wwn", "10:00:aa:bb:cc:dd:ee:01"),
+            }
+            sw_terminal = BrocadeSwitchTerminal(
                 device_id=sw["name"],
                 ip=sw["ip_address"],
-                config=sw,
-                device_file=device_file,  # switches replay from array dump for now
+                config=sw_config,
             )
             virtual_network.register(sw["ip_address"], sw_terminal, metadata={
                 "name": sw["name"],
                 "type": "switch",
-                "model": sw.get("model", "FC Switch"),
+                "model": sw.get("model", "Brocade FC Switch"),
                 "parent_array": arr["name"],
+                "ssh_key_type": None,          # FC switches: direct password, no key warning
+                "login_user": "admin",
+                "prompt": f"{sw['name']}:FID100:admin> ",
             })
-            log.info(f"  [Switch] {sw['name']} @ {sw['ip_address']} — ready")
+            log.info(f"  [Switch/Brocade] {sw['name']} @ {sw['ip_address']} — ready")
 
         # 4. Spin up Host terminals
         for host in arr.get("hosts", []):
@@ -104,18 +113,23 @@ def boot():
                     ip=host["ip_address"],
                     config=host_cfg,
                 )
+                ssh_key_type = None  # Windows hosts: direct password
             else:
                 h_terminal = LinuxHostTerminal(
                     device_id=host["name"],
                     ip=host["ip_address"],
                     config=host_cfg,
                 )
+                ssh_key_type = "ECDSA"  # Linux/VMware hosts: ECDSA key warning
             virtual_network.register(host["ip_address"], h_terminal, metadata={
                 "name": host["name"],
                 "type": "host",
                 "os": host.get("os_name"),
                 "os_type": os_type,
                 "parent_array": arr["name"],
+                "ssh_key_type": ssh_key_type,
+                "login_user": "root",
+                "prompt": "PS C:\\> " if os_type == "windows" else "$ ",
             })
             log.info(f"  [Host/{os_type.title()}] {host['name']} @ {host['ip_address']} — ready")
 
@@ -126,6 +140,44 @@ def boot():
 
 
 # ── REST API ──────────────────────────────────────────────────────────────────
+
+@app.route("/sim/ssh/connect/<path:ip>")
+def ssh_connect(ip):
+    """Return SSH handshake metadata for a device (key type, login user, prompt)."""
+    meta = virtual_network.get_metadata(ip)
+    if not meta:
+        return jsonify({"error": f"No device at {ip}"}), 404
+
+    name = meta.get("name", ip)
+    key_type = meta.get("ssh_key_type")   # "RSA", "ECDSA", or None
+    login_user = meta.get("login_user", "root")
+    prompt = meta.get("prompt", "$ ")
+
+    # Build the handshake lines exactly as they appear in a real SSH session
+    lines = []
+    if key_type:
+        lines.append(f"Warning: the {key_type} host key for '{name}' differs from "
+                     f"the key for the IP address '{ip}'")
+        lines.append("Are you sure you want to continue connecting (yes/no)?")
+        # user answers yes →
+        lines.append("")  # blank after yes
+    # Password prompt differs: arrays use bare "Password:", hosts use "user@host's password:"
+    if meta.get("type") == "array":
+        password_prompt = "Password:"
+    else:
+        password_prompt = f"{login_user}@{name}'s password:"
+
+    return jsonify({
+        "name": name,
+        "ip": ip,
+        "type": meta.get("type"),
+        "key_type": key_type,
+        "login_user": login_user,
+        "prompt": prompt,
+        "handshake_lines": lines,
+        "password_prompt": password_prompt,
+    })
+
 
 @app.route("/sim/devices")
 def list_sim_devices():
