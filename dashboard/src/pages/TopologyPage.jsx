@@ -86,7 +86,7 @@ export default function TopologyPage({ apiBase }) {
   const { user } = useContext(AuthContext)
 
   // Roles: 'admin', 'manager', 'user'
-  const initialRole = user?.role === 'admin' ? 'admin' : user?.role === 'manager' ? 'manager' : 'user'
+  const initialRole = user?.role === 'admin' ? 'admin' : (user?.role === 'manager' || user?.role === 'senior_manager') ? 'manager' : 'user'
   
   // Normalize team id -> display name
   const teamIdToName = useMemo(() => {
@@ -108,6 +108,13 @@ export default function TopologyPage({ apiBase }) {
   const [selectedTeamId, setSelectedTeamId] = useState(
     initialRole === 'admin' ? 'all' : initialTeamId
   )
+
+  const managerTeamIds = useMemo(() => {
+    if (!user) return []
+    const base = normalizeTeamId(user.team)
+    const managed = (user.managedTeams || []).map(t => normalizeTeamId(t))
+    return Array.from(new Set([base, ...managed])).filter(Boolean)
+  }, [user])
 
   // When role changes, reset team selection
   const handleRoleChange = (newRole) => {
@@ -282,18 +289,21 @@ export default function TopologyPage({ apiBase }) {
       {/* RBAC Scope Panel */}
       <div className="glass-card" style={{ display: 'flex', gap: 16, padding: '10px 16px', border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: '8px', marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
 
-        {/* Role Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Simulate Role:</span>
-          <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
-            value={role} onChange={e => handleRoleChange(e.target.value)}>
-            <option value="admin">🔒 Administrator</option>
-            <option value="manager">🗂️ Manager</option>
-            <option value="user">👥 Team Member</option>
-          </select>
-        </div>
-
-        <div style={{ height: 16, width: 1, background: 'var(--line)' }} />
+        {/* Role Switcher (ONLY FOR ADMIN) */}
+        {user?.role === 'admin' && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Simulate Role:</span>
+              <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
+                value={role} onChange={e => handleRoleChange(e.target.value)}>
+                <option value="admin">🔒 Administrator</option>
+                <option value="manager">🗂️ Manager</option>
+                <option value="user">👥 Team Member</option>
+              </select>
+            </div>
+            <div style={{ height: 16, width: 1, background: 'var(--line)' }} />
+          </>
+        )}
 
         {/* Team selector — admin & manager can switch; user is locked */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -302,12 +312,12 @@ export default function TopologyPage({ apiBase }) {
             <span style={{ fontSize: 11, color: '#58a6ff', background: 'rgba(58,166,255,0.1)', border: '1px solid rgba(58,166,255,0.2)', padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>
               🔒 {teamIdToName[selectedTeamId] || selectedTeamId}
             </span>
-          ) : role === 'manager' ? (
-            // Manager: can switch team but not cluster
+          ) : (role === 'manager' || user?.role === 'manager' || user?.role === 'senior_manager') ? (
+            // Manager: can switch team but only among their managed teams
             <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
               value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
-              {teamConfig.teams.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
+              {managerTeamIds.map(tid => (
+                <option key={tid} value={tid}>{teamIdToName[tid] || tid}</option>
               ))}
             </select>
           ) : (
