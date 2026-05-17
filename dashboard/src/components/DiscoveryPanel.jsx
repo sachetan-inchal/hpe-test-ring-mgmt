@@ -104,7 +104,7 @@ function EventRow({ event, index }) {
   )
 }
 
-export default function DiscoveryPanel({ events, running, onClose, onStartDiscovery }) {
+export default function DiscoveryPanel({ events, running, onClose, onStartDiscovery, apiBase }) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -143,7 +143,18 @@ export default function DiscoveryPanel({ events, running, onClose, onStartDiscov
           </span>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {!running && (
+          {running ? (
+            <button
+              className="btn btn-danger btn-sm animate-pulse"
+              onClick={async () => {
+                try {
+                  await fetch(`${apiBase}/api/discover/cancel`, { method: 'POST' })
+                } catch (e) {
+                  console.error("Failed to cancel discovery:", e)
+                }
+              }}
+            >🛑 Cancel</button>
+          ) : (
             <button
               className="btn btn-primary btn-sm"
               onClick={() => onStartDiscovery(['10.20.10.5'])}

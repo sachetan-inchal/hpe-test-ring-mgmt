@@ -7,8 +7,8 @@
     "start:infra": "docker-compose up -d mongo neo4j elasticsearch",
     "clean-db": "docker-compose down -v && powershell -Command \"Remove-Item -Recurse -Force mongodb_data/*\"",
     "start": "concurrently \"npm run start:simulator\" \"npm run start:api\" \"npm run start:chatbot\" \"npm run start:dashboard\"",
-    "start:simulator": "nodemon --watch simulator -e py --exec \"py simulator/simulator_manager.py\"",
-    "start:api": "nodemon --watch api -e py --exec \"py api/app.py\"",
+    "start:simulator": "nodemon --watch simulator --watch .env -e py --exec \"py simulator/simulator_manager.py\"",
+    "start:api": "nodemon --watch api --watch discovery --watch simulator --watch .env -e py --exec \"py api/app.py\"",
     "start:chatbot": "npm run dev --prefix chatbot-service",
     "start:dashboard": "npm run dev --prefix dashboard"
   },

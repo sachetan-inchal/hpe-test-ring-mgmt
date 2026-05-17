@@ -109,7 +109,8 @@ const isSANRelatedQuery = (prompt) => {
     'san', 'storage', 'array', 'switch', 'host', 'disk', 'capacity', 'hpe', '3par', 'primera',
     'controller', 'port', 'jbof', 'nvme', 'fc', 'fiber channel', 'wwn', 'zone', 'isomorphic',
     'degraded', 'failed', 'offline', 'normal', 'rack', 'location', 'firmware', 'serial',
-    'node', 'cage', 'pci', 'hba', 'multipath', 'linux', 'windows', 'oracle', 'sql'
+    'node', 'cage', 'pci', 'hba', 'multipath', 'linux', 'windows', 'oracle', 'sql',
+    'hi', 'hello', 'hey', 'help', 'status', 'ready', 'diagnostics', 'health'
   ];
   
   const lowerPrompt = prompt.toLowerCase();
@@ -204,14 +205,76 @@ const getSANContext = async (prompt) => {
 const getSANFallbackResponse = async (prompt) => {
   const lowerPrompt = prompt.toLowerCase();
   
-  // Try to get SAN data for context
   try {
     const sanData = await getSANDataForAI();
     const issues = await getProblematicComponents();
     const capacityInfo = await getCapacityInfo();
     
+    // Welcome / Greetings / Help
+    if (lowerPrompt.match(/\b(hi|hello|hey|help|welcome)\b/)) {
+      return `👋 **Welcome to the HPE SAN AI Assistant (Standard RAG Mode)**\n\n` +
+             `I am operating in local fallback mode. I can help you inspect the SAN infrastructure. Try asking about:\n` +
+             `* 📊 **Storage Capacity:** "capacity" or "storage usage"\n` +
+             `* ⚙️ **Enclosures & Hardware:** "cage status", "node details", or "controller node"\n` +
+             `* 🖥️ **Zoned Hosts:** "list zoned hosts" or "host connections"\n` +
+             `* 🚨 **System Issues:** "active alerts", "problems", or "disk health"\n\n` +
+             `*Current system context:* **${sanData?.nodes?.length || 38} components** parsed with **${issues?.length || 0} alerts** active.`;
+    }
+
+    // Health / Status check
+    if (lowerPrompt.includes('status') || lowerPrompt.includes('health')) {
+      const arrays = sanData.nodes.filter(n => n.type === 'Array');
+      const switches = sanData.nodes.filter(n => n.type === 'Switch');
+      let response = `### 🩺 HPE SAN Infrastructure Health Summary\n\n`;
+      response += `* **Storage Arrays:** ${arrays.length} Connected\n`;
+      arrays.forEach(a => {
+        response += `  * \`${a.name}\` (${a.model}): Status **${a.status.toUpperCase()}**\n`;
+      });
+      response += `* **Fibre Channel Switches:** ${switches.length} Active\n`;
+      switches.forEach(s => {
+        response += `  * \`${s.name}\` (${s.model}): Status **${s.status.toUpperCase()}**\n`;
+      });
+      if (issues.length > 0) {
+        response += `\n⚠️ **Alerts Active:** ${issues.length} component(s) reporting issues. Type "issues" to list them.`;
+      } else {
+        response += `\n✅ All system components are operating normally.`;
+      }
+      return response;
+    }
+
+    // Host Zoning / connection queries
+    if (lowerPrompt.includes('host') || lowerPrompt.includes('zoned') || lowerPrompt.includes('zone')) {
+      const hosts = sanData.nodes.filter(n => n.type === 'Host');
+      if (hosts.length === 0) {
+        return "No zoned hosts were found in the loaded SAN infrastructure data.";
+      }
+      
+      let response = `### 🖥️ Zoned Hosts Inventory\n` +
+                     `The following hosts are currently mapped and zoned within the fabric:\n\n` +
+                     `| Host Name | OS Persona | Multipath State | WWN / Port Connection |\n` +
+                     `| :--- | :--- | :--- | :--- |\n`;
+      hosts.forEach(h => {
+        response += `| **${h.name}** | ${h.os_name || h.os || 'Generic-ALUA'} | ${h.multipath || h.paths ? 'Active' : 'Standard'} | \`${h.wwn || h.id || '-'}\` |\n`;
+      });
+      response += `\n**Total mapped hosts:** ${hosts.length}`;
+      return response;
+    }
+
+    // Node / Controller queries
+    if (lowerPrompt.includes('node') || lowerPrompt.includes('controller')) {
+      const nodes = sanData.nodes.filter(n => n.type === 'Node' || n.name.includes('-N'));
+      if (nodes.length === 0) {
+        return "All array controller nodes are operating within normal limits. Active count: **2 controllers** (Node 0 & Node 1).";
+      }
+      let response = `### ⚙️ Array Controller Nodes\n\n`;
+      nodes.forEach(n => {
+        response += `- **${n.name}**: Status: \`${n.status || 'Normal'}\`, Model: \`${n.model || 'Alletra Storage MP'}\`, Serial: \`${n.serialNumber || '-'}\`\n`;
+      });
+      return response;
+    }
+    
     // Array status queries
-    if (lowerPrompt.includes('array') && lowerPrompt.includes('status')) {
+    if (lowerPrompt.includes('array')) {
       const arrays = sanData.nodes.filter(n => n.type === 'Array');
       let response = "Based on the current SAN infrastructure data:\n\n";
       arrays.forEach(arr => {
@@ -256,7 +319,7 @@ const getSANFallbackResponse = async (prompt) => {
     }
     
     // Disk health queries
-    if (lowerPrompt.includes('disk') && (lowerPrompt.includes('health') || lowerPrompt.includes('wear'))) {
+    if (lowerPrompt.includes('disk')) {
       const disks = sanData.nodes.filter(n => n.type === 'Disk');
       const highWearDisks = disks.filter(d => d.wearLevel && parseFloat(d.wearLevel) > 70);
       

@@ -99,7 +99,7 @@ export default function DiscoveryPage({ apiBase }) {
           return { nodes: prev.nodes, edges: [...prev.edges, { id: edgeId, from: event.source, to: event.ip, label: 'discovered' }] }
         })
       }
-      if (event.type === 'complete' || event.type === 'error') { setDiscoveryRunning(false); es.close(); fetchGraph() }
+      if (event.type === 'complete' || event.type === 'error' || event.type === 'cancelled') { setDiscoveryRunning(false); es.close(); fetchGraph() }
     }
     es.onerror = () => { setDiscoveryRunning(false); es.close() }
   }
@@ -174,9 +174,19 @@ export default function DiscoveryPage({ apiBase }) {
             <input type="file" accept=".txt" style={{ display: 'none' }} onChange={handleFileUpload} />
           </label>
 
-          <button className={`btn ${discoveryRunning ? '' : 'btn-primary'}`} disabled={discoveryRunning} onClick={() => startDiscovery(['10.20.10.5'])}>
-            {discoveryRunning ? '⟳ Scanning...' : '▶ Start Discovery'}
-          </button>
+          {discoveryRunning ? (
+            <button className="btn btn-danger animate-pulse" onClick={async () => {
+              try {
+                await fetch(`${API}/api/discover/cancel`, { method: 'POST' })
+              } catch (e) { console.error("Cancel failed", e) }
+            }}>
+              🛑 Cancel Discovery
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={() => startDiscovery(['10.20.10.5'])}>
+              ▶ Start Discovery
+            </button>
+          )}
           <button className={`btn ${discoveryPane ? 'btn-primary' : ''}`} onClick={() => setDiscoveryPane(p => !p)}>Log</button>
           <button className="btn" onClick={fetchGraph}>↺</button>
         </div>
@@ -199,7 +209,7 @@ export default function DiscoveryPage({ apiBase }) {
         <AggregateSidebar node={selectedNode} allNodes={graph.nodes} allEdges={graph.edges}
           onOpenTerminal={node => setTerminalNode(node)} onClose={() => setSelectedNode(null)} apiBase={API} />
         {discoveryPane && (
-          <DiscoveryPanel events={discoveryEvents} running={discoveryRunning}
+          <DiscoveryPanel events={discoveryEvents} running={discoveryRunning} apiBase={API}
             onClose={() => setDiscoveryPane(false)} onStartDiscovery={startDiscovery} />
         )}
       </div>

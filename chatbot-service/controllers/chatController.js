@@ -26,7 +26,7 @@ export const getChatById = async (req, res) => {
 };
 
 export const sendMessage = async (req, res) => {
-  const { chatId, message } = req.body;
+  const { chatId, message, customResponse } = req.body;
   try {
     let chat;
     if (chatId) {
@@ -42,17 +42,21 @@ export const sendMessage = async (req, res) => {
       });
     }
 
-    const history = chat.messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
-
     // Add user message to DB
     chat.messages.push({ role: 'user', content: message });
     await chat.save();
 
-    // Call Gemini API
-    const aiResponseText = await generateAIResponse(history, message);
+    let aiResponseText;
+    if (customResponse) {
+      aiResponseText = customResponse;
+    } else {
+      const history = chat.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+      // Call Gemini API
+      aiResponseText = await generateAIResponse(history, message);
+    }
 
     // Add AI response to DB
     chat.messages.push({ role: 'model', content: aiResponseText });
@@ -75,6 +79,22 @@ export const guestSendMessage = async (req, res) => {
     // Generate AI response without saving to DB
     const aiResponseText = await generateAIResponse(history, message);
     res.json({ role: 'model', content: aiResponseText });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const deleteChat = async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.id);
+    if (!chat) {
+      return res.status(404).json({ message: 'Chat not found' });
+    }
+    if (chat.user.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: 'Unauthorized to delete this chat' });
+    }
+    await chat.deleteOne();
+    res.json({ message: 'Chat deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

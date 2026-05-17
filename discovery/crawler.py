@@ -104,6 +104,13 @@ class DiscoveryCrawler:
             self.events.append(event)
         log.info(f"[crawler] {event.get('msg', event.get('type'))}")
 
+    def cancel(self):
+        """Cancel the running BFS discovery crawler."""
+        with self._lock:
+            if self.running:
+                self.running = False
+                log.info("[crawler] Cancel requested by API.")
+
     def discover(self, seed_ips: List[str], delay_ms: int = 20):
         """Start BFS discovery from one or more seed IPs."""
         with self._lock:
@@ -117,15 +124,22 @@ class DiscoveryCrawler:
         self._emit({"type": "start", "msg": f"Discovery started. Seeds: {seed_ips}"})
 
         while self.queue:
+            with self._lock:
+                if not self.running:
+                    self._emit({"type": "cancelled", "msg": f"Discovery cancelled by user. Visited {len(self.visited)} devices."})
+                    break
             ip = self.queue.popleft()
             if ip in self.visited:
                 continue
             self.visited.add(ip)
             self._discover_device(ip)
 
-        self._emit({"type": "complete", "msg": f"Discovery complete. Visited {len(self.visited)} devices."})
         with self._lock:
+            was_running = self.running
             self.running = False
+
+        if was_running:
+            self._emit({"type": "complete", "msg": f"Discovery complete. Visited {len(self.visited)} devices."})
 
     def _discover_device(self, ip: str):
         self._emit({"type": "connecting", "ip": ip, "msg": f"Connecting to {ip}..."})

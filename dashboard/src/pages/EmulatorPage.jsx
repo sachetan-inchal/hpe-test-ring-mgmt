@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Monitor, Play, RotateCcw, Server } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Monitor, Play, RotateCcw, Server, Bot } from 'lucide-react'
 
 const COMMANDS = [
   { label: 'showsys', desc: 'System overview' }, { label: 'shownode', desc: 'Node details' },
@@ -10,6 +11,7 @@ const COMMANDS = [
 ]
 
 export default function EmulatorPage({ apiBase }) {
+  const navigate = useNavigate()
   const API = apiBase || ''
   const [devices, setDevices] = useState([])
   const [selectedDevice, setSelectedDevice] = useState(null)
@@ -58,6 +60,16 @@ export default function EmulatorPage({ apiBase }) {
           <h2 className="page-title">CLI Emulator</h2>
           <p className="page-subtitle">Execute HPE 3PAR / Primera commands on simulated devices</p>
         </div>
+        {selectedDevice && (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => navigate('/chat')}
+            title="Open AI Assistant with this array as target"
+          >
+            <Bot size={14} /> Ask AI about {selectedDevice.name || selectedDevice.ip}
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 16 }}>
@@ -77,7 +89,11 @@ export default function EmulatorPage({ apiBase }) {
             {devices.map(d => {
               const name = typeof d === 'string' ? d.replace('.txt', '') : d.name || d
               return (
-                <button key={name} onClick={() => { setSelectedDevice(d); setHistory([{ type: 'info', text: `Connected to ${name}` }]) }}
+                <button key={name} onClick={() => {
+                  setSelectedDevice(d)
+                  setHistory([{ type: 'info', text: `Connected to ${name}` }])
+                  sessionStorage.setItem('agent_array_hint', name)
+                }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px',
                     borderRadius: 8, border: selectedDevice?.ip === d.ip ? '1px solid var(--hpe-green)' : '1px solid transparent',

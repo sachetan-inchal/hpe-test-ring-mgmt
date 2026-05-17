@@ -42,6 +42,7 @@ from integrations.json_store import JsonStore
 from integrations.neo4j_runner import run_cypher as neo4j_run_cypher
 from integrations.ontology_engine import OntologyLLMEngine, populate_graph
 from integrations.rag_engine import RAGEngine
+from integrations.san_agent import SanAgent
 from integrations.spreadsheet_pipeline import SpreadsheetPipeline
 from integrations.topology_db import TopologyDB
 
@@ -58,6 +59,8 @@ from api.parsers.parse_showport import parse_showport
 # Import individual parsers
 from api.parsers.parse_showsys import parse_showsys
 from discovery.crawler import DiscoveryCrawler, discovery_crawler
+from discovery.parsers import sim_parser
+from discovery.parsers.sim_parser import parse_sim_array_output
 from discovery.indexer import ElasticsearchIndexer
 from discovery.neo4j_store import Neo4jStore
 from simulator.network_sim import virtual_network
@@ -398,6 +401,32 @@ _rag_engine = RAGEngine(
     json_store=_json_store,
     neo4j_loader=_Neo4jRagBridge() if neo4j.available else None,
     ontology_traversal=_ontology_traversal
+)
+
+
+def _san_agent_llm(system: str, user: str) -> str:
+    return _rag_engine._llm_call(system, user)
+
+
+# Per-command parsers: api REST parsers + sim_parser (simulator / discovery)
+_AGENT_PARSERS = {
+    **_PARSERS,
+    "showswitch": sim_parser.parse_showswitch,
+    "showversion": sim_parser.parse_showversion,
+    "showversion -b": sim_parser.parse_showversion,
+    "showcage -state": sim_parser.parse_showcage_state,
+    "showpd -s": sim_parser.parse_showpd_s,
+    "showpd -i": sim_parser.parse_showpd_i,
+}
+
+_san_agent = SanAgent(
+    execute_fn=lambda ip, cmd: virtual_network.execute(ip, cmd),
+    list_devices_fn=lambda: virtual_network.list_devices(),
+    neo4j_store=neo4j,
+    run_cypher_fn=lambda q, params=None: neo4j_run_cypher(neo4j, q, params),
+    llm_call=_san_agent_llm if _rag_engine.client else None,
+    command_parsers=_AGENT_PARSERS,
+    parse_array_outputs=parse_sim_array_output,
 )
 
 
@@ -822,6 +851,14 @@ def start_discovery():
     t.start()
     return jsonify({"status": "started", "seed_ips": seed_ips})
 
+@app.route("/api/discover/cancel", methods=["POST"])
+def cancel_discovery():
+    """Cancel the active BFS discovery process."""
+    if not discovery_crawler.running:
+        return jsonify({"message": "Discovery is not running"}), 200
+    discovery_crawler.cancel()
+    return jsonify({"status": "cancelled", "message": "Discovery cancellation request sent successfully"})
+
 @app.route("/api/discover/stream")
 def discovery_stream():
     """SSE endpoint — push live discovery events to the dashboard."""
@@ -907,6 +944,70 @@ def neo4j_graph():
 
 
 # ── RAG chat, ingest, faker ───────────────────────────────────────────────────
+
+@app.route("/api/agent/run/stream")
+def agent_run_stream():
+    """Stream SAN AI Agent execution steps in real-time via SSE."""
+    import collections
+    query = request.args.get("query", "").strip()
+    array_hint = request.args.get("array", "").strip()
+    if not query:
+        return Response("data: {\"error\": \"query is required\"}\n\n", mimetype="text/event-stream")
+
+    def generate():
+        queue = collections.deque()
+        
+        def on_step(step):
+            queue.append(step)
+
+        result = {}
+        error_holder = []
+        
+        def run_thread():
+            try:
+                res = _san_agent.run(query, array_hint=array_hint or None, on_step=on_step)
+                result.update(res)
+            except Exception as e:
+                log.exception("agent stream run failed")
+                error_holder.append(str(e))
+
+        t = threading.Thread(target=run_thread, daemon=True)
+        t.start()
+
+        while t.is_alive() or queue:
+            while queue:
+                step = queue.popleft()
+                yield f"data: {json.dumps({'type': 'step', 'step': step})}\n\n"
+            if error_holder:
+                yield f"data: {json.dumps({'type': 'error', 'error': error_holder[0]})}\n\n"
+                return
+            time.sleep(0.1)
+
+        if error_holder:
+            yield f"data: {json.dumps({'type': 'error', 'error': error_holder[0]})}\n\n"
+            return
+
+        yield f"data: {json.dumps({'type': 'final', 'result': result})}\n\n"
+
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/api/agent/run", methods=["POST"])
+@app.route("/api/v1/san/agent/run", methods=["POST"])
+def agent_run():
+    """SAN AI Agent: simulator CLI → parse → Neo4j → answer with execution trace."""
+    data = request.json or {}
+    q = (data.get("query") or data.get("message") or "").strip()
+    if not q:
+        return jsonify({"error": "query is required"}), 400
+    try:
+        result = _san_agent.run(q, array_hint=data.get("array") or data.get("array_hint"))
+        return jsonify(result)
+    except Exception as ex:
+        log.exception("agent_run failed")
+        return jsonify({"error": str(ex)}), 500
+
 
 @app.route("/api/chat", methods=["POST"])
 @app.route("/api/v1/san/rag/query", methods=["POST"])

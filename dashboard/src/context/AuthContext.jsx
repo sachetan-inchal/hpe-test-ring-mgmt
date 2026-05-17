@@ -39,7 +39,13 @@ export function AuthProvider({ children }) {
       headers.set('X-User-Managed-Teams', Array.isArray(user.managedTeams) ? user.managedTeams.join(',') : '')
       headers.set('X-User-Managed-Clusters', Array.isArray(user.managedClusters) ? user.managedClusters.join(',') : '')
 
-      return originalFetch(input, { ...init, headers })
+      return originalFetch(input, { ...init, headers }).then(response => {
+        if (response.status === 401 && (reqUrl.includes('/chat') || reqUrl.includes('/message') || reqUrl.includes('/chatbot'))) {
+          setUser(null);
+          localStorage.removeItem('hpe_user');
+        }
+        return response;
+      });
     }
 
     return () => {

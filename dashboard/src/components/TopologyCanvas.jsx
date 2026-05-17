@@ -37,7 +37,7 @@ const getStatusColor = (status) => {
   return 'var(--status-critical)';
 };
 
-export default function TopologyCanvas({ data, nodes: legacyNodes, edges: legacyEdges, onClose, onNodeClick }) {
+export default function TopologyCanvas({ data, nodes: legacyNodes, edges: legacyEdges, onClose, onNodeClick, isSidebar = false }) {
   const reactFlowWrapper = useRef(null);
 
   const { nodes: rawNodes = [], edges: rawEdges = [] } = data || { nodes: legacyNodes || [], edges: legacyEdges || [] };
@@ -223,7 +223,14 @@ export default function TopologyCanvas({ data, nodes: legacyNodes, edges: legacy
           <MiniMap
             nodeColor={miniMapColor}
             maskColor="rgba(13, 17, 23, 0.7)"
-            style={{ background: 'var(--surface-1)', border: '1px solid var(--line)' }}
+            style={{
+              background: 'var(--surface-1)',
+              border: '1px solid var(--line)',
+              width: isSidebar ? 60 : 120,
+              height: isSidebar ? 45 : 90,
+              margin: 4
+            }}
+            position="bottom-right"
           />
 
           <Panel position="top-right" style={{ display: 'flex', gap: 8 }}>
