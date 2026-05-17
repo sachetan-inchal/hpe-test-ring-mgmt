@@ -251,14 +251,21 @@ def _filter_graph_payload(payload, actor):
     if not isinstance(nodes, list):
         return payload
 
-    # 1. Load topology data from database.json to read team and cluster configurations
+    # 1. Load topology data and teamconfig.json to read configurations
     try:
         topo_data = _topology_db.get_topology()
     except Exception:
-        topo_data = {"nodes": [], "edges": [], "teams": [], "clusters": []}
+        topo_data = {"nodes": [], "edges": []}
 
-    teams_list = topo_data.get("teams", [])
-    clusters_list = topo_data.get("clusters", [])
+    try:
+        config_path = os.path.join(MONOREPO, "data", "ontology", "teamconfig.json")
+        with open(config_path, "r", encoding="utf-8") as f:
+            teamconfig = json.load(f)
+    except Exception:
+        teamconfig = {"teams": [], "clusters": []}
+
+    teams_list = teamconfig.get("teams", [])
+    clusters_list = teamconfig.get("clusters", [])
     has_custom_config = bool(teams_list or clusters_list)
 
     if has_custom_config:
