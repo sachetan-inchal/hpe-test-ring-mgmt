@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Monitor, Play, RotateCcw, Server, Terminal } from 'lucide-react'
+import { Monitor, RotateCcw, Server } from 'lucide-react'
 
 const ARRAY_CMDS = [
   { label: 'showsys', desc: 'System overview' },
@@ -48,6 +48,16 @@ function getSSHUserForDevice(device) {
   return t === 'switch' ? 'admin' : 'root'
 }
 
+function getDeviceKind(device) {
+  if (!device) return 'host_linux'
+  const t = (device?.type || '').toLowerCase()
+  const os = (device?.os || device?.os_name || '').toLowerCase()
+  if (t === 'switch') return 'switch'
+  if (t === 'array' || t === 'arraysystem') return 'array'
+  if (os.includes('windows')) return 'host_windows'
+  return 'host_linux'
+}
+
 const COL = {
   cmd:  '#3fb950',
   out:  '#c9d1d9',
@@ -61,8 +71,7 @@ export default function EmulatorPage({ apiBase }) {
   const API = apiBase || ''
   const [devices, setDevices] = useState([])
   
-  // Terminal state
-  // sshState: 'disconnected' | 'ssh_init' | 'awaiting_yes_no' | 'awaiting_password' | 'connected'
+  // Terminal states: 'disconnected' | 'ssh_init' | 'awaiting_yes_no' | 'awaiting_password' | 'connected'
   const [sshState, setSshState] = useState('disconnected')
   const [activeDevice, setActiveDevice] = useState(null)
   const [handshake, setHandshake] = useState(null)
@@ -119,23 +128,26 @@ export default function EmulatorPage({ apiBase }) {
 
   // ── Sidebar Click Shortcut ─────────────────────────────────────────────────
   const handleSidebarClick = async (device) => {
-    const user = getSSHUserForDevice(device)
-    const ip = device.ip
-    
-    if (sshState === 'connected' && activeDevice?.ip === ip) {
-      addLine('info', `Already connected to ${device.name || ip}`)
-      return
+    try {
+      const user = getSSHUserForDevice(device)
+      const ip = device.ip
+      
+      if (sshState === 'connected' && activeDevice?.ip === ip) {
+        addLine('info', `Already connected to ${device.name || ip}`)
+        return
+      }
+      
+      let histText = `ssh ${user}@${ip}`
+      if (sshState === 'connected') {
+        addLine('info', `Connection to ${activeDevice?.name || activeDevice?.ip} closed.`)
+      }
+      
+      setSshState('disconnected')
+      setInput('')
+      await startSSHHandshake(user, ip, histText)
+    } catch (err) {
+      addLine('error', `Sidebar redirect error: ${err.message}`)
     }
-    
-    // Terminate any active connection and start a new one
-    let histText = `ssh ${user}@${ip}`
-    if (sshState === 'connected') {
-      addLine('info', `Connection to ${activeDevice.name || activeDevice.ip} closed.`)
-    }
-    
-    setSshState('disconnected')
-    setInput('')
-    startSSHHandshake(user, ip, histText)
   }
 
   // ── Start SSH Connection Handshake ─────────────────────────────────────────
@@ -143,7 +155,6 @@ export default function EmulatorPage({ apiBase }) {
     addLine('cmd', `${sshState === 'connected' ? prompt : 'console-gateway$ '}${originalCmd}`)
     setLoading(true)
     
-    // Find device metadata in devices list
     const foundDev = devices.find(d => d.ip === ip)
     if (!foundDev) {
       addLine('error', `ssh: Could not resolve hostname ${ip}: Name or service not known`)
@@ -171,7 +182,7 @@ export default function EmulatorPage({ apiBase }) {
       }
     } catch (err) {
       addLine('error', `Bypassing SSH simulation: Connection failed directly: ${err.message}`)
-      setPrompt(`${foundDev.name || ip}# `)
+      setPrompt(`${foundDev?.name || ip}# `)
       setActiveDevice(foundDev)
       setSshState('connected')
     } finally {
@@ -179,7 +190,7 @@ export default function EmulatorPage({ apiBase }) {
     }
   }
 
-  // ── Keyboard Key Down Processing ───────────────────────────────────────────
+  // ── Key Press & Key Down Handler ───────────────────────────────────────────
   const handleKeyDown = async (e) => {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -192,110 +203,115 @@ export default function EmulatorPage({ apiBase }) {
         return
       }
 
-      // ── State: Disconnected ──
-      if (sshState === 'disconnected') {
-        if (!trimmed) {
-          addLine('cmd', prompt)
-          return
-        }
-        
-        if (trimmed.startsWith('ssh ')) {
-          const parts = trimmed.substring(4).split('@')
-          let user = 'root'
-          let ip = ''
-          if (parts.length === 2) {
-            user = parts[0]
-            ip = parts[1]
-          } else {
-            ip = parts[0]
+      try {
+        // ── State: Disconnected ──
+        if (sshState === 'disconnected') {
+          if (!trimmed) {
+            addLine('cmd', prompt)
+            return
           }
-          await startSSHHandshake(user, ip, trimmed)
-        } else {
+          
+          if (trimmed.startsWith('ssh ')) {
+            const parts = trimmed.substring(4).split('@')
+            let user = 'root'
+            let ip = ''
+            if (parts.length === 2) {
+              user = parts[0]
+              ip = parts[1]
+            } else {
+              ip = parts[0]
+            }
+            await startSSHHandshake(user, ip, trimmed)
+          } else {
+            addLine('cmd', `${prompt}${trimmed}`)
+            addLine('error', 'Error: Not connected. Establish secure CLI session using "ssh <user>@<ip>" or select a device from the sidebar.')
+            addLine('out', '')
+          }
+          return
+        }
+
+        // ── State: Awaiting Yes/No ──
+        if (sshState === 'awaiting_yes_no') {
+          addLine('cmd', `${prompt}${currentVal}`)
+          if (trimmed.toLowerCase() === 'yes') {
+            const nextPrompt = handshake?.password_prompt || 'Password: '
+            setPrompt(nextPrompt)
+            setSshState('awaiting_password')
+          } else if (trimmed.toLowerCase() === 'no') {
+            addLine('error', 'Host key verification failed. Connection closed.')
+            setPrompt('console-gateway$ ')
+            setSshState('disconnected')
+            setActiveDevice(null)
+          } else {
+            addLine('error', "Please type 'yes' or 'no'.")
+          }
+          return
+        }
+
+        // ── State: Awaiting Password ──
+        if (sshState === 'awaiting_password') {
+          // Linux/Brocade switch hides password completely. Append prompt prefix only.
+          addLine('cmd', `${prompt}`)
+          
+          const devName = handshake?.name || activeDevice?.name || activeDevice?.ip || 'device'
+          const loginUser = handshake?.login_user || 'root'
+          const devKind = getDeviceKind(activeDevice)
+
+          if (devKind === 'switch') {
+            addLine('out', `${devName}:FID100:admin> `)
+            setPrompt(`${devName}:FID100:admin> `)
+          } else if (devKind === 'array') {
+            addLine('out', `root@${devName}:~# `)
+            setPrompt(`root@${devName}:~# `)
+          } else {
+            addLine('info', `Linux ${devName} — logged in as ${loginUser}`)
+            addLine('out', '')
+            setPrompt(`root@${devName}:~$ `)
+          }
+          setSshState('connected')
+          return
+        }
+
+        // ── State: Connected (CLI Execution) ──
+        if (sshState === 'connected') {
+          if (!trimmed) {
+            addLine('cmd', prompt)
+            return
+          }
+
           addLine('cmd', `${prompt}${trimmed}`)
-          addLine('error', 'Error: Not connected. Establish secure CLI session using "ssh <user>@<ip>" or select a device from the sidebar.')
-          addLine('out', '')
+          
+          if (trimmed === 'exit' || trimmed === 'logout') {
+            addLine('info', `Connection to ${activeDevice?.name || activeDevice?.ip} closed.`)
+            addLine('out', '')
+            setPrompt('console-gateway$ ')
+            setSshState('disconnected')
+            setActiveDevice(null)
+            return
+          }
+
+          setCmdHistory(prev => [trimmed, ...prev.slice(0, 49)])
+          setHistIdx(-1)
+          setLoading(true)
+
+          try {
+            const res = await fetch(`${API}/api/sim/exec`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ip: activeDevice?.ip, command: trimmed })
+            })
+            const data = await res.json()
+            const output = data.output || data.error || 'No output'
+            output.split('\n').forEach(line => addLine('out', line))
+            addLine('out', '')
+          } catch (err) {
+            addLine('error', `Connection error: ${err.message}`)
+          } finally {
+            setLoading(false)
+          }
         }
-        return
-      }
-
-      // ── State: Awaiting Yes/No ──
-      if (sshState === 'awaiting_yes_no') {
-        addLine('cmd', `${prompt}${currentVal}`)
-        if (trimmed.toLowerCase() === 'yes') {
-          setPrompt(handshake?.password_prompt || 'Password: ')
-          setSshState('awaiting_password')
-        } else if (trimmed.toLowerCase() === 'no') {
-          addLine('error', 'Host key verification failed. Connection closed.')
-          setPrompt('console-gateway$ ')
-          setSshState('disconnected')
-          setActiveDevice(null)
-        } else {
-          addLine('error', "Please type 'yes' or 'no'.")
-        }
-        return
-      }
-
-      // ── State: Awaiting Password ──
-      if (sshState === 'awaiting_password') {
-        // Linux/Brocade switch hides password completely
-        addLine('cmd', `${prompt}`)
-        
-        const devName = handshake?.name || activeDevice.name || activeDevice.ip
-        const loginUser = handshake?.login_user || 'root'
-        const devKind = getDeviceKind(activeDevice)
-
-        if (devKind === 'switch') {
-          addLine('out', `${devName}:FID100:admin> `)
-          setPrompt(`${devName}:FID100:admin> `)
-        } else if (devKind === 'array') {
-          addLine('out', `root@${devName}:~# `)
-          setPrompt(`root@${devName}:~# `)
-        } else {
-          addLine('info', `Linux ${devName} — logged in as ${loginUser}`)
-          addLine('out', '')
-          setPrompt(`root@${devName}:~$ `)
-        }
-        setSshState('connected')
-        return
-      }
-
-      // ── State: Connected (CLI Execution) ──
-      if (sshState === 'connected') {
-        if (!trimmed) {
-          addLine('cmd', prompt)
-          return
-        }
-
-        addLine('cmd', `${prompt}${trimmed}`)
-        
-        if (trimmed === 'exit' || trimmed === 'logout') {
-          addLine('info', `Connection to ${activeDevice.name || activeDevice.ip} closed.`)
-          addLine('out', '')
-          setPrompt('console-gateway$ ')
-          setSshState('disconnected')
-          setActiveDevice(null)
-          return
-        }
-
-        setCmdHistory(prev => [trimmed, ...prev.slice(0, 49)])
-        setHistIdx(-1)
-        setLoading(true)
-
-        try {
-          const res = await fetch(`${API}/api/sim/exec`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip: activeDevice.ip, command: trimmed })
-          })
-          const data = await res.json()
-          const output = data.output || data.error || 'No output'
-          output.split('\n').forEach(line => addLine('out', line))
-          addLine('out', '')
-        } catch (err) {
-          addLine('error', `Connection error: ${err.message}`)
-        } finally {
-          setLoading(false)
-        }
+      } catch (err) {
+        addLine('error', `Internal console error: ${err.stack || err.message}`)
       }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
@@ -321,7 +337,7 @@ export default function EmulatorPage({ apiBase }) {
       const res = await fetch(`${API}/api/sim/exec`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: activeDevice.ip, command: cmd })
+        body: JSON.stringify({ ip: activeDevice?.ip, command: cmd })
       })
       const data = await res.json()
       const output = data.output || data.error || 'No output'
@@ -336,7 +352,6 @@ export default function EmulatorPage({ apiBase }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
-      {/* Dynamic Keyframe style for blinking terminal cursor */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes blink {
           0%, 100% { opacity: 1; }
@@ -454,7 +469,7 @@ export default function EmulatorPage({ apiBase }) {
               <span className="terminal-dot green" />
               <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8, flex: 1, fontWeight: 500 }}>
                 {sshState === 'connected'
-                  ? `Active SSH Connection: ${activeDevice.name || activeDevice.ip}`
+                  ? `Active SSH Connection: ${activeDevice?.name || activeDevice?.ip}`
                   : 'Universal CLI Jump Console'}
               </span>
               <button
