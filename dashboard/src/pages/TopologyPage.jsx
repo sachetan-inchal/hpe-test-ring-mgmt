@@ -4,7 +4,7 @@ import TopologyCanvas from '../components/TopologyCanvas'
 import SANDiagram from '../components/SANDiagram'
 import NodeCard from '../components/NodeCard'
 import { AuthContext } from '../context/AuthContext'
-import teamConfig from '../teamconfig.json'  // <-- import the config
+import teamConfig from '../teamconfig.json'
 
 // Build a lookup: deviceId -> clusterId, clusterId -> teamId
 const deviceToCluster = {}
