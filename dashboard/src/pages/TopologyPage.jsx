@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useContext } from 'react'
 import { Download } from 'lucide-react'
 import TopologyCanvas from '../components/TopologyCanvas'
 import SANDiagram from '../components/SANDiagram'
 import NodeCard from '../components/NodeCard'
+import { AuthContext } from '../context/AuthContext'
 
 export default function TopologyPage({ apiBase }) {
   const [data, setData] = useState({ nodes: [], edges: [] })
@@ -60,8 +61,46 @@ export default function TopologyPage({ apiBase }) {
     load()
   }, [apiBase])
 
+  const { user } = useContext(AuthContext)
+
+  // Normalize team names for visual consistency, e.g. team-alpha -> Team-Alpha
+  const normalizeTeamName = (t) => {
+    if (!t) return 'Team-Alpha';
+    const low = t.toLowerCase();
+    if (low === 'team-alpha') return 'Team-Alpha';
+    if (low === 'team-beta') return 'Team-Beta';
+    if (low === 'all teams' || low === 'all') return 'All Teams';
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  };
+
+  const initialRole = user?.role === 'admin' ? 'admin' : 'user';
+  const initialTeam = normalizeTeamName(user?.team || 'Team-Alpha');
+
+  const [role, setRole] = useState(initialRole) // 'admin' or 'user'
+  const [userTeam, setUserTeam] = useState(initialTeam) // User role locked team
+  const [selectedTeam, setSelectedTeam] = useState(initialRole === 'admin' ? 'All Teams' : initialTeam) // Admin chosen team or default locked
+  const [selectedCluster, setSelectedCluster] = useState('All Clusters') // Cluster filter
+
   const nodesById = useMemo(() => { const m = new Map(); data.nodes.forEach(n => m.set(n.id, n)); return m }, [data.nodes])
   const focusedNode = focusedId ? nodesById.get(focusedId) || null : null
+
+  // Dynamically compute clusters associated with the active team
+  const availableClusters = useMemo(() => {
+    const activeTeam = role === 'user' ? userTeam : selectedTeam;
+    const clusters = new Set();
+    data.nodes.forEach(n => {
+      let current = n;
+      while (current?.parentId && nodesById.has(current.parentId)) {
+        current = nodesById.get(current.parentId);
+      }
+      if (current && current.cluster) {
+        if (activeTeam === 'All Teams' || current.team === activeTeam) {
+          clusters.add(current.cluster);
+        }
+      }
+    });
+    return Array.from(clusters).sort();
+  }, [data.nodes, role, userTeam, selectedTeam, nodesById]);
 
   const focusedConnections = useMemo(() => {
     if (!focusedId) return []
@@ -77,7 +116,34 @@ export default function TopologyPage({ apiBase }) {
   }, [focusedId, data, nodesById])
 
   const activeNodes = useMemo(() => {
+    const activeTeam = role === 'user' ? userTeam : selectedTeam;
+    
+    // Decommissioned filter
     let nodes = data.nodes.filter(n => activeTab === 'decommissioned' ? n.isDecommissioned : !n.isDecommissioned)
+
+    // Team & Cluster filter
+    nodes = nodes.filter(n => {
+      let current = n;
+      while (current?.parentId && nodesById.has(current.parentId)) {
+        current = nodesById.get(current.parentId);
+      }
+
+      if (activeTeam !== 'All Teams') {
+        if (current && current.team && current.team !== activeTeam) {
+          return false;
+        }
+      }
+
+      if (selectedCluster !== 'All Clusters') {
+        if (current && current.cluster && current.cluster !== selectedCluster) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Search query filter
     if (searchQuery && activeTab !== 'decommissioned') {
       const q = searchQuery.toLowerCase()
       const matched = nodes.filter(n => n.id.toLowerCase().includes(q) || n.name?.toLowerCase().includes(q))
@@ -86,7 +152,7 @@ export default function TopologyPage({ apiBase }) {
       nodes = nodes.filter(n => include.has(n.id))
     }
     return nodes
-  }, [data.nodes, searchQuery, activeTab, nodesById])
+  }, [data.nodes, searchQuery, activeTab, role, userTeam, selectedTeam, selectedCluster, nodesById])
 
   const activeEdges = useMemo(() => {
     const ids = new Set(activeNodes.map(n => n.id))
@@ -132,10 +198,10 @@ export default function TopologyPage({ apiBase }) {
   }
 
   const healthStats = useMemo(() => {
-    const active = data.nodes.filter(n => !n.isDecommissioned)
+    const active = activeNodes.filter(n => !n.isDecommissioned)
     return { total: active.length, normal: active.filter(n => n.status === 'normal').length,
       degraded: active.filter(n => n.status === 'degraded').length, failed: active.filter(n => n.status === 'failed').length }
-  }, [data.nodes])
+  }, [activeNodes])
 
   if (loading) return <div className="loading-screen"><div className="loading-spinner" /><span>Loading topology...</span></div>
   if (error) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--accent-rose)' }}><h3>Error</h3><p>{error}</p></div>
@@ -162,6 +228,88 @@ export default function TopologyPage({ apiBase }) {
           <button className="btn" onClick={handleExportConfig}><Download size={14} />Export</button>
           <button className="btn" onClick={() => setShowImport(true)}>Import Config</button>
         </div>
+      </div>
+
+      {/* RBAC Multi-Tenant Scope Panel */}
+      <div className="glass-card" style={{ display: 'flex', gap: 16, padding: '10px 16px', border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: '8px', marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>User Role:</span>
+          <select className="input" style={{ width: 130, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }} value={role} onChange={e => {
+            const newRole = e.target.value;
+            setRole(newRole);
+            if (newRole === 'user') {
+              setSelectedTeam(userTeam);
+            } else {
+              setSelectedTeam('All Teams');
+            }
+            setSelectedCluster('All Clusters');
+          }}>
+            <option value="admin">🔒 Administrator</option>
+            <option value="user">👥 Team Member</option>
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Simulate User:</span>
+          {role === 'user' ? (
+            <select className="input" style={{ width: 130, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }} value={userTeam} onChange={e => {
+              const nt = e.target.value;
+              setUserTeam(nt);
+              setSelectedTeam(nt);
+              setSelectedCluster('All Clusters');
+            }}>
+              <option value="Team-Alpha">Team-Alpha User</option>
+              <option value="Team-Beta">Team-Beta User</option>
+            </select>
+          ) : (
+            <span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-strong)', padding: '4px 8px', borderRadius: 4 }}>
+              Admin Bypass (All)
+            </span>
+          )}
+        </div>
+
+        <div style={{ height: 16, width: 1, background: 'var(--line)' }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team Workspace:</span>
+          {role === 'admin' ? (
+            <select className="input" style={{ width: 130, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }} value={selectedTeam} onChange={e => {
+              setSelectedTeam(e.target.value);
+              setSelectedCluster('All Clusters');
+            }}>
+              <option value="All Teams">All Teams</option>
+              <option value="Team-Alpha">Team-Alpha</option>
+              <option value="Team-Beta">Team-Beta</option>
+            </select>
+          ) : (
+            <span style={{ fontSize: 11, color: '#58a6ff', background: 'rgba(58, 166, 255, 0.1)', border: '1px solid rgba(58, 166, 255, 0.2)', padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>
+              Locked: {userTeam}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cluster:</span>
+          <select className="input" style={{ width: 130, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }} value={selectedCluster} onChange={e => setSelectedCluster(e.target.value)}>
+            <option value="All Clusters">All Clusters</option>
+            {availableClusters.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+
+        {role === 'user' && (
+          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(88, 166, 255, 0.1)', color: '#58a6ff', border: '1px solid rgba(88, 166, 255, 0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#58a6ff', boxShadow: '0 0 8px #58a6ff' }} />
+            Multi-Tenant Isolation Engaged
+          </div>
+        )}
+        {role === 'admin' && (
+          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(63, 185, 80, 0.1)', color: '#3fb950', border: '1px solid rgba(63, 185, 80, 0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3fb950', boxShadow: '0 0 8px #3fb950' }} />
+            Administrator Override Access
+          </div>
+        )}
       </div>
 
       <div className="sub-tabs">

@@ -171,16 +171,6 @@ def _node_identifier(node):
     return payload.get("id") or node.get("id")
 
 
-def _synthetic_scope_from_identifier(identifier):
-    token = str(identifier or "")
-    if not token:
-        return "team-alpha", "cluster-1"
-    checksum = sum(ord(ch) for ch in token)
-    team = ["team-alpha", "team-beta", "team-gamma"][checksum % 3]
-    cluster = ["cluster-1", "cluster-2"][checksum % 2]
-    return team, cluster
-
-
 def _node_team_and_cluster(node_payload):
     team = (
         node_payload.get("team")
@@ -196,20 +186,26 @@ def _node_team_and_cluster(node_payload):
     )
     team = str(team).strip()
     cluster = str(cluster).strip()
-    if team or cluster:
-        return team, cluster
-    fallback_team, fallback_cluster = _synthetic_scope_from_identifier(
-        node_payload.get("id") or node_payload.get("name") or node_payload.get("ip") or node_payload.get("ip_address")
+    return team, cluster
+
+
+def _node_parent_id(node_payload):
+    return (
+        node_payload.get("parentId")
+        or node_payload.get("parent_id")
+        or node_payload.get("parent")
+        or ""
     )
-    return fallback_team, fallback_cluster
 
 
-def _can_view_node(node_payload, actor):
+def _can_view_scope(node_team, node_cluster, actor):
     role = actor["role"]
     if _ROLE_ORDER.get(role, 0) >= _ROLE_ORDER[_ROLE_ADMIN]:
         return True
 
-    node_team, node_cluster = _node_team_and_cluster(node_payload)
+    # Strict mode: unscoped nodes are not visible to non-admin users.
+    if not node_team and not node_cluster:
+        return False
 
     if role == _ROLE_SENIOR_MANAGER:
         allowed_clusters = set(actor["managed_clusters"])
@@ -233,6 +229,11 @@ def _can_view_node(node_payload, actor):
     return False
 
 
+def _can_view_node(node_payload, actor):
+    node_team, node_cluster = _node_team_and_cluster(node_payload)
+    return _can_view_scope(node_team, node_cluster, actor)
+
+
 def _edge_endpoints(edge):
     if not isinstance(edge, dict):
         return None, None
@@ -250,13 +251,47 @@ def _filter_graph_payload(payload, actor):
     if not isinstance(nodes, list):
         return payload
 
+    node_data_by_id = {}
+    for node in nodes:
+        node_id = _node_identifier(node)
+        if not node_id:
+            continue
+        node_data_by_id[node_id] = _extract_node_data(node)
+
+    resolved_scope_cache = {}
+
+    def resolve_scope(node_id, stack=None):
+        if node_id in resolved_scope_cache:
+            return resolved_scope_cache[node_id]
+        if stack is None:
+            stack = set()
+        if node_id in stack:
+            return "", ""
+        stack.add(node_id)
+
+        node_payload = node_data_by_id.get(node_id, {})
+        team, cluster = _node_team_and_cluster(node_payload)
+        if not team and not cluster:
+            parent_id = str(_node_parent_id(node_payload) or "").strip()
+            if parent_id and parent_id in node_data_by_id:
+                team, cluster = resolve_scope(parent_id, stack)
+
+        resolved_scope_cache[node_id] = (team, cluster)
+        stack.remove(node_id)
+        return team, cluster
+
     allowed_nodes = []
     allowed_ids = set()
     for node in nodes:
         node_data = _extract_node_data(node)
-        if _can_view_node(node_data, actor):
+        node_id = _node_identifier(node)
+        eff_team, eff_cluster = resolve_scope(node_id) if node_id else ("", "")
+        if _can_view_scope(eff_team, eff_cluster, actor):
+            if eff_team and not node_data.get("team"):
+                node_data["team"] = eff_team
+            if eff_cluster and not node_data.get("cluster"):
+                node_data["cluster"] = eff_cluster
             allowed_nodes.append(node)
-            node_id = _node_identifier(node)
             if node_id:
                 allowed_ids.add(node_id)
 
