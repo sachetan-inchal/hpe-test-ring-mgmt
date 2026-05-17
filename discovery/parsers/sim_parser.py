@@ -179,9 +179,6 @@ def parse_showswitch(text: str) -> list:
             })
     return switches
 
-
-    return switches
-
 # ─────────────────────────────── showportdev ─────────────────────────────────
 def parse_showportdev(text: str) -> list:
     """
