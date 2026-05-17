@@ -92,6 +92,46 @@ def parse_linux_output(outputs: dict, ip: str = "") -> dict:
     if ":" in cpuinfo:
         result["cpu_model"] = cpuinfo.split(":", 1)[1].strip()
 
+    # HBA information from systool
+    systool = outputs.get("systool -c fc_host -v | grep -E 'Class Device|port_state|port_name|speed'", "")
+    hbas = []
+    current_hba = {}
+    for line in systool.splitlines():
+        line = line.strip()
+        if line.startswith('Class Device ='):
+            if current_hba:
+                hbas.append(current_hba)
+            current_hba = {"device": line.split('"')[1]}
+        elif line.startswith('port_name'):
+            current_hba["wwn"] = line.split('"')[1]
+        elif line.startswith('port_state'):
+            current_hba["state"] = line.split('"')[1]
+        elif line.startswith('speed') and not line.startswith('supported'):
+            current_hba["speed"] = line.split('"')[1]
+    if current_hba:
+        hbas.append(current_hba)
+    result["hbas"] = hbas
+
+    # lspci
+    lspci = outputs.get("lspci -nnk | grep -A3 -i 'fibre|fc|emulex|qlogic|lpfc|qlgc'", "")
+    pci_devices = []
+    current_pci = {}
+    for line in lspci.splitlines():
+        if re.match(r"^[0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]", line):
+            if current_pci:
+                pci_devices.append(current_pci)
+            parts = line.split(':', 1)
+            slot = parts[0].strip()
+            desc = parts[1].strip()
+            current_pci = {"slot": slot, "description": desc}
+        elif "Subsystem:" in line:
+            current_pci["subsystem"] = line.split("Subsystem:")[1].strip()
+        elif "Kernel driver in use:" in line:
+            current_pci["driver"] = line.split("Kernel driver in use:")[1].strip()
+    if current_pci:
+        pci_devices.append(current_pci)
+    result["pci_devices"] = pci_devices
+
     result["raw"] = {k: v[:300] for k, v in outputs.items()}
     return result
 

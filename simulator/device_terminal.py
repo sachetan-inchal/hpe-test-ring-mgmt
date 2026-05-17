@@ -73,6 +73,7 @@ class HPEArrayTerminal(BaseTerminal):
     """
 
     PROMPT = "cli% "
+    SSH_KEY_TYPE = "RSA"
 
     def __init__(self, device_id: str, ip: str, config: dict, device_file: str):
         self.device_file = device_file
@@ -96,6 +97,7 @@ class LinuxHostTerminal(BaseTerminal):
     """
 
     PROMPT = "$ "
+    SSH_KEY_TYPE = "ECDSA"
 
     def _handle(self, command: str) -> str:
         time.sleep(0.05)
@@ -189,7 +191,32 @@ class LinuxHostTerminal(BaseTerminal):
                 "  dmidecode -s bios-version     BIOS firmware\n"
                 "  dmidecode -s system-product-name  Server model\n"
                 "  cat /proc/cpuinfo     CPU details\n"
-                "  hostname              This host's name"
+                "  hostname              This host's name\n"
+                "  systool -c fc_host -v | grep -E 'Class Device|port_state|port_name|speed'  HBA FC info\n"
+                "  lspci -nnk | grep -A3 -i 'fibre|fc|emulex|qlogic|lpfc|qlgc'  PCI FC adapters"
+            )
+
+        elif cmd == "systool -c fc_host -v | grep -E 'Class Device|port_state|port_name|speed'":
+            wwn = c.get("wwn", "10:00:00:00:c9:00:00:01").replace(":", "").lower()
+            return (
+                f'  Class Device = "host5"\n'
+                f'  Class Device path = "/sys/devices/pci0000:09/0000:09:00.0/0000:0a:00.0/host5/fc_host/host5"\n'
+                f'    port_name           = "0x{wwn}"\n'
+                f'    port_state          = "Online"\n'
+                f'    speed               = "16 Gbit"\n'
+                f'    supported_speeds    = "4 Gbit, 8 Gbit, 16 Gbit"'
+            )
+
+        elif cmd == "lspci -nnk | grep -A3 -i 'fibre|fc|emulex|qlogic|lpfc|qlgc'":
+            return (
+                "0a:00.0 Fibre Channel [0c04]: Emulex Corporation LPe31000/LPe32000 Series 16Gb/32Gb Fibre Channel Adapter [10df:e300] (rev 01)\n"
+                "        Subsystem: Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]\n"
+                "        Kernel driver in use: lpfc\n"
+                "        Kernel modules: lpfc\n"
+                "0a:00.1 Fibre Channel [0c04]: Emulex Corporation LPe31000/LPe32000 Series 16Gb/32Gb Fibre Channel Adapter [10df:e300] (rev 01)\n"
+                "        Subsystem: Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]\n"
+                "        Kernel driver in use: lpfc\n"
+                "        Kernel modules: lpfc"
             )
 
         else:
@@ -285,3 +312,144 @@ class WindowsHostTerminal(BaseTerminal):
 
         else:
             return f"'{cmd}' is not recognized as a cmdlet, function, script file, or operable program."
+
+
+# ── Brocade FC Switch Terminal ─────────────────────────────────────────────────
+
+class BrocadeSwitchTerminal(BaseTerminal):
+    """
+    Simulates a Brocade FC switch CLI terminal.
+    Prompt: switch-name:FID100:admin>
+    Supports: fabricshow, switchshow, help.
+    """
+
+    SSH_KEY_TYPE = None  # Switches use direct password auth (no host-key warning)
+
+    def __init__(self, device_id: str, ip: str, config: dict):
+        self.switch_name = config.get("name", "switch-lab-01")
+        super().__init__(device_id, ip, config)
+
+    @property
+    def PROMPT(self):
+        return f"{self.switch_name}:FID100:admin> "
+
+    def _handle(self, command: str) -> str:
+        time.sleep(0.05)
+        cmd = command.strip()
+        c = self.config
+        switch_name = c.get("name", "switch-lab-01")
+        wwn = c.get("wwn", "10:00:aa:bb:cc:dd:ee:01")
+
+        if cmd == "fabricshow":
+            lines = [
+                "Switch ID   Worldwide Name          Enet IP Addr    FC IP Addr      Name",
+                "-------------------------------------------------------------------------",
+            ]
+            # Generate fabric entries from connected peers + self
+            sw_list = [
+                (1,  "10:00:aa:aa:aa:aa:aa:01", "192.168.10.11",  "sw-core-01"),
+                (2,  "10:00:aa:aa:aa:aa:aa:02", "192.168.10.12",  "sw-core-02"),
+                (3,  "10:00:aa:aa:aa:aa:aa:03", "192.168.10.13",  "sw-core-03"),
+                (4,  "10:00:aa:aa:aa:aa:aa:04", "192.168.10.14",  "sw-core-04"),
+                (5,  "10:00:aa:aa:aa:aa:aa:05", "192.168.10.15",  "sw-core-05"),
+                (6,  "10:00:aa:aa:aa:aa:aa:06", "192.168.10.16",  "sw-core-06"),
+                (7,  "10:00:aa:aa:aa:aa:aa:07", "192.168.10.17",  "sw-core-07"),
+                (8,  "10:00:aa:aa:aa:aa:aa:08", "192.168.10.18",  "sw-core-08"),
+                (9,  "10:00:aa:aa:aa:aa:aa:09", "192.168.10.19",  "sw-core-09"),
+                (10, "10:00:aa:aa:aa:aa:aa:0a", "192.168.10.20",  "sw-core-10"),
+                (11, "10:00:aa:aa:aa:aa:aa:0b", "192.168.10.21",  "sw-core-11"),
+                (12, "10:00:aa:aa:aa:aa:aa:0c", "192.168.10.22",  "sw-core-12"),
+                (13, "10:00:aa:aa:aa:aa:aa:0d", "192.168.10.23",  "sw-core-13"),
+                (14, "10:00:aa:aa:aa:aa:aa:0e", "192.168.10.24",  "sw-core-14"),
+                (15, "10:00:aa:aa:aa:aa:aa:0f", "192.168.10.25",  "sw-core-15"),
+                (16, "10:00:aa:aa:aa:aa:aa:10", "192.168.10.26",  "sw-core-16"),
+                (17, "10:00:aa:aa:aa:aa:aa:11", "192.168.10.27",  "sw-core-17"),
+                (18, "10:00:aa:aa:aa:aa:aa:12", "192.168.10.28",  "sw-core-18"),
+                (19, "10:00:aa:aa:aa:aa:aa:13", "192.168.10.29",  "sw-core-19"),
+                (30, "10:00:aa:aa:aa:aa:aa:1e", "192.168.10.30",  "sw-core-30"),
+                (31, "10:00:aa:aa:aa:aa:aa:1f", "192.168.10.31",  "sw-core-31"),
+                (32, "10:00:aa:aa:aa:aa:aa:20", "192.168.10.32",  "sw-core-32"),
+                (61, "10:00:aa:aa:aa:aa:aa:3d", "192.168.10.61",  "sw-edge-61"),
+                (66, "10:00:aa:aa:aa:aa:aa:42", "192.168.10.66",  "sw-edge-66"),
+                (67, "10:00:aa:aa:aa:aa:aa:43", "192.168.10.67",  "sw-edge-67"),
+                (73, "10:00:aa:aa:aa:aa:aa:49", "192.168.10.73",  "sw-edge-73"),
+                (74, "10:00:aa:aa:aa:aa:aa:4a", "192.168.10.74",  "sw-edge-74"),
+                (75, "10:00:aa:aa:aa:aa:aa:4b", "192.168.10.75",  "sw-edge-75"),
+                (76, "10:00:aa:aa:aa:aa:aa:4c", "192.168.10.76",  "sw-edge-76"),
+                (77, "10:00:aa:aa:aa:aa:aa:4d", "192.168.10.77",  "sw-edge-77"),
+                (78, "10:00:aa:aa:aa:aa:aa:4e", "192.168.10.78",  "sw-edge-78"),
+                (79, "10:00:aa:aa:aa:aa:aa:4f", "192.168.10.79",  "sw-edge-79"),
+                (97, "10:00:aa:aa:aa:aa:aa:61", "192.168.10.97",  "sw-edge-97"),
+                (99, "10:00:aa:aa:aa:aa:aa:63", "192.168.10.99",  "sw-edge-99"),
+                (100,"10:00:aa:aa:aa:aa:aa:64", "192.168.10.100", "sw-edge-100"),
+                (101,"10:00:aa:aa:aa:aa:aa:65", "192.168.10.101", "sw-edge-101"),
+                (116,"10:00:aa:aa:aa:aa:aa:74", "192.168.10.116", "sw-edge-116"),
+                (117,"10:00:aa:aa:aa:aa:aa:75", "192.168.10.117", "sw-edge-117"),
+                (173,"10:00:aa:aa:aa:aa:aa:ad", "192.168.10.173", "sw-edge-173"),
+                (201,"10:00:aa:aa:aa:aa:aa:c9", "192.168.10.201", "sw-edge-201"),
+            ]
+            for sid, swwn, ip_addr, name in sw_list:
+                domain_hex = f"dmyc{sid:02x}"
+                lines.append(f"{sid:3}: {domain_hex} {swwn} {ip_addr:<15} 0.0.0.0         \"{name}\"")
+            lines.append("")
+            lines.append(f"The Fabric has {len(sw_list)} switches")
+            lines.append("Fabric Name: FABRIC_DUMMY_01")
+            return "\n".join(lines)
+
+        elif cmd == "switchshow":
+            lines = [
+                f"switchName:     {switch_name}",
+                "switchType:     109.1",
+                "switchState:    Online",
+                "switchMode:     Native",
+                "switchRole:     Subordinate",
+                "switchDomain:   99",
+                "switchId:       dmyc63",
+                f"switchWwn:      {wwn}",
+                "zoning:         ON (FABRIC_DUMMY_1)",
+                "switchBeacon:   OFF",
+                "FC Router:      OFF",
+                "Fabric Name:    FABRIC_DUMMY_01",
+                "HIF Mode:       OFF",
+                "Allow XISL Use: OFF",
+                "LS Attributes:  [FID: 128, Base Switch: No, Default Switch: Yes, Address Mode 0]",
+                "",
+                "Index Port Address  Media Speed   State       Proto",
+                "==================================================",
+                '   0   0   630000   id    N16     Online      FC  E-Port  10:00:aa:bb:cc:00:00:08 "sw-bridge-08" (Trunk master)',
+                '   1   1   630100   id    N16     Online      FC  E-Port  (Trunk port, master is Port  0 )',
+                '   2   2   630200   id    N16     Online      FC  E-Port  10:00:aa:bb:cc:00:00:01 "sw-core-01" (upstream)(Trunk master)',
+                '   3   3   630300   id    N16     Online      FC  E-Port  (Trunk port, master is Port  2 )',
+            ]
+            # No_Light ports 4–15
+            for p in range(4, 16):
+                lines.append(f"  {p:2}  {p:2}   630{p:x}00   id    N16     No_Light    FC")
+            # F-Ports 16–21
+            fport_wwns = ["10:00:11:22:33:44:55:10", "10:00:11:22:33:44:55:11",
+                          "10:00:11:22:33:44:55:12", "10:00:11:22:33:44:55:13",
+                          "10:00:11:22:33:44:55:14", "10:00:11:22:33:44:55:15"]
+            for i, p in enumerate(range(16, 22)):
+                lines.append(f"  {p:2}  {p:2}   63{p:x}00   id    N16     Online      FC  F-Port  {fport_wwns[i]}")
+            # No_Light 22–23
+            for p in range(22, 24):
+                lines.append(f"  {p:2}  {p:2}   63{p:x}00   id    N16     No_Light    FC")
+            # F-Ports 24–27
+            extra_fports = ["10:00:11:22:33:44:55:18", "10:00:11:22:33:44:55:19",
+                            "10:00:11:22:33:44:55:1a", "10:00:11:22:33:44:55:1b"]
+            for i, p in enumerate(range(24, 28)):
+                lines.append(f"  {p:2}  {p:2}   63{p:x}00   id    N16     Online      FC  F-Port  {extra_fports[i]}")
+            # No_Light 28–47
+            for p in range(28, 48):
+                lines.append(f"  {p:2}  {p:2}   63{p:x}00   id    N16     No_Light    FC")
+            return "\n".join(lines)
+
+        elif cmd in ("help", "?"):
+            return (
+                "Available commands:\n"
+                "  fabricshow    Show fabric topology (all switches, WWNs, IPs)\n"
+                "  switchshow    Show this switch's state and port table\n"
+                "  help / ?      This help text"
+            )
+
+        else:
+            return f"{switch_name}:FID100:admin> {cmd}: command not found"

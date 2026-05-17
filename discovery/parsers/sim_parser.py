@@ -179,6 +179,61 @@ def parse_showswitch(text: str) -> list:
             })
     return switches
 
+# ─────────────────────────────── showportdev ─────────────────────────────────
+def parse_showportdev(text: str) -> list:
+    """
+    Parses 'showportdev ns -nohdtot X:Y:Z'
+    """
+    devs = []
+    for line in text.splitlines():
+        # Match pattern: 0xc1100 ... 2000... 1000... ... HN:xxx OS:yyy host-xxx (or -)
+        if "HN:" in line and "OS:" in line:
+            m = re.search(r"(\S{16})\s+(\S{16})\s+.*?HN:(\S+)\s+OS:(\S+)\s+(\S+)$", line)
+            if m:
+                devs.append({
+                    "wwn_node": m.group(1),
+                    "wwn_port": m.group(2),
+                    "hostname": m.group(3),
+                    "os": m.group(4),
+                    "status": m.group(5),
+                })
+    return devs
+
+# ─────────────────────────────── fabricshow & switchshow ──────────────────────
+def parse_fabricshow(text: str) -> list:
+    switches = []
+    for line in text.splitlines():
+        m = re.match(r"\s*\d+:\s+\w+\s+([0-9a-fA-F:]+)\s+(\S+)\s+(\S+)\s+\"([^\"]+)\"", line)
+        if m:
+            switches.append({
+                "wwn": m.group(1),
+                "enet_ip": m.group(2),
+                "fc_ip": m.group(3),
+                "name": m.group(4),
+            })
+    return switches
+
+def parse_switchshow_detailed(text: str) -> dict:
+    result = {"ports": []}
+    parsing_ports = False
+    for line in text.splitlines():
+        line = line.strip()
+        if not parsing_ports:
+            if line.startswith("switchName:"): result["switchName"] = line.split(":", 1)[1].strip()
+            elif line.startswith("switchState:"): result["switchState"] = line.split(":", 1)[1].strip()
+            elif line.startswith("switchWwn:"): result["switchWwn"] = line.split(":", 1)[1].strip()
+            elif line.startswith("Index Port Address"): parsing_ports = True
+        else:
+            if re.match(r"^\s*\d+\s+\d+\s+[0-9a-fA-F]+\s+", line):
+                parts = line.split()
+                if len(parts) >= 6:
+                    result["ports"].append({
+                        "index": parts[0],
+                        "port": parts[1],
+                        "state": parts[5],
+                        "proto": parts[6] if len(parts) > 6 else ""
+                    })
+    return result
 
 # ─────────────────────────────── showcage ─────────────────────────────────────
 def parse_showcage(text: str) -> list:
@@ -380,6 +435,10 @@ def parse_sim_array_output(cmd_outputs: dict) -> dict:
         if pid in pds_i:
             pd.update({k: v for k, v in pds_i[pid].items() if k not in pd})
 
+    portdevs = parse_showportdev(_get("showportdev ns -nohdtot 0:3:1", "showportdev ns -nohdtot 1:3:1"))
+    fabric = parse_fabricshow(_get("fabricshow"))
+    switch_detail = parse_switchshow_detailed(_get("switchshow"))
+
     protocols = list(set(p.get("protocol", "") for p in ports if p.get("protocol")))
 
     return {
@@ -405,6 +464,9 @@ def parse_sim_array_output(cmd_outputs: dict) -> dict:
         "hosts":    hosts,
         "cages":    cages,
         "drives":   drives,
+        "portdevs": portdevs,
+        "fabric":   fabric,
+        "switch_detail": switch_detail,
         # Version components
         "components": [{"name": k, "version": v} for k, v in version.get("components", {}).items()],
     }

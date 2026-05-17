@@ -2,28 +2,28 @@
   "array_id": "0x1004",
   "name": "EDGE-D",
   "model": "HPE Nimble HF60",
-  "serial": "HPE65095596",
-  "release_version": "9.7.2.0",
+  "serial": "HPE03642294",
+  "release_version": "10.4.1.0",
   "release_type": null,
   "node_count": 2,
   "master_node": 0,
   "total_cap_mib": 96636764,
-  "alloc_cap_mib": 57554858,
-  "free_cap_mib": 39081905,
+  "alloc_cap_mib": 45253910,
+  "free_cap_mib": 51382853,
   "failed_cap_mib": 0,
   "config_type": "switchless",
   "protocols_supported": [
-    "NVMe",
-    "FC"
+    "FC",
+    "NVMe"
   ],
   "components": [
     {
       "name": "Kernel",
-      "version": "5.10.3-hpe"
+      "version": "5.11.7-hpe"
     },
     {
       "name": "IO_Stack",
-      "version": "6.4.4"
+      "version": "6.4.2"
     }
   ],
   "nodes": [
@@ -33,8 +33,8 @@
       "encl_bay": "1:1",
       "is_master": true,
       "in_cluster": true,
-      "memory_mib": 262144,
-      "up_since": "2026-05-18 01:31:25 PDT"
+      "memory_mib": 524288,
+      "up_since": "2026-04-04 00:44:45 PDT"
     },
     {
       "node_id": 1,
@@ -42,23 +42,49 @@
       "encl_bay": "1:2",
       "is_master": false,
       "in_cluster": true,
-      "memory_mib": 1048576,
-      "up_since": "2026-03-26 01:31:25 PDT"
+      "memory_mib": 524288,
+      "up_since": "2026-03-11 00:44:45 PDT"
     }
   ],
   "ports": [
+    {
+      "port_id": "0:1:1",
+      "node": 0,
+      "slot": 1,
+      "port_num": 1,
+      "mode": "target",
+      "state": "loss_sync",
+      "node_wwn_ip": "53:5E:97:F4:3D:F4:DA:48",
+      "port_wwn_hw": "4C:5E:09:00:13:80",
+      "type": "host",
+      "protocol": "NVMe",
+      "label": "P011   25G"
+    },
     {
       "port_id": "0:1:2",
       "node": 0,
       "slot": 1,
       "port_num": 2,
       "mode": "target",
-      "state": "ready",
-      "node_wwn_ip": "CE:45:67:AF:BD:29:0B:00",
-      "port_wwn_hw": "71:C0:87:55:71:D4:2A:D6",
+      "state": "loss_sync",
+      "node_wwn_ip": "6A:4A:4A:85:65:A1:C0:64",
+      "port_wwn_hw": "72:5A:BB:F3:8D:61:86:F7",
       "type": "host",
       "protocol": "FC",
       "label": "P012   32G"
+    },
+    {
+      "port_id": "0:1:3",
+      "node": 0,
+      "slot": 1,
+      "port_num": 3,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "E0:35:B8:D1:85:A2:F8:18",
+      "port_wwn_hw": "82:51:61:9C:49:9F",
+      "type": "host",
+      "protocol": "NVMe",
+      "label": "P013   25G"
     },
     {
       "port_id": "0:1:4",
@@ -67,50 +93,50 @@
       "port_num": 4,
       "mode": "target",
       "state": "ready",
-      "node_wwn_ip": "16:A9:5F:25:50:1C:CE:B4",
-      "port_wwn_hw": "C5:BE:E0:A0:62:17",
+      "node_wwn_ip": "AD:52:AD:ED:87:30:0F:A5",
+      "port_wwn_hw": "76:30:86:6B:CF:6B",
       "type": "host",
       "protocol": "NVMe",
       "label": "P014   25G"
     },
     {
-      "port_id": "0:2:2",
+      "port_id": "0:2:1",
       "node": 0,
       "slot": 2,
-      "port_num": 2,
+      "port_num": 1,
+      "mode": "target",
+      "state": "loss_sync",
+      "node_wwn_ip": "FC:D5:08:03:99:06:85:CD",
+      "port_wwn_hw": "8D:FA:EF:4C:4F:7C",
+      "type": "host",
+      "protocol": "NVMe",
+      "label": "P021   25G"
+    },
+    {
+      "port_id": "0:2:3",
+      "node": 0,
+      "slot": 2,
+      "port_num": 3,
       "mode": "target",
       "state": "ready",
-      "node_wwn_ip": "F9:B2:55:79:76:93:36:AE",
-      "port_wwn_hw": "5A:0D:C4:FE:FA:DF",
+      "node_wwn_ip": "EF:82:00:04:88:4F:0C:1D",
+      "port_wwn_hw": "74:F6:3C:41:7C:8D",
       "type": "host",
       "protocol": "NVMe",
-      "label": "P022   25G"
+      "label": "P023   25G"
     },
     {
-      "port_id": "0:2:4",
-      "node": 0,
-      "slot": 2,
-      "port_num": 4,
-      "mode": "target",
-      "state": "loss_sync",
-      "node_wwn_ip": "92:74:88:65:21:F9:42:59",
-      "port_wwn_hw": "31:8D:F0:A1:CB:AE",
-      "type": "host",
-      "protocol": "NVMe",
-      "label": "P024   25G"
-    },
-    {
-      "port_id": "0:3:2",
+      "port_id": "0:3:1",
       "node": 0,
       "slot": 3,
-      "port_num": 2,
+      "port_num": 1,
       "mode": "target",
-      "state": "loss_sync",
-      "node_wwn_ip": "EC:6B:D4:32:9B:18:2E:3D",
-      "port_wwn_hw": "8F:2D:46:56:8F:C3",
+      "state": "ready",
+      "node_wwn_ip": "73:14:70:D1:8D:68:DF:8B",
+      "port_wwn_hw": "5A:FC:C6:D4:48:88:CF:10",
       "type": "host",
-      "protocol": "NVMe",
-      "label": "P032   25G"
+      "protocol": "FC",
+      "label": "P031   32G"
     },
     {
       "port_id": "0:3:3",
@@ -118,9 +144,9 @@
       "slot": 3,
       "port_num": 3,
       "mode": "target",
-      "state": "ready",
-      "node_wwn_ip": "05:78:02:4E:C7:AA:7B:87",
-      "port_wwn_hw": "A1:AF:B6:A5:DF:93",
+      "state": "loss_sync",
+      "node_wwn_ip": "35:FE:44:73:4F:75:BD:32",
+      "port_wwn_hw": "B6:2A:C6:14:42:21",
       "type": "host",
       "protocol": "NVMe",
       "label": "P033   25G"
@@ -132,8 +158,8 @@
       "port_num": 4,
       "mode": "target",
       "state": "ready",
-      "node_wwn_ip": "3A:D6:B2:BF:7D:8E:6D:8A",
-      "port_wwn_hw": "AF:CC:8D:17:C8:53",
+      "node_wwn_ip": "18:3B:47:63:48:87:CB:45",
+      "port_wwn_hw": "EF:4D:ED:8D:58:A1",
       "type": "host",
       "protocol": "NVMe",
       "label": "P034   25G"
@@ -144,9 +170,9 @@
       "slot": 1,
       "port_num": 1,
       "mode": "target",
-      "state": "ready",
-      "node_wwn_ip": "2A:5C:9D:7F:DF:E5:02:D8",
-      "port_wwn_hw": "1C:1F:81:17:63:2B",
+      "state": "loss_sync",
+      "node_wwn_ip": "30:97:4F:15:AF:A0:BB:CC",
+      "port_wwn_hw": "34:8A:CE:4B:6D:5D",
       "type": "host",
       "protocol": "NVMe",
       "label": "P111   25G"
@@ -157,25 +183,25 @@
       "slot": 1,
       "port_num": 2,
       "mode": "target",
-      "state": "loss_sync",
-      "node_wwn_ip": "7B:FC:E0:11:B2:25:B3:D2",
-      "port_wwn_hw": "49:05:97:DD:DB:36:8D:46",
+      "state": "ready",
+      "node_wwn_ip": "DC:00:A1:2B:0F:99:B2:0E",
+      "port_wwn_hw": "AA:F4:60:02:55:E8",
       "type": "host",
-      "protocol": "FC",
-      "label": "P112   32G"
+      "protocol": "NVMe",
+      "label": "P112   25G"
     },
     {
-      "port_id": "1:2:2",
+      "port_id": "1:1:3",
       "node": 1,
-      "slot": 2,
-      "port_num": 2,
+      "slot": 1,
+      "port_num": 3,
       "mode": "target",
-      "state": "loss_sync",
-      "node_wwn_ip": "08:33:30:1A:05:1D:27:C3",
-      "port_wwn_hw": "F2:E0:09:3A:1B:31:EF:E0",
+      "state": "ready",
+      "node_wwn_ip": "2E:42:2E:C4:B9:1C:A3:17",
+      "port_wwn_hw": "04:21:CE:14:B2:57:BA:D6",
       "type": "host",
       "protocol": "FC",
-      "label": "P122   32G"
+      "label": "P113   32G"
     },
     {
       "port_id": "1:2:3",
@@ -184,11 +210,11 @@
       "port_num": 3,
       "mode": "target",
       "state": "loss_sync",
-      "node_wwn_ip": "14:DA:A4:19:BD:A4:2F:71",
-      "port_wwn_hw": "9A:13:11:0E:CF:EF:F7:EB",
+      "node_wwn_ip": "D8:46:98:8B:70:7A:A0:AD",
+      "port_wwn_hw": "2D:1C:AA:EE:12:41",
       "type": "host",
-      "protocol": "FC",
-      "label": "P123   32G"
+      "protocol": "NVMe",
+      "label": "P123   25G"
     },
     {
       "port_id": "1:2:4",
@@ -197,8 +223,8 @@
       "port_num": 4,
       "mode": "target",
       "state": "loss_sync",
-      "node_wwn_ip": "F8:40:77:6D:10:69:44:B0",
-      "port_wwn_hw": "5A:76:C3:D3:CB:FB",
+      "node_wwn_ip": "0F:CE:31:00:67:4B:F7:81",
+      "port_wwn_hw": "03:2C:0D:44:93:0E",
       "type": "host",
       "protocol": "NVMe",
       "label": "P124   25G"
@@ -210,24 +236,24 @@
       "port_num": 1,
       "mode": "target",
       "state": "ready",
-      "node_wwn_ip": "A1:5F:AC:8D:E4:6F:F6:A9",
-      "port_wwn_hw": "C3:E5:E7:0F:41:80",
-      "type": "host",
-      "protocol": "NVMe",
-      "label": "P131   25G"
-    },
-    {
-      "port_id": "1:3:2",
-      "node": 1,
-      "slot": 3,
-      "port_num": 2,
-      "mode": "target",
-      "state": "ready",
-      "node_wwn_ip": "D4:EE:05:84:8B:D1:62:51",
-      "port_wwn_hw": "FC:82:C0:8B:15:8C:C3:6B",
+      "node_wwn_ip": "92:24:2A:A3:FB:54:14:28",
+      "port_wwn_hw": "A4:1A:EF:44:FF:EF:A7:C3",
       "type": "host",
       "protocol": "FC",
-      "label": "P132   32G"
+      "label": "P131   32G"
+    },
+    {
+      "port_id": "1:3:4",
+      "node": 1,
+      "slot": 3,
+      "port_num": 4,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "CD:DE:54:64:7B:89:81:3B",
+      "port_wwn_hw": "FB:E6:7B:56:57:5C",
+      "type": "host",
+      "protocol": "NVMe",
+      "label": "P134   25G"
     }
   ],
   "switches": [],
