@@ -187,7 +187,7 @@ export default function DiscoveryPage({ apiBase }) {
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 0 }}>
         <div style={{ flex: 1, minWidth: 0, position: 'relative', overflowY: viewMode === 'grid' ? 'auto' : 'hidden', padding: viewMode === 'grid' ? '0 24px' : 0 }}>
           {viewMode === 'graph' ? (
-            <TopologyCanvas nodes={filteredNodes} edges={filteredEdges} selectedNode={selectedNode}
+            <TopologyCanvas data={{ nodes: filteredNodes, edges: filteredEdges }} selectedNode={selectedNode}
               onNodeClick={node => { setSelectedNode(node); setTerminalNode(null) }}
               highlightedIps={highlightedIps} discoveryRunning={discoveryRunning} pulsingIds={pulsingIds} />
           ) : viewMode === 'neural' ? (

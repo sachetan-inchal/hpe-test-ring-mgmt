@@ -14,21 +14,30 @@ export default function InventoryPage({ apiBase }) {
   useEffect(() => {
     async function load() {
       setLoading(true)
+      try {
         const fetchWithData = async (url) => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 4500);
           try {
-            const res = await fetch(url);
+            const res = await fetch(url, { signal: controller.signal });
             if (!res.ok) return null;
             const data = await res.json();
             if (!data.nodes || data.nodes.length === 0) return null;
             return data;
           } catch {
             return null;
+          } finally {
+            clearTimeout(timer);
           }
         };
 
-        let json = await fetchWithData(`${apiBase}/api/graph/neo4j`)
-        if (!json) json = await fetchWithData(`${apiBase}/api/ontology/topology`)
-        if (!json) json = await fetchWithData(`${apiBase}/api/sim/mock-topology`)
+        const localSources = [
+          `${apiBase}/api/graph/neo4j`,
+          `${apiBase}/api/ontology/topology`,
+          `${apiBase}/api/sim/mock-topology`,
+        ]
+        const localResults = await Promise.all(localSources.map(url => fetchWithData(url)))
+        let json = localResults.find(Boolean)
         if (!json) json = await fetchWithData(`https://hpe-ontology-and-graph.onrender.com/topology`)
         
         if (!json) throw new Error('Failed to load inventory from any source or databases are empty')
@@ -50,15 +59,15 @@ export default function InventoryPage({ apiBase }) {
         }))
         
         setData({ nodes: normalizedNodes, edges: normalizedEdges })
-        
-        // Expand top level components by default
         const arrays = normalizedNodes.filter(n => n.type === 'Array').map(n => n.id)
         setExpandedIds(arrays)
+
       } catch (err) {
-        console.error('Failed to load inventory:', err)
+        console.error('Inventory load failed', err)
       } finally {
         setLoading(false)
       }
+
     }
     load()
   }, [apiBase])

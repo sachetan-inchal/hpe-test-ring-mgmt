@@ -19,21 +19,29 @@ export default function TopologyPage({ apiBase }) {
     async function load() {
       setLoading(true)
       try {
-        const fetchWithData = async (url) => {
+        const fetchWithData = async (url, timeoutMs = 4500) => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), timeoutMs);
           try {
-            const res = await fetch(url);
+            const res = await fetch(url, { signal: controller.signal });
             if (!res.ok) return null;
             const data = await res.json();
             if (!data.nodes || data.nodes.length === 0) return null;
             return data;
           } catch {
             return null;
+          } finally {
+            clearTimeout(timer);
           }
         };
 
-        let json = await fetchWithData(`${apiBase}/api/ontology/topology`)
-        if (!json) json = await fetchWithData(`${apiBase}/api/graph/neo4j`)
-        if (!json) json = await fetchWithData(`${apiBase}/api/sim/mock-topology`)
+        const localSources = [
+          `${apiBase}/api/ontology/topology`,
+          `${apiBase}/api/graph/neo4j`,
+          `${apiBase}/api/sim/mock-topology`,
+        ]
+        const localResults = await Promise.all(localSources.map(url => fetchWithData(url)))
+        let json = localResults.find(Boolean)
         if (!json) json = await fetchWithData(`https://hpe-ontology-and-graph.onrender.com/topology`)
         
         if (!json) throw new Error('Failed to load topology from any source or databases are empty')

@@ -1,293 +1,149 @@
 + showsys
                                                                      ------------------(MiB)------------------
      ID -Name- ------------Model------------ --Serial-- Nodes Master TotalCap    AllocCap    FreeCap FailedCap
-<<<<<<< HEAD
- 0x1004 EDGE-D HPE Nimble HF60                HPE21383094 2      0 96636764     42835457     53801306 0
+ 0x1004 EDGE-D HPE Nimble HF60                HPE40874880 2      0 96636764     55612019     41024744 0
 + shownode
 Node ----Name---- Encl:Bay Master InCluster Mem(MiB) -------Up_Since--------
-   0 EDGE-D-N0    1:1   Yes    Yes       262144   2025-11-20 23:15:41 PDT
-   1 EDGE-D-N1    1:2   No     Yes       262144   2026-03-21 23:15:41 PDT
+   0 EDGE-D-N0    1:1   Yes    Yes       1048576   2026-03-22 14:53:50 PDT
+   1 EDGE-D-N1    1:2   No     Yes       524288   2026-03-24 14:53:50 PDT
 + showport
 N:S:P Mode      State    ----Node_WWN---- -Port_WWN/MAC-- Type  Protocol Label Speed
-0:1:1  initiator  ready    45:5E:AE:1F:11:EB:95:E7 72:37:C6:29:5B:57 ip     iSCSI    P011   25G
-0:1:2  initiator  ready    94:45:0E:93:C0:63:F0:ED 48:4B:5A:18:B7:28 ip     iSCSI    P012   25G
-0:1:3  target     ready    4E:78:F9:CF:3B:59:4C:EA 32:7A:3D:39:17:DF:1F:E9 host   FC       P013   32G
-0:1:4  target     ready    28:73:C6:5E:72:2F:DC:3B 56:68:25:4F:26:C5:01:47 host   FC       P014   32G
-0:2:1  target     ready    87:E4:81:3E:B7:E9:11:EC 41:96:3C:90:DF:7E:6D:74 host   FC       P021   32G
-0:2:2  target     ready    1A:0B:6C:03:A7:01:DA:52 0F:EC:01:47:57:9E host   NVMe     P022   25G
-0:2:3  target     ready    E5:FC:45:9C:F2:4A:03:8B FB:CD:E5:22:B9:AF:2A:A3 host   FC       P023   32G
-0:2:4  target     ready    29:49:FA:B7:27:83:35:E3 2D:85:BD:88:16:DC:35:4E host   FC       P024   32G
-0:3:1  initiator  ready    10:CD:B6:F2:93:2A:E5:90 BA:97:6D:CB:83:DB ip     iSCSI    P031   25G
-0:3:2  initiator  ready    B3:2B:A1:52:E6:AC:E5:E5 24:E9:FB:B1:06:21 ip     iSCSI    P032   25G
-0:3:3  target     loss_sync EB:44:DA:FD:1B:48:FE:1C 5A:F2:8B:A2:C9:39:0C:D4 host   FC       P033   32G
-0:3:4  target     ready    15:5F:3E:0D:0A:17:2B:03 78:3B:3C:09:3A:AA host   NVMe     P034   25G
-1:1:1  target     ready    CC:36:19:E8:97:4A:AF:8B 44:97:49:AC:FD:EC host   NVMe     P111   25G
-1:1:2  target     loss_sync 30:6A:A7:F3:39:8F:BA:17 79:24:39:FB:99:EC:3F:13 host   FC       P112   32G
-1:1:3  target     ready    D2:C1:23:AA:1B:5D:A1:0A A5:50:A8:3B:06:B8:F4:F1 host   FC       P113   32G
-1:1:4  target     ready    A8:EF:E0:72:56:52:AC:02 E4:7E:12:49:ED:2F:5F:EC host   FC       P114   32G
-1:2:1  target     ready    29:F5:29:E1:04:53:E9:31 EB:CB:74:23:77:AE host   NVMe     P121   25G
-1:2:2  target     ready    3B:9E:34:3F:10:7A:66:67 4A:32:F3:1E:FA:64 host   NVMe     P122   25G
-1:2:3  target     ready    8D:05:B5:AC:2F:E1:98:58 94:29:9D:B2:FA:6A host   NVMe     P123   25G
-1:2:4  initiator  ready    BC:EC:8A:13:EB:D6:F2:80 E3:B0:C2:18:66:8F ip     iSCSI    P124   25G
-1:3:1  target     ready    87:33:5B:6B:1E:D8:5D:97 74:5D:0D:9B:18:9E host   NVMe     P131   25G
-1:3:2  initiator  ready    D6:B5:C4:60:30:18:84:F9 26:72:D8:9C:90:F3 ip     iSCSI    P132   25G
-1:3:3  initiator  ready    6F:43:7E:10:DE:30:11:CF FB:2D:AD:3B:7E:2D ip     iSCSI    P133   25G
-1:3:4  initiator  loss_sync 41:41:99:10:1B:A0:C4:B4 A4:61:34:88:AE:2C ip     iSCSI    P134   25G
+0:1:1  target     ready    49:0E:75:8E:A3:43:C9:D0 39:1F:72:32:A4:E2 host   NVMe     P011   25G
+0:1:2  initiator  loss_sync DF:E2:05:AF:02:A7:F7:93 B5:5C:1E:9C:5E:55 ip     iSCSI    P012   25G
+0:1:3  target     ready    3C:C8:15:96:2C:D6:50:9D E0:95:A5:D2:69:69:87:98 host   FC       P013   32G
+0:1:4  target     ready    BF:4E:F4:F3:47:5B:96:57 2A:45:4A:50:A4:BF host   NVMe     P014   25G
+0:2:1  initiator  ready    6E:37:A0:52:B1:24:A6:4A CD:0F:52:30:DE:C2 ip     iSCSI    P021   25G
+0:2:2  target     loss_sync 6A:AE:01:7A:F3:DD:7C:4C C4:FB:04:2D:58:1E:7A:1F host   FC       P022   32G
+0:2:3  target     ready    ED:BD:8B:34:0D:77:6D:1F 50:57:14:A0:18:E4 host   NVMe     P023   25G
+0:2:4  target     ready    A9:E0:77:DF:84:AD:C7:1F 6E:DA:64:C1:67:FD:20:F8 host   FC       P024   32G
+0:3:1  initiator  ready    34:55:96:41:65:CC:50:24 0E:4C:A3:D8:44:5E ip     iSCSI    P031   25G
+0:3:2  target     loss_sync FA:88:40:71:40:32:3C:4F 76:0B:F8:53:84:6D:D5:35 host   FC       P032   32G
+0:3:3  initiator  ready    AC:AF:31:EF:13:30:BF:87 33:72:01:FC:A3:CD ip     iSCSI    P033   25G
+0:3:4  target     ready    E7:84:60:5D:70:BB:46:AD DA:8C:31:B9:BF:D3:6E:B5 host   FC       P034   32G
+1:1:1  target     loss_sync 4E:EF:CC:8D:12:3C:33:2E A6:75:A3:28:6F:DD:70:17 host   FC       P111   32G
+1:1:2  target     ready    09:D1:46:B2:46:64:8C:CC 31:4A:FF:53:49:60:49:8F host   FC       P112   32G
+1:1:3  initiator  ready    EA:D0:9D:83:99:31:AA:18 22:C2:32:C1:86:A6 ip     iSCSI    P113   25G
+1:1:4  initiator  ready    1B:FB:32:78:D5:99:A2:7C 19:85:98:99:D3:1F ip     iSCSI    P114   25G
+1:2:1  target     ready    4A:B3:3D:5A:C3:89:E9:7C FA:88:65:0F:BD:0A host   NVMe     P121   25G
+1:2:2  target     loss_sync DC:F8:84:BD:5C:5F:3A:2F AA:A8:3B:85:F5:5C:51:DE host   FC       P122   32G
+1:2:3  target     ready    28:C3:BE:5F:6C:0A:86:19 19:58:2B:BF:49:B7 host   NVMe     P123   25G
+1:2:4  target     ready    8E:E8:F7:99:36:B1:B7:FD 87:A8:0C:9B:B8:1D:E7:25 host   FC       P124   32G
+1:3:1  target     ready    ED:C1:A1:83:B1:B3:7C:1A 5E:07:34:61:42:3D host   NVMe     P131   25G
+1:3:2  target     ready    98:E6:9B:01:8B:33:07:6A 51:CB:9E:9C:B4:8B host   NVMe     P132   25G
+1:3:3  target     loss_sync 29:56:DF:26:72:8B:46:D1 D3:D5:27:91:4D:20:DF:60 host   FC       P133   32G
+1:3:4  target     ready    49:46:C6:6E:31:80:35:34 2D:2E:07:41:FA:24:08:03 host   FC       P134   32G
 + showswitch
 Switch -----------WWN----------- State  Mode   -Serial- -Temp-
-swedge-d1 94:35:0B:D4:50:3A:80:41 Online  Normal  SW38872685 28
+swedge-d1 21:05:ED:00:43:DD:92:20 Online  Normal  SW03293257 35
 + showhost
  Id Name              Persona       -WWN/iSCSI_Name-    Port  OS
-  0   host-edge-d-00     Generic-ALUA  C6:B7:FE:FE:85:ED:F0:3F 0:1:1  Red Hat Enterprise Linux
-  1   host-edge-d-01     Generic-ALUA  7B:F3:40:12:D0:14:50:63 0:1:2  Red Hat Enterprise Linux
-  2   host-edge-d-02     Generic-ALUA  3D:36:FB:45:E0:1F:41:AB 0:1:3  Windows Server
-  3   host-edge-d-03     Generic-ALUA  2F:6F:CF:34:4E:C1:AE:13 0:1:4  Windows Server
+  0   host-edge-d-00     Generic-ALUA  27:5D:5A:29:3D:AB:CB:C5 0:1:1  Red Hat Enterprise Linux
+  1   host-edge-d-01     Generic-ALUA  B9:63:7E:37:B2:D4:E6:EE 0:1:2  Ubuntu Server
+  2   host-edge-d-02     Generic-ALUA  E4:EB:6C:8F:71:93:4E:22 0:1:3  Windows Server
+  3   host-edge-d-03     Generic-ALUA  DF:A6:B4:44:E8:23:92:DD 0:1:4  Red Hat Enterprise Linux
 + showcage
  Id Name    -State- -Detailed_State- Drives -Temp- ---Model--- FormFactor CageType
-  0 cage0    Normal   Normal           24      27      DCS-4048-G   SFF        DCF
+  0 cage0    Normal   Normal           24      32      DCS-4048-G   SFF        DCN
 + showcage -state
 Id Name    State   PS1  PS2  Fans Temp SlotsIOM  SlotsSlot
-  0 cage0    Normal   OK   OK   OK   27  2        24
+  0 cage0    Normal   OK   OK   OK   32  2        24
 + showpd
  Id CagePos  Type State    Total_MiB Free_MiB Cap_GB
-  0    0:0      SSD   normal   1966080    382723   1920
-  1    0:1      SSD   normal   1966080    437378   1920
-  2    0:2      NVMe  normal   3932160    182061   3840
-  3    0:3      SSD   normal   1966080    828014   1920
-  4    0:4      NVMe  normal   3932160    67324    3840
-  5    0:5      NVMe  normal   3932160    1684000  3840
-  6    0:6      NVMe  normal   3932160    813372   3840
-  7    0:7      SSD   normal   1966080    949837   1920
-  8    0:8      NVMe  normal   3932160    390133   3840
-  9    0:9      NVMe  normal   3932160    729943   3840
-  10   0:10     SSD   normal   1966080    398380   1920
-  11   0:11     NVMe  normal   3932160    1717907  3840
-  12   0:12     NVMe  normal   3932160    1061013  3840
-  13   0:13     SSD   normal   1966080    710654   1920
-  14   0:14     HDD   normal   16384000   4954480  16000
-  15   0:15     SSD   normal   1966080    938508   1920
-  16   0:16     SSD   normal   1966080    589365   1920
-  17   0:17     HDD   normal   16384000   1490882  16000
-  18   0:18     HDD   normal   16384000   2262513  16000
-  19   0:19     NVMe  normal   3932160    927234   3840
-  20   0:20     SSD   normal   1966080    211052   1920
-  21   0:21     NVMe  normal   3932160    885174   3840
-  22   0:22     SSD   normal   1966080    445989   1920
-  23   0:23     NVMe  normal   3932160    355043   3840
+  0    0:0      HDD   normal   16384000   7005801  16000
+  1    0:1      SSD   normal   1966080    902994   1920
+  2    0:2      SSD   normal   1966080    567007   1920
+  3    0:3      NVMe  normal   3932160    872069   3840
+  4    0:4      NVMe  normal   3932160    1117472  3840
+  5    0:5      NVMe  normal   3932160    421523   3840
+  6    0:6      NVMe  normal   3932160    230404   3840
+  7    0:7      NVMe  normal   3932160    1422581  3840
+  8    0:8      SSD   normal   1966080    371631   1920
+  9    0:9      HDD   normal   16384000   7436991  16000
+  10   0:10     HDD   normal   16384000   5185735  16000
+  11   0:11     SSD   normal   1966080    475267   1920
+  12   0:12     SSD   normal   1966080    96522    1920
+  13   0:13     HDD   normal   16384000   2272194  16000
+  14   0:14     NVMe  normal   3932160    1785224  3840
+  15   0:15     NVMe  normal   3932160    1914273  3840
+  16   0:16     NVMe  normal   3932160    500203   3840
+  17   0:17     NVMe  normal   3932160    620529   3840
+  18   0:18     SSD   normal   1966080    753644   1920
+  19   0:19     NVMe  normal   3932160    873894   3840
+  20   0:20     NVMe  normal   3932160    1789502  3840
+  21   0:21     SSD   normal   1966080    382579   1920
+  22   0:22     NVMe  normal   3932160    1675820  3840
+  23   0:23     HDD   normal   16384000   3899349  16000
 + showpd -s
  Id Manufacturer Model              Serial           FW_Rev Protocol
-  0    SAMSUNG       AELN30T7P5xn       DRV45403049      MSB4    SAS
-  1    SEAGATE       XS3840SE70084      DRV90534248      0002    SAS
-  2    KIOXIA        KCD6XLUL3T84       DRV02469871      1IAGD102 NVMe
-  3    SEAGATE       XS3840SE70084      DRV14622373      0002    SAS
-  4    SAMSUNG       MZWLR3T8HBLS       DRV95932600      GXA7A01Q NVMe
-  5    SAMSUNG       MZWLR3T8HBLS       DRV29058856      GXA7A01Q NVMe
-  6    KIOXIA        KCD6XLUL3T84       DRV58433186      1IAGD102 NVMe
-  7    SAMSUNG       AELN30T7P5xn       DRV26324352      MSB4    SAS
-  8    KIOXIA        KCD6XLUL3T84       DRV19612507      1IAGD102 NVMe
-  9    SAMSUNG       MZWLR3T8HBLS       DRV63136828      GXA7A01Q NVMe
-  10   SEAGATE       XS3840SE70084      DRV77379426      0002    SAS
-  11   SAMSUNG       MZWLR3T8HBLS       DRV92142415      GXA7A01Q NVMe
-  12   KIOXIA        KCD6XLUL3T84       DRV99474502      1IAGD102 NVMe
-  13   SEAGATE       XS3840SE70084      DRV20689470      0002    SAS
-  14   WD            WD161KRYZ-01U      DRV99363737      82.0    SAS
-  15   SEAGATE       XS3840SE70084      DRV55655453      0002    SAS
-  16   SAMSUNG       AELN30T7P5xn       DRV66126541      MSB4    SAS
-  17   WD            WD161KRYZ-01U      DRV40067826      82.0    SAS
-  18   SEAGATE       ST16000NM001G      DRV74950846      SN04    SAS
-  19   KIOXIA        KCD6XLUL3T84       DRV82590411      1IAGD102 NVMe
-  20   SEAGATE       XS3840SE70084      DRV32367995      0002    SAS
-  21   SAMSUNG       MZWLR3T8HBLS       DRV84892903      GXA7A01Q NVMe
-  22   SAMSUNG       AELN30T7P5xn       DRV35857636      MSB4    SAS
-  23   KIOXIA        KCD6XLUL3T84       DRV82431041      1IAGD102 NVMe
+  0    SEAGATE       ST16000NM001G      DRV59403344      SN04    SAS
+  1    SEAGATE       XS3840SE70084      DRV54152320      0002    SAS
+  2    SAMSUNG       AELN30T7P5xn       DRV91618375      MSB4    SAS
+  3    KIOXIA        KCD6XLUL3T84       DRV52479907      1IAGD102 NVMe
+  4    KIOXIA        KCD6XLUL3T84       DRV90913568      1IAGD102 NVMe
+  5    KIOXIA        KCD6XLUL3T84       DRV62983984      1IAGD102 NVMe
+  6    SAMSUNG       MZWLR3T8HBLS       DRV55370039      GXA7A01Q NVMe
+  7    KIOXIA        KCD6XLUL3T84       DRV71351463      1IAGD102 NVMe
+  8    SAMSUNG       AELN30T7P5xn       DRV87350809      MSB4    SAS
+  9    WD            WD161KRYZ-01U      DRV26158053      82.0    SAS
+  10   SEAGATE       ST16000NM001G      DRV25723562      SN04    SAS
+  11   SEAGATE       XS3840SE70084      DRV88371797      0002    SAS
+  12   SEAGATE       XS3840SE70084      DRV24235528      0002    SAS
+  13   WD            WD161KRYZ-01U      DRV80020588      82.0    SAS
+  14   SAMSUNG       MZWLR3T8HBLS       DRV76072581      GXA7A01Q NVMe
+  15   SAMSUNG       MZWLR3T8HBLS       DRV35632910      GXA7A01Q NVMe
+  16   KIOXIA        KCD6XLUL3T84       DRV61046323      1IAGD102 NVMe
+  17   SAMSUNG       MZWLR3T8HBLS       DRV04716962      GXA7A01Q NVMe
+  18   SAMSUNG       AELN30T7P5xn       DRV72118768      MSB4    SAS
+  19   SAMSUNG       MZWLR3T8HBLS       DRV73924407      GXA7A01Q NVMe
+  20   SAMSUNG       MZWLR3T8HBLS       DRV11212934      GXA7A01Q NVMe
+  21   SAMSUNG       AELN30T7P5xn       DRV84340321      MSB4    SAS
+  22   SAMSUNG       MZWLR3T8HBLS       DRV10049883      GXA7A01Q NVMe
+  23   SEAGATE       ST16000NM001G      DRV90162773      SN04    SAS
 + showpd -i
  Id SedState
-  0    not_capable
-  1    fips_capable
-  2    capable
-  3    capable
-  4    capable
-  5    not_capable
-=======
- 0x1004 EDGE-D HPE Nimble HF60                HPE86801628 2      0 96636764     49690647     46946116 0
-+ shownode
-Node ----Name---- Encl:Bay Master InCluster Mem(MiB) -------Up_Since--------
-   0 EDGE-D-N0    1:1   Yes    Yes       1048576   2025-12-31 22:44:55 PDT
-   1 EDGE-D-N1    1:2   No     Yes       262144   2026-04-10 22:44:55 PDT
-+ showport
-N:S:P Mode      State    ----Node_WWN---- -Port_WWN/MAC-- Type  Protocol Label Speed
-0:1:1  target     ready    9F:45:4A:1A:C7:0C:77:6A 17:CD:88:E6:D7:26:2F:C3 host   FC       P011   32G
-0:1:2  target     loss_sync 9E:C4:6E:03:89:0D:17:E0 D0:A7:A9:5D:24:75:DD:9E host   FC       P012   32G
-0:1:3  target     ready    C7:0F:A1:D8:46:EB:7A:59 FF:E4:4B:6F:F2:FD host   NVMe     P013   25G
-0:1:4  target     ready    60:7C:17:42:28:C0:A9:73 02:48:43:52:F1:12 host   NVMe     P014   25G
-0:2:1  target     ready    65:41:DF:EA:91:01:CA:AE A5:D6:43:FB:F2:23 host   NVMe     P021   25G
-0:2:2  target     ready    FB:1C:90:65:75:98:BC:C6 EE:4D:71:8B:6D:81 host   NVMe     P022   25G
-0:2:3  target     ready    1C:97:F8:98:82:C4:0C:22 2F:63:CD:47:C4:DE host   NVMe     P023   25G
-0:2:4  target     ready    1C:08:1C:BE:AE:65:44:34 07:6D:E3:AE:2B:28:0D:7C host   FC       P024   32G
-0:3:1  target     ready    71:42:33:4F:69:45:DC:B2 50:40:CA:5E:AE:95 host   NVMe     P031   25G
-0:3:2  initiator  ready    A5:31:2B:27:7E:7F:3E:11 AD:32:11:5B:36:6A ip     iSCSI    P032   25G
-0:3:3  target     ready    39:EF:A3:2E:4B:99:EA:99 68:5E:9D:42:68:83:EF:B8 host   FC       P033   32G
-0:3:4  initiator  loss_sync 63:B2:F6:CE:88:5D:29:DE 5F:6B:48:98:70:DE ip     iSCSI    P034   25G
-1:1:1  target     ready    57:68:77:9D:26:B6:B2:2C 5A:34:69:2B:4A:95 host   NVMe     P111   25G
-1:1:2  initiator  ready    0B:C0:37:34:4D:30:E4:50 A0:DE:4D:41:2E:20 ip     iSCSI    P112   25G
-1:1:3  target     ready    51:CE:0A:C3:1D:05:19:6C EC:B4:82:DA:38:15:DA:72 host   FC       P113   32G
-1:1:4  initiator  ready    CE:47:46:3F:89:2D:7B:B5 74:BB:C7:1E:15:DE ip     iSCSI    P114   25G
-1:2:1  initiator  ready    EF:42:F5:E3:AD:F2:AF:E7 A6:0B:67:7D:6C:45 ip     iSCSI    P121   25G
-1:2:2  initiator  loss_sync 18:9D:D0:2C:96:40:83:03 35:21:F1:58:47:8B ip     iSCSI    P122   25G
-1:2:3  target     loss_sync D4:F1:95:50:22:0B:0E:56 67:C4:96:C1:5F:B0 host   NVMe     P123   25G
-1:2:4  target     ready    69:B6:9A:2F:7F:B2:EE:86 D5:D9:DB:7A:EF:FD:FC:40 host   FC       P124   32G
-1:3:1  target     ready    2B:F9:37:F7:9D:04:03:CC 9D:25:1D:32:23:8C host   NVMe     P131   25G
-1:3:2  target     ready    B3:2C:22:2E:12:6E:55:A5 BF:11:70:33:E9:BC:B3:2D host   FC       P132   32G
-1:3:3  target     ready    B7:6E:18:05:23:BA:06:4A BA:A5:39:7B:2F:69 host   NVMe     P133   25G
-1:3:4  target     ready    B6:98:00:7F:1D:AE:81:EC C8:8E:86:46:C0:61:7C:7A host   FC       P134   32G
-+ showswitch
-Switch -----------WWN----------- State  Mode   -Serial- -Temp-
-swedge-d1 FB:37:58:73:AA:19:57:A8 Online  Normal  SW48074584 30
-+ showhost
- Id Name              Persona       -WWN/iSCSI_Name-    Port  OS
-  0   host-edge-d-00     Generic-ALUA  44:85:6C:4D:95:B6:77:31 0:1:1  VMware ESXi
-  1   host-edge-d-01     Generic-ALUA  E7:5B:2C:14:C6:E7:75:D7 0:1:2  Windows Server
-  2   host-edge-d-02     Generic-ALUA  11:A4:89:07:D9:76:16:C5 0:1:3  VMware ESXi
-  3   host-edge-d-03     Generic-ALUA  59:AD:DE:48:41:0D:32:C6 0:1:4  Ubuntu Server
-+ showcage
- Id Name    -State- -Detailed_State- Drives -Temp- ---Model--- FormFactor CageType
-  0 cage0    Normal   Normal           24      30      DCS-4048-G   SFF        DCN
-+ showcage -state
-Id Name    State   PS1  PS2  Fans Temp SlotsIOM  SlotsSlot
-  0 cage0    Normal   OK   OK   OK   30  2        24
-+ showpd
- Id CagePos  Type State    Total_MiB Free_MiB Cap_GB
-  0    0:0      NVMe  normal   3932160    1128861  3840
-  1    0:1      SSD   normal   1966080    228313   1920
-  2    0:2      SSD   normal   1966080    796237   1920
-  3    0:3      NVMe  normal   3932160    180684   3840
-  4    0:4      HDD   normal   16384000   6232112  16000
-  5    0:5      HDD   normal   16384000   5531846  16000
-  6    0:6      NVMe  normal   3932160    585215   3840
-  7    0:7      NVMe  normal   3932160    1802315  3840
-  8    0:8      SSD   normal   1966080    630008   1920
-  9    0:9      HDD   normal   16384000   6310581  16000
-  10   0:10     NVMe  normal   3932160    1808704  3840
-  11   0:11     SSD   normal   1966080    855991   1920
-  12   0:12     SSD   normal   1966080    399460   1920
-  13   0:13     NVMe  normal   3932160    1558794  3840
-  14   0:14     SSD   normal   1966080    384347   1920
-  15   0:15     NVMe  normal   3932160    1920093  3840
-  16   0:16     NVMe  normal   3932160    1876764  3840
-  17   0:17     HDD   normal   16384000   7799561  16000
-  18   0:18     HDD   normal   16384000   7538995  16000
-  19   0:19     HDD   normal   16384000   1082832  16000
-  20   0:20     SSD   normal   1966080    783729   1920
-  21   0:21     SSD   normal   1966080    581957   1920
-  22   0:22     SSD   normal   1966080    933907   1920
-  23   0:23     HDD   normal   16384000   1957444  16000
-+ showpd -s
- Id Manufacturer Model              Serial           FW_Rev Protocol
-  0    SAMSUNG       MZWLR3T8HBLS       DRV31682913      GXA7A01Q NVMe
-  1    SEAGATE       XS3840SE70084      DRV30780061      0002    SAS
-  2    SEAGATE       XS3840SE70084      DRV20470604      0002    SAS
-  3    KIOXIA        KCD6XLUL3T84       DRV48363815      1IAGD102 NVMe
-  4    SEAGATE       ST16000NM001G      DRV26380458      SN04    SAS
-  5    SEAGATE       ST16000NM001G      DRV23461011      SN04    SAS
-  6    KIOXIA        KCD6XLUL3T84       DRV47714168      1IAGD102 NVMe
-  7    KIOXIA        KCD6XLUL3T84       DRV64571064      1IAGD102 NVMe
-  8    SEAGATE       XS3840SE70084      DRV19075442      0002    SAS
-  9    SEAGATE       ST16000NM001G      DRV42401827      SN04    SAS
-  10   SAMSUNG       MZWLR3T8HBLS       DRV52905399      GXA7A01Q NVMe
-  11   SEAGATE       XS3840SE70084      DRV08813682      0002    SAS
-  12   SEAGATE       XS3840SE70084      DRV36737812      0002    SAS
-  13   KIOXIA        KCD6XLUL3T84       DRV74564511      1IAGD102 NVMe
-  14   SAMSUNG       AELN30T7P5xn       DRV94520869      MSB4    SAS
-  15   KIOXIA        KCD6XLUL3T84       DRV86342325      1IAGD102 NVMe
-  16   SAMSUNG       MZWLR3T8HBLS       DRV97475202      GXA7A01Q NVMe
-  17   SEAGATE       ST16000NM001G      DRV42399844      SN04    SAS
-  18   SEAGATE       ST16000NM001G      DRV83648782      SN04    SAS
-  19   WD            WD161KRYZ-01U      DRV99732218      82.0    SAS
-  20   SAMSUNG       AELN30T7P5xn       DRV96403324      MSB4    SAS
-  21   SAMSUNG       AELN30T7P5xn       DRV75417277      MSB4    SAS
-  22   SEAGATE       XS3840SE70084      DRV33954447      0002    SAS
-  23   WD            WD161KRYZ-01U      DRV97681430      82.0    SAS
-+ showpd -i
- Id SedState
-  0    not_capable
-  1    not_capable
-  2    fips_capable
-  3    capable
-  4    capable
+  0    capable
+  1    capable
+  2    not_capable
+  3    not_capable
+  4    not_capable
   5    fips_capable
->>>>>>> 12b0630a3590f1e2df8241420fcd8b4db1c5b431
   6    not_capable
   7    not_capable
   8    not_capable
-  9    not_capable
-<<<<<<< HEAD
+  9    capable
   10   not_capable
-  11   fips_capable
-  12   capable
+  11   not_capable
+  12   not_capable
   13   capable
-  14   fips_capable
-  15   fips_capable
-  16   capable
-  17   capable
-  18   capable
-  19   fips_capable
-  20   not_capable
-  21   capable
-  22   fips_capable
-  23   fips_capable
-+ showversion -b
-Release version 9.3.2.0
-Patches: None
-
-Component          Version
-  CLI_Server                CLI_BUILD_578
-  Kernel                    5.12.19-hpe
-  IO_Stack                  6.4.0
-  Drive_Firmware_Mgr        DFW-1.2
-  Enclosure_Firmware        EFW-1.3
-  Switch_Firmware           SFW-8.5
-  Upgrade_Tool              UPG-4.4
-=======
-  10   capable
-  11   fips_capable
-  12   fips_capable
-  13   fips_capable
   14   not_capable
   15   capable
-  16   capable
-  17   fips_capable
+  16   not_capable
+  17   not_capable
   18   fips_capable
-  19   not_capable
-  20   capable
-  21   capable
-  22   not_capable
+  19   fips_capable
+  20   fips_capable
+  21   not_capable
+  22   capable
   23   fips_capable
 + showversion -b
-Release version 9.1.3.0
+Release version 9.9.4.0
 Patches: None
 
 Component          Version
-  CLI_Server                CLI_BUILD_869
-  Kernel                    5.14.7-hpe
-  IO_Stack                  6.0.0
-  Drive_Firmware_Mgr        DFW-4.5
-  Enclosure_Firmware        EFW-1.2
-  Switch_Firmware           SFW-8.9
-  Upgrade_Tool              UPG-5.4
->>>>>>> 12b0630a3590f1e2df8241420fcd8b4db1c5b431
+  CLI_Server                CLI_BUILD_329
+  Kernel                    5.11.8-hpe
+  IO_Stack                  6.5.4
+  Drive_Firmware_Mgr        DFW-3.8
+  Enclosure_Firmware        EFW-1.6
+  Switch_Firmware           SFW-9.5
+  Upgrade_Tool              UPG-3.8
 + lscpu
 Architecture:        x86_64
 CPU op-mode(s):      32-bit, 64-bit
 Byte Order:          Little Endian
-<<<<<<< HEAD
-CPU(s):              24
+CPU(s):              48
 Thread(s) per core:  2
-Core(s) per socket:  6
-=======
-CPU(s):              32
-Thread(s) per core:  2
-Core(s) per socket:  8
->>>>>>> 12b0630a3590f1e2df8241420fcd8b4db1c5b431
+Core(s) per socket:  12
 Socket(s):           2
 Model name:          AMD EPYC 7542 32-Core Processor
 CPU MHz:             2100.000

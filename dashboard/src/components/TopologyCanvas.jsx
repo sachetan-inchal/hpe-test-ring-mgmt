@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Controls,
@@ -37,10 +37,10 @@ const getStatusColor = (status) => {
   return 'var(--status-critical)';
 };
 
-export default function TopologyCanvas({ data, onClose, onNodeClick }) {
+export default function TopologyCanvas({ data, nodes: legacyNodes, edges: legacyEdges, onClose, onNodeClick }) {
   const reactFlowWrapper = useRef(null);
 
-  const { nodes: rawNodes = [], edges: rawEdges = [] } = data || {};
+  const { nodes: rawNodes = [], edges: rawEdges = [] } = data || { nodes: legacyNodes || [], edges: legacyEdges || [] };
 
   const { initialNodes, initialEdges } = useMemo(() => {
     const dagreGraph = new dagre.graphlib.Graph();
