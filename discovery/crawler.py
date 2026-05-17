@@ -285,6 +285,7 @@ class DiscoveryCrawler:
                 "type": "command",
                 "ip": ip,
                 "command": cmd,
+                "output": output,
                 "output_preview": output[:80] + "..." if len(output) > 80 else output,
                 "msg": f"  [{ip}] > {cmd}",
             })

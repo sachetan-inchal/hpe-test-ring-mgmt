@@ -85,7 +85,9 @@ export default function DiscoveryPage({ apiBase }) {
       }))
       setGraph(prev => {
         const isRunning = sessionStorage.getItem('discovery_running') === 'true'
-        return isRunning ? prev : { nodes, edges }
+        if (isRunning) return prev
+        if (nodes.length === 0 && prev.nodes.length > 0) return prev
+        return { nodes, edges }
       })
     } catch {
       try {
@@ -93,10 +95,11 @@ export default function DiscoveryPage({ apiBase }) {
         const simData = await simRes.json()
         setGraph(prev => {
           const isRunning = sessionStorage.getItem('discovery_running') === 'true'
-          return isRunning ? prev : {
-            nodes: (simData.nodes || []).map(n => ({ ...n, type: n.type || 'Device', status: 'normal', ip: n.id })),
-            edges: (simData.edges || []).map(e => ({ id: `${e.source}-${e.target}`, from: e.source, to: e.target, label: e.type || '' }))
-          }
+          if (isRunning) return prev
+          const newNodes = (simData.nodes || []).map(n => ({ ...n, type: n.type || 'Device', status: 'normal', ip: n.id }))
+          const newEdges = (simData.edges || []).map(e => ({ id: `${e.source}-${e.target}`, from: e.source, to: e.target, label: e.type || '' }))
+          if (newNodes.length === 0 && prev.nodes.length > 0) return prev
+          return { nodes: newNodes, edges: newEdges }
         })
       } catch {}
     }
@@ -145,7 +148,13 @@ export default function DiscoveryPage({ apiBase }) {
           return { nodes: prev.nodes, edges: [...prev.edges, { id: edgeId, from: event.source, to: event.ip, label: 'discovered' }] }
         })
       }
-      if (event.type === 'complete' || event.type === 'error' || event.type === 'cancelled') { setDiscoveryRunning(false); es.close(); fetchGraph() }
+      if (event.type === 'complete' || event.type === 'error' || event.type === 'cancelled') {
+        setDiscoveryRunning(false)
+        es.close()
+        if (event.type !== 'complete') {
+          fetchGraph()
+        }
+      }
     }
     es.onerror = () => { setDiscoveryRunning(false); es.close() }
   }, [API, fetchGraph])

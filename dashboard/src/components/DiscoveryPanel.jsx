@@ -42,32 +42,46 @@ function EventRow({ event, index }) {
   const color = EV_COLORS[event.type] || '#8b949e'
   const icon = EV_ICONS[event.type] || '•'
   const isCommand = event.type === 'command'
+  const hasOutput = isCommand && (event.output || event.output_preview)
+  const displayOutput = event.output || event.output_preview
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      padding: '4px 0',
-      borderLeft: event.type === 'connected' || event.type === 'complete' ? `2px solid ${color}` : '2px solid transparent',
-      paddingLeft: 8,
-      transition: 'all 0.2s ease',
-    }}>
+    <div 
+      onClick={hasOutput ? () => setExpanded(!expanded) : undefined}
+      className={hasOutput ? "cli-command-row" : ""}
+      style={{
+        display: 'flex', flexDirection: 'column',
+        padding: '6px 8px',
+        margin: '2px 0',
+        borderRadius: 4,
+        borderLeft: event.type === 'connected' || event.type === 'complete' ? `2px solid ${color}` : '2px solid transparent',
+        transition: 'all 0.2s ease',
+        cursor: hasOutput ? 'pointer' : 'default',
+        background: expanded ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+      }}
+    >
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
         <span style={{ fontSize: 11, flexShrink: 0, marginTop: 1 }}>{icon}</span>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ 
             fontSize: 11, color, lineHeight: 1.6, wordBreak: 'break-all',
-            opacity: isCommand ? 0.75 : 1
+            opacity: isCommand ? 0.75 : 1,
+            fontWeight: isCommand ? '600' : 'normal'
           }}>
             {event.msg || JSON.stringify(event)}
           </span>
-          {isCommand && event.output && (
+          {hasOutput && (
             <button 
-              onClick={() => setExpanded(!expanded)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(!expanded);
+              }}
               style={{
                 background: 'transparent', border: 'none', color: 'var(--muted)',
                 padding: 0, display: 'flex', cursor: 'pointer',
                 transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                transition: 'transform 0.2s ease'
+                transition: 'transform 0.2s ease',
+                marginLeft: 'auto'
               }}
             >
               <ChevronRight size={12} />
@@ -76,16 +90,17 @@ function EventRow({ event, index }) {
         </div>
       </div>
       
-      {expanded && isCommand && event.output && (
+      {expanded && hasOutput && (
         <div className="rise-in" style={{
           marginTop: 6, marginBottom: 4,
-          padding: '8px 10px', background: 'rgba(0,0,0,0.3)',
+          padding: '8px 10px', background: 'rgba(0, 0, 0, 0.25)',
           borderRadius: 6, border: '1px solid var(--line)',
-          fontSize: 10, color: '#e6edf3', fontFamily: 'var(--font-mono)',
+          fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)',
           whiteSpace: 'pre-wrap', maxHeight: 250, overflowY: 'auto',
-          boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.5)'
+          boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.4)',
+          lineHeight: 1.4
         }}>
-          {event.output}
+          {displayOutput}
         </div>
       )}
 
