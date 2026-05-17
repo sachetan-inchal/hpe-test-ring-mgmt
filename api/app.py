@@ -13,16 +13,16 @@ Serves:
   - RAG chat (/api/chat), spreadsheet ingest, synthetic device faker
   - Topology CRUD (elementId-based)
 """
-import os
-import sys
-import re
 import json
-import time
 import logging
+import os
+import re
+import sys
 import threading
+import time
 
 # pyrefly: ignore [missing-import]
-from flask import Flask, request, jsonify, Response, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -36,32 +36,31 @@ except ImportError:
 sys.path.insert(0, MONOREPO)
 sys.path.insert(0, BASE_DIR)
 
-from simulator.network_sim import virtual_network
-from discovery.crawler import discovery_crawler, DiscoveryCrawler
-from discovery.neo4j_store import Neo4jStore
-from discovery.indexer import ElasticsearchIndexer
-
-from integrations.json_store import JsonStore
-from integrations.rag_engine import RAGEngine
-from integrations.neo4j_runner import run_cypher as neo4j_run_cypher
-from integrations.spreadsheet_pipeline import SpreadsheetPipeline
+import networkx as nx
 from integrations.data_faker import DataFaker
+from integrations.json_store import JsonStore
+from integrations.neo4j_runner import run_cypher as neo4j_run_cypher
+from integrations.ontology_engine import OntologyLLMEngine, populate_graph
+from integrations.rag_engine import RAGEngine
+from integrations.spreadsheet_pipeline import SpreadsheetPipeline
 from integrations.topology_db import TopologyDB
-from integrations.ontology_engine import populate_graph, OntologyLLMEngine
 
 # ── Master API Logic (Merged from Editor) ──────────────────────────────────
 from api.master_logic import proxy as master_proxy
-from api.master_logic.universal_parser import parse_array_dump, parse_via_proxy
 from api.master_logic.topology_graph import topology_graph
-import networkx as nx
+from api.master_logic.universal_parser import parse_array_dump, parse_via_proxy
+from api.parsers.parse_showcage import parse_showcage
+from api.parsers.parse_showhost import parse_showhost
+from api.parsers.parse_shownode import parse_shownode
+from api.parsers.parse_showpd import parse_showpd
+from api.parsers.parse_showport import parse_showport
 
 # Import individual parsers
 from api.parsers.parse_showsys import parse_showsys
-from api.parsers.parse_showport import parse_showport
-from api.parsers.parse_showpd import parse_showpd
-from api.parsers.parse_shownode import parse_shownode
-from api.parsers.parse_showhost import parse_showhost
-from api.parsers.parse_showcage import parse_showcage
+from discovery.crawler import DiscoveryCrawler, discovery_crawler
+from discovery.indexer import ElasticsearchIndexer
+from discovery.neo4j_store import Neo4jStore
+from simulator.network_sim import virtual_network
 
 _PARSERS = {
     "showsys":  parse_showsys,
@@ -169,7 +168,7 @@ def _proxy_to_sim(path, method="GET", data=None):
 def chatbot_proxy(path):
     """Proxy requests starting with /chatbot to the Node.js chatbot-service."""
     import requests
-    
+
     # Ensure the path starts with api/ if it's missing (as the dashboard strips it)
     clean_path = path if path.startswith("api") else f"api/{path}"
     target_url = f"{CHATBOT_URL}/{clean_path}"
@@ -279,7 +278,8 @@ def sim_topology():
 
 @app.route("/api/sim/mock-topology", methods=["GET"])
 def sim_mock_topology():
-    import json, os
+    import json
+    import os
     filepath = os.path.join(MONOREPO, "simulator", "data", "network_meta", "network_topology.json")
     try:
         with open(filepath, 'r') as f:

@@ -59,7 +59,7 @@ export default function DiscoveryPage({ apiBase }) {
 
   useEffect(() => {
     fetchGraph(); fetchHealth()
-    const interval = setInterval(fetchHealth, 10000)
+    const interval = setInterval(fetchHealth, 20000)
     return () => clearInterval(interval)
   }, [fetchGraph, fetchHealth])
 
