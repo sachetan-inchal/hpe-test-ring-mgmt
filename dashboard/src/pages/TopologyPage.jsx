@@ -63,18 +63,21 @@ export default function TopologyPage({ apiBase }) {
 
   const { user } = useContext(AuthContext)
 
-  // Normalize team names for visual consistency, e.g. team-alpha -> Team-Alpha
+  // Normalize team names for visual consistency, e.g. team-alpha -> Team Alpha
   const normalizeTeamName = (t) => {
-    if (!t) return 'Team-Alpha';
-    const low = t.toLowerCase();
-    if (low === 'team-alpha') return 'Team-Alpha';
-    if (low === 'team-beta') return 'Team-Beta';
+    if (!t) return 'Team Alpha';
+    const low = t.toLowerCase().replace(/[-_]/g, ' ');
+    if (low === 'team alpha') return 'Team Alpha';
+    if (low === 'team beta') return 'Team Beta';
+    if (low === 'team gamma') return 'Team Gamma';
     if (low === 'all teams' || low === 'all') return 'All Teams';
-    return t.charAt(0).toUpperCase() + t.slice(1);
+    return t.split(/[-_\s]+/)
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ');
   };
 
   const initialRole = user?.role === 'admin' ? 'admin' : 'user';
-  const initialTeam = normalizeTeamName(user?.team || 'Team-Alpha');
+  const initialTeam = normalizeTeamName(user?.team || 'Team Alpha');
 
   const [role, setRole] = useState(initialRole) // 'admin' or 'user'
   const [userTeam, setUserTeam] = useState(initialTeam) // User role locked team
@@ -258,8 +261,9 @@ export default function TopologyPage({ apiBase }) {
               setSelectedTeam(nt);
               setSelectedCluster('All Clusters');
             }}>
-              <option value="Team-Alpha">Team-Alpha User</option>
-              <option value="Team-Beta">Team-Beta User</option>
+              <option value="Team Alpha">Team Alpha User</option>
+              <option value="Team Beta">Team Beta User</option>
+              <option value="Team Gamma">Team Gamma User</option>
             </select>
           ) : (
             <span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-strong)', padding: '4px 8px', borderRadius: 4 }}>
@@ -278,8 +282,9 @@ export default function TopologyPage({ apiBase }) {
               setSelectedCluster('All Clusters');
             }}>
               <option value="All Teams">All Teams</option>
-              <option value="Team-Alpha">Team-Alpha</option>
-              <option value="Team-Beta">Team-Beta</option>
+              <option value="Team Alpha">Team Alpha</option>
+              <option value="Team Beta">Team Beta</option>
+              <option value="Team Gamma">Team Gamma</option>
             </select>
           ) : (
             <span style={{ fontSize: 11, color: '#58a6ff', background: 'rgba(58, 166, 255, 0.1)', border: '1px solid rgba(58, 166, 255, 0.2)', padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>
