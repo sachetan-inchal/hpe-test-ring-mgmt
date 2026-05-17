@@ -63,22 +63,16 @@ export default function DiscoveryPage({ apiBase }) {
     return () => clearInterval(interval)
   }, [fetchGraph, fetchHealth])
 
-  const startDiscovery = async (seedIps, delayMs = 5) => {
-    setDiscoveryEvents([]); setDiscoveryRunning(true); setDiscoveryPane(true)
-    setHighlightedIps(new Set()); setPulsingIds(new Set())
-    try {
-      await fetch(`${API}/api/discover`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seed_ips: seedIps, delay_ms: delayMs })
-      })
-    } catch { setDiscoveryRunning(false); return }
-
+  const connectStream = useCallback(() => {
     if (eventSourceRef.current) eventSourceRef.current.close()
     const es = new EventSource(`${API}/api/discover/stream`)
     eventSourceRef.current = es
     es.onmessage = (e) => {
       const event = JSON.parse(e.data)
-      setDiscoveryEvents(prev => [...prev, event])
+      setDiscoveryEvents(prev => {
+        if (prev.some(p => p.type === event.type && p.ip === event.ip && p.msg === event.msg)) return prev;
+        return [...prev, event]
+      })
       if (event.ip) setHighlightedIps(prev => new Set([...prev, event.ip]))
       if (event.type === 'parsed' && event.ip) {
         setPulsingIds(prev => new Set([...prev, event.ip]))
@@ -102,6 +96,34 @@ export default function DiscoveryPage({ apiBase }) {
       if (event.type === 'complete' || event.type === 'error' || event.type === 'cancelled') { setDiscoveryRunning(false); es.close(); fetchGraph() }
     }
     es.onerror = () => { setDiscoveryRunning(false); es.close() }
+  }, [API, fetchGraph])
+
+  useEffect(() => {
+    const checkActive = async () => {
+      try {
+        const res = await fetch(`${API}/api/discover/status`)
+        const data = await res.json()
+        if (data.running) {
+          setDiscoveryRunning(true)
+          setDiscoveryPane(true)
+          connectStream()
+        }
+      } catch {}
+    }
+    checkActive()
+  }, [API, connectStream])
+
+  const startDiscovery = async (seedIps, delayMs = 5) => {
+    setGraph({ nodes: [], edges: [] }) // clear for new run
+    setDiscoveryEvents([]); setDiscoveryRunning(true); setDiscoveryPane(true)
+    setHighlightedIps(new Set()); setPulsingIds(new Set())
+    try {
+      await fetch(`${API}/api/discover`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seed_ips: seedIps, delay_ms: delayMs })
+      })
+    } catch { setDiscoveryRunning(false); return }
+    connectStream()
   }
 
   const filteredNodes = useMemo(() => {

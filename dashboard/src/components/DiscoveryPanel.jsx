@@ -218,7 +218,7 @@ export default function DiscoveryPanel({ events, running, onClose, onStartDiscov
           defaultValue="10.20.10.5"
         />
         <label style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto' }}>Delay:</label>
-        <input type="range" id="delay-slider" min="0" max="500" defaultValue="20" style={{ width: 60 }} title="Animation Delay" />
+        <input type="range" id="delay-slider" min="0" max="150" step="5" defaultValue="0" style={{ width: 60 }} title="Animation Delay" />
         <button
           className="btn btn-success btn-sm"
           disabled={running}

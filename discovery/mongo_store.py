@@ -32,7 +32,7 @@ class MongoStore:
 
     def _init_client(self):
         if MongoClient is None:
-            log.warning("[mongo] pymongo is not installed.")
+            log.debug("[mongo] pymongo is not installed, standard RAG sync is skipped.")
             return
             
         try:
