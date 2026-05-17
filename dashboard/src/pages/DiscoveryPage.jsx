@@ -92,11 +92,14 @@ export default function DiscoveryPage({ apiBase }) {
           }], edges: prev.edges }
         })
       }
-      if (event.type === 'discovered_ip' && event.ip && event.source) {
+      if (event.type === 'discovered_ip' && event.ip && event.source && event.source !== "null") {
         setGraph(prev => {
           const edgeId = `${event.source}-${event.ip}`
           if (prev.edges.find(e => e.id === edgeId)) return prev
-          return { nodes: prev.nodes, edges: [...prev.edges, { id: edgeId, from: event.source, to: event.ip, label: 'discovered' }] }
+          return {
+            ...prev,
+            edges: [...prev.edges, { id: edgeId, from: event.source, to: event.ip, label: 'LINK' }]
+          }
         })
       }
       if (event.type === 'complete' || event.type === 'error') { setDiscoveryRunning(false); es.close(); fetchGraph() }

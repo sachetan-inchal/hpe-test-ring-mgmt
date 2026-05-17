@@ -234,7 +234,8 @@ def legacy_graph_alias():
 
 @app.route("/api/faker/san", methods=["POST"])
 def api_faker_san():
-    return fake_san()
+    """Alias for newer generator logic."""
+    return faker_generate()
 
 # ── Simulator endpoints ───────────────────────────────────────────────────────
 
