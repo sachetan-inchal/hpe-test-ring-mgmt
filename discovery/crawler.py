@@ -33,6 +33,7 @@ from parsers.linux_parser import parse_linux_output
 from parsers.windows_parser import parse_windows_output
 from neo4j_store import Neo4jStore
 from indexer import ElasticsearchIndexer
+from mongo_store import MongoStore
 
 log = logging.getLogger(__name__)
 
@@ -88,9 +89,11 @@ class DiscoveryCrawler:
     """
 
     def __init__(self, neo4j_store: Optional[Neo4jStore] = None,
-                 es_indexer: Optional[ElasticsearchIndexer] = None):
+                 es_indexer: Optional[ElasticsearchIndexer] = None,
+                 mongo_store: Optional[MongoStore] = None):
         self.neo4j = neo4j_store
         self.es = es_indexer
+        self.mongo = mongo_store
 
         self.running = False
         self.events: List[dict] = []
@@ -242,6 +245,14 @@ class DiscoveryCrawler:
             except Exception as e:
                 self._emit({"type": "es_error", "ip": ip, "msg": f"Elasticsearch error: {e}"})
 
+        # Sync to MongoDB for Chatbot Standard RAG
+        if self.mongo:
+            try:
+                self.mongo.store(parsed)
+                self._emit({"type": "mongo_stored", "ip": ip, "msg": f"Synced {device_name} to MongoDB"})
+            except Exception as e:
+                self._emit({"type": "mongo_error", "ip": ip, "msg": f"MongoDB error: {e}"})
+
         # Enqueue newly discovered IPs
         for new_ip in new_ips:
             if new_ip not in self.visited:
@@ -308,4 +319,6 @@ class DiscoveryCrawler:
 
 
 # Singleton
+# Note: we inject stores into the singleton later if needed, or instantiate them directly.
+# By default, crawler initializes its own stores if not provided.
 discovery_crawler = DiscoveryCrawler()

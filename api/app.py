@@ -63,6 +63,7 @@ from discovery.parsers import sim_parser
 from discovery.parsers.sim_parser import parse_sim_array_output
 from discovery.indexer import ElasticsearchIndexer
 from discovery.neo4j_store import Neo4jStore
+from discovery.mongo_store import MongoStore
 from simulator.network_sim import virtual_network
 
 _PARSERS = {
@@ -84,6 +85,7 @@ CORS(app)
 
 neo4j   = Neo4jStore()
 es      = ElasticsearchIndexer()
+mongo   = MongoStore()
 
 @app.before_request
 def ensure_infrastructure():
@@ -92,6 +94,8 @@ def ensure_infrastructure():
         neo4j._init_driver()
     if not es.available:
         es._init_client()
+    if not mongo.available:
+        mongo._init_client()
 
 
 @app.after_request
@@ -461,6 +465,7 @@ def _valid_prop_key(k):
 # Inject stores into crawler singleton
 discovery_crawler.neo4j = neo4j
 discovery_crawler.es    = es
+discovery_crawler.mongo = mongo
 
 # ── Chatbot Proxy (Node.js) ───────────────────────────────────────────────────
 
