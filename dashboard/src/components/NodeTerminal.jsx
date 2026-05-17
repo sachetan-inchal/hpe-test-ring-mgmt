@@ -402,10 +402,12 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
             disabled={loading || prompt === 'Connection closed.'}
             style={{
               position: 'absolute',
+              left: '-9999px',
+              top: '-9999px',
+              width: '1px',
+              height: '1px',
               opacity: 0,
-              pointerEvents: 'none',
-              width: 0,
-              height: 0,
+              overflow: 'hidden',
               border: 'none',
               outline: 'none',
             }}
