@@ -10,18 +10,64 @@ import { LayoutGrid, Network, Zap } from 'lucide-react'
 
 export default function DiscoveryPage({ apiBase }) {
   const API = apiBase || ''
-  const [graph, setGraph] = useState({ nodes: [], edges: [] })
+  const [graph, setGraph] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('discovery_graph')
+      return saved ? JSON.parse(saved) : { nodes: [], edges: [] }
+    } catch { return { nodes: [], edges: [] } }
+  })
   const [selectedNode, setSelectedNode] = useState(null)
   const [terminalNode, setTerminalNode] = useState(null)
-  const [discoveryRunning, setDiscoveryRunning] = useState(false)
-  const [discoveryEvents, setDiscoveryEvents] = useState([])
-  const [discoveryPane, setDiscoveryPane] = useState(false)
-  const [viewMode, setViewMode] = useState('graph') // 'graph', 'grid', 'neural'
-  const [highlightedIps, setHighlightedIps] = useState(new Set())
+  const [discoveryRunning, setDiscoveryRunning] = useState(() => {
+    return sessionStorage.getItem('discovery_running') === 'true'
+  })
+  const [discoveryEvents, setDiscoveryEvents] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('discovery_events')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
+  const [discoveryPane, setDiscoveryPane] = useState(() => {
+    return sessionStorage.getItem('discovery_pane') === 'true'
+  })
+  const [viewMode, setViewMode] = useState(() => {
+    return sessionStorage.getItem('discovery_view_mode') || 'graph'
+  })
+  const [highlightedIps, setHighlightedIps] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('discovery_highlighted_ips')
+      return saved ? new Set(JSON.parse(saved)) : new Set()
+    } catch { return new Set() }
+  })
   const [pulsingIds, setPulsingIds] = useState(new Set())
   const [apiHealth, setApiHealth] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const eventSourceRef = useRef(null)
+
+  // Synchronize dynamic states with tab-local sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('discovery_graph', JSON.stringify(graph))
+  }, [graph])
+
+  useEffect(() => {
+    sessionStorage.setItem('discovery_running', discoveryRunning)
+  }, [discoveryRunning])
+
+  useEffect(() => {
+    sessionStorage.setItem('discovery_events', JSON.stringify(discoveryEvents))
+  }, [discoveryEvents])
+
+  useEffect(() => {
+    sessionStorage.setItem('discovery_pane', discoveryPane)
+  }, [discoveryPane])
+
+  useEffect(() => {
+    sessionStorage.setItem('discovery_view_mode', viewMode)
+  }, [viewMode])
+
+  useEffect(() => {
+    sessionStorage.setItem('discovery_highlighted_ips', JSON.stringify(Array.from(highlightedIps)))
+  }, [highlightedIps])
 
   const fetchGraph = useCallback(async () => {
     try {
@@ -37,14 +83,20 @@ export default function DiscoveryPage({ apiBase }) {
         id: `${e.data.source}-${e.data.target}`, from: e.data.source,
         to: e.data.target, label: e.data.label || ''
       }))
-      setGraph({ nodes, edges })
+      setGraph(prev => {
+        const isRunning = sessionStorage.getItem('discovery_running') === 'true'
+        return isRunning ? prev : { nodes, edges }
+      })
     } catch {
       try {
         const simRes = await fetch(`${API}/api/sim/topology`)
         const simData = await simRes.json()
-        setGraph({
-          nodes: (simData.nodes || []).map(n => ({ ...n, type: n.type || 'Device', status: 'normal', ip: n.id })),
-          edges: (simData.edges || []).map(e => ({ id: `${e.source}-${e.target}`, from: e.source, to: e.target, label: e.type || '' }))
+        setGraph(prev => {
+          const isRunning = sessionStorage.getItem('discovery_running') === 'true'
+          return isRunning ? prev : {
+            nodes: (simData.nodes || []).map(n => ({ ...n, type: n.type || 'Device', status: 'normal', ip: n.id })),
+            edges: (simData.edges || []).map(e => ({ id: `${e.source}-${e.target}`, from: e.source, to: e.target, label: e.type || '' }))
+          }
         })
       } catch {}
     }
