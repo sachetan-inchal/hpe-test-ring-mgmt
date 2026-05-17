@@ -9,16 +9,37 @@ const generateToken = (id) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const {
+      username,
+      password,
+      role = 'team_member',
+      team = 'team-alpha',
+      cluster = 'cluster-1',
+      managedTeams = [],
+      managedClusters = []
+    } = req.body;
     const userExists = await User.findOne({ username });
     if (userExists) {
       return res.status(400).json({ message: 'User already exists' });
     }
-    const user = await User.create({ username, password });
+    const user = await User.create({
+      username,
+      password,
+      role,
+      team,
+      cluster,
+      managedTeams: Array.isArray(managedTeams) ? managedTeams : [],
+      managedClusters: Array.isArray(managedClusters) ? managedClusters : []
+    });
     if (user) {
       res.status(201).json({
         _id: user._id,
         username: user.username,
+        role: user.role,
+        team: user.team,
+        cluster: user.cluster,
+        managedTeams: user.managedTeams || [],
+        managedClusters: user.managedClusters || [],
         token: generateToken(user._id),
       });
     } else {
@@ -37,6 +58,11 @@ export const loginUser = async (req, res) => {
       res.json({
         _id: user._id,
         username: user.username,
+        role: user.role || 'team_member',
+        team: user.team || 'team-alpha',
+        cluster: user.cluster || 'cluster-1',
+        managedTeams: user.managedTeams || [],
+        managedClusters: user.managedClusters || [],
         token: generateToken(user._id),
       });
     } else {

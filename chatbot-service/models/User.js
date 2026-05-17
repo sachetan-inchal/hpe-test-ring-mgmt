@@ -10,6 +10,27 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true
+  },
+  role: {
+    type: String,
+    enum: ['team_member', 'manager', 'senior_manager', 'admin'],
+    default: 'team_member'
+  },
+  team: {
+    type: String,
+    default: 'team-alpha'
+  },
+  cluster: {
+    type: String,
+    default: 'cluster-1'
+  },
+  managedTeams: {
+    type: [String],
+    default: []
+  },
+  managedClusters: {
+    type: [String],
+    default: []
   }
 }, { timestamps: true });
 

@@ -90,8 +90,167 @@ def ensure_infrastructure():
     if not es.available:
         es._init_client()
 
+
+@app.after_request
+def apply_rbac_filter(response):
+    try:
+        if request.method != "GET" or not request.path.startswith("/api"):
+            return response
+        if not response.content_type or "application/json" not in response.content_type.lower():
+            return response
+
+        actor = _get_actor_context()
+        if _ROLE_ORDER.get(actor["role"], 0) >= _ROLE_ORDER[_ROLE_ADMIN]:
+            return response
+
+        payload = response.get_json(silent=True)
+        if payload is None:
+            return response
+
+        filtered = _filter_graph_payload(payload, actor)
+        response.set_data(json.dumps(filtered))
+        response.headers["Content-Length"] = str(len(response.get_data()))
+        return response
+    except Exception as exc:
+        log.warning(f"[rbac] filter skipped: {exc}")
+        return response
+
 FIELD_DEF_PATH = os.path.join(MONOREPO, "data", "field_definitions.json")
 ALLOWED_CREATE_LABELS = frozenset({"Host", "Switch", "ArraySystem", "Cage", "Node", "PhysicalDisk"})
+
+_ROLE_TEAM_MEMBER = "team_member"
+_ROLE_MANAGER = "manager"
+_ROLE_SENIOR_MANAGER = "senior_manager"
+_ROLE_ADMIN = "admin"
+_ROLE_ORDER = {
+    _ROLE_TEAM_MEMBER: 1,
+    _ROLE_MANAGER: 2,
+    _ROLE_SENIOR_MANAGER: 3,
+    _ROLE_ADMIN: 4,
+}
+
+
+def _split_csv(value):
+    if not value:
+        return []
+    return [x.strip() for x in str(value).split(",") if x.strip()]
+
+
+def _get_actor_context():
+    role = (request.headers.get("X-User-Role") or _ROLE_ADMIN).strip().lower()
+    if role not in _ROLE_ORDER:
+        role = _ROLE_ADMIN
+    return {
+        "id": request.headers.get("X-User-Id") or "",
+        "role": role,
+        "team": (request.headers.get("X-User-Team") or "").strip(),
+        "cluster": (request.headers.get("X-User-Cluster") or "").strip(),
+        "managed_teams": set(_split_csv(request.headers.get("X-User-Managed-Teams"))),
+        "managed_clusters": set(_split_csv(request.headers.get("X-User-Managed-Clusters"))),
+    }
+
+
+def _extract_node_data(node):
+    if isinstance(node, dict) and isinstance(node.get("data"), dict):
+        return node["data"]
+    return node if isinstance(node, dict) else {}
+
+
+def _node_identifier(node):
+    if not isinstance(node, dict):
+        return None
+    payload = _extract_node_data(node)
+    return payload.get("id") or node.get("id")
+
+
+def _node_team_and_cluster(node_payload):
+    team = (
+        node_payload.get("team")
+        or node_payload.get("owner_team")
+        or node_payload.get("access_team")
+        or ""
+    )
+    cluster = (
+        node_payload.get("cluster")
+        or node_payload.get("owner_cluster")
+        or node_payload.get("access_cluster")
+        or ""
+    )
+    return str(team).strip(), str(cluster).strip()
+
+
+def _can_view_node(node_payload, actor):
+    role = actor["role"]
+    if _ROLE_ORDER.get(role, 0) >= _ROLE_ORDER[_ROLE_ADMIN]:
+        return True
+
+    node_team, node_cluster = _node_team_and_cluster(node_payload)
+
+    # Backward compatibility: existing nodes without ownership metadata stay visible.
+    if not node_team and not node_cluster:
+        return True
+
+    if role == _ROLE_SENIOR_MANAGER:
+        allowed_clusters = set(actor["managed_clusters"])
+        if actor["cluster"]:
+            allowed_clusters.add(actor["cluster"])
+        return node_cluster in allowed_clusters if node_cluster else True
+
+    if role == _ROLE_MANAGER:
+        allowed_teams = set(actor["managed_teams"])
+        if actor["team"]:
+            allowed_teams.add(actor["team"])
+        if node_team and node_team in allowed_teams:
+            return True
+        return bool(node_cluster and actor["cluster"] and node_cluster == actor["cluster"])
+
+    if role == _ROLE_TEAM_MEMBER:
+        if node_team:
+            return bool(actor["team"] and node_team == actor["team"])
+        return bool(node_cluster and actor["cluster"] and node_cluster == actor["cluster"])
+
+    return False
+
+
+def _edge_endpoints(edge):
+    if not isinstance(edge, dict):
+        return None, None
+    if isinstance(edge.get("data"), dict):
+        data = edge["data"]
+        return data.get("source"), data.get("target")
+    return edge.get("from") or edge.get("source"), edge.get("to") or edge.get("target")
+
+
+def _filter_graph_payload(payload, actor):
+    if not isinstance(payload, dict):
+        return payload
+
+    nodes = payload.get("nodes")
+    if not isinstance(nodes, list):
+        return payload
+
+    allowed_nodes = []
+    allowed_ids = set()
+    for node in nodes:
+        node_data = _extract_node_data(node)
+        if _can_view_node(node_data, actor):
+            allowed_nodes.append(node)
+            node_id = _node_identifier(node)
+            if node_id:
+                allowed_ids.add(node_id)
+
+    payload["nodes"] = allowed_nodes
+
+    edges = payload.get("edges")
+    if isinstance(edges, list):
+        filtered_edges = []
+        for edge in edges:
+            src, tgt = _edge_endpoints(edge)
+            if src in allowed_ids and tgt in allowed_ids:
+                filtered_edges.append(edge)
+        payload["edges"] = filtered_edges
+
+    return payload
 
 
 class _Neo4jRagBridge:
@@ -130,10 +289,10 @@ def _load_allowed_keys():
         for vals in d.values():
             if isinstance(vals, list):
                 s.update(vals)
-        s.update({"ingest_os", "rack_location", "fc_support", "notes"})
+        s.update({"ingest_os", "rack_location", "fc_support", "notes", "team", "cluster", "owner_team", "owner_cluster"})
         return s
     except Exception:
-        return {"name", "model", "serial", "ip_address", "is_decommissioned"}
+        return {"name", "model", "serial", "ip_address", "is_decommissioned", "team", "cluster", "owner_team", "owner_cluster"}
 
 
 def _valid_prop_key(k):

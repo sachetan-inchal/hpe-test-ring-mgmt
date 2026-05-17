@@ -11,6 +11,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [role, setRole] = useState('team_member')
+  const [team, setTeam] = useState('team-alpha')
+  const [cluster, setCluster] = useState('cluster-1')
+  const [managedTeams, setManagedTeams] = useState('')
+  const [managedClusters, setManagedClusters] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,7 +38,17 @@ export default function LoginPage() {
       const res = await fetch(`${CHATBOT_API}${endpoint.replace('/api', '')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: email, password })
+        body: JSON.stringify({
+          username: email,
+          password,
+          ...(isLogin ? {} : {
+            role,
+            team,
+            cluster,
+            managedTeams: managedTeams.split(',').map(s => s.trim()).filter(Boolean),
+            managedClusters: managedClusters.split(',').map(s => s.trim()).filter(Boolean),
+          })
+        })
       })
       const data = await res.json()
       if (!res.ok) {
@@ -115,6 +130,62 @@ export default function LoginPage() {
                 required
               />
             </div>
+          )}
+
+          {!isLogin && (
+            <>
+              <div className="form-group">
+                <label>Role</label>
+                <select className="input" value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="team_member">Team Member</option>
+                  <option value="manager">Manager</option>
+                  <option value="senior_manager">Senior Manager</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Team</label>
+                <input
+                  type="text"
+                  value={team}
+                  onChange={(e) => setTeam(e.target.value)}
+                  placeholder="team-alpha"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Cluster</label>
+                <input
+                  type="text"
+                  value={cluster}
+                  onChange={(e) => setCluster(e.target.value)}
+                  placeholder="cluster-1"
+                  required
+                />
+              </div>
+              {(role === 'manager' || role === 'senior_manager' || role === 'admin') && (
+                <>
+                  <div className="form-group">
+                    <label>Managed Teams (comma separated)</label>
+                    <input
+                      type="text"
+                      value={managedTeams}
+                      onChange={(e) => setManagedTeams(e.target.value)}
+                      placeholder="team-alpha,team-beta"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Managed Clusters (comma separated)</label>
+                    <input
+                      type="text"
+                      value={managedClusters}
+                      onChange={(e) => setManagedClusters(e.target.value)}
+                      placeholder="cluster-1,cluster-2"
+                    />
+                  </div>
+                </>
+              )}
+            </>
           )}
           <button type="submit" className="login-submit" disabled={loading}>
             {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
