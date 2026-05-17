@@ -3,11 +3,11 @@
  * Cisco Packet Tracer-style interactive terminal for each SAN device.
  * Opens as a modal overlay. Supports HPE CLI, Linux bash, Brocade switch, and Windows PowerShell.
  *
- * SSH Login Flow (mirrors the real log file exactly):
- *   Array   → RSA key warning → yes/no prompt → Password: toast → cli% prompt
- *   Linux   → ECDSA key warning → yes/no prompt → root@host's password: toast → $ prompt
- *   Switch  → admin@host's password: toast (no key warning) → switch:FID100:admin> prompt
- *   Windows → direct connect, no SSH simulation
+ * State-fully simulates SSH login entirely inline in the terminal flow:
+ *   1. Displays key mismatch warnings (RSA for Array, ECDSA for Linux, direct connection for Switch/Windows).
+ *   2. Prompts "Are you sure you want to continue connecting (yes/no)?" directly inside the input stream.
+ *   3. Prompts for password (fully masked with type="password") directly inside the input stream.
+ *   4. Logs in with the correct real shell banner and prompt, keeping full parity with real SSH logs.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
 
@@ -62,137 +62,14 @@ const COL = {
   ssh:  '#d2a8ff',
 }
 
-// ── Password Toast Modal ──────────────────────────────────────────────────────
-function PasswordToast({ prompt, onSubmit }) {
-  const [pw, setPw] = useState('')
-  const inputRef = useRef(null)
-
-  useEffect(() => { inputRef.current?.focus() }, [])
-
-  const submit = () => {
-    if (!pw) return
-    onSubmit(pw)
-    setPw('')
-  }
-
-  return (
-    <div style={{
-      position: 'absolute', inset: 0, zIndex: 10,
-      background: 'rgba(0,0,0,0.55)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      borderRadius: 14,
-    }}>
-      <div style={{
-        background: '#161b22',
-        border: '1px solid #30363d',
-        borderRadius: 10,
-        padding: '24px 28px',
-        minWidth: 340,
-        boxShadow: '0 16px 48px rgba(0,0,0,0.8)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <span style={{ fontSize: 18 }}>🔐</span>
-          <span style={{ color: '#e6edf3', fontWeight: 600, fontSize: 14 }}>SSH Authentication</span>
-        </div>
-
-        <div style={{
-          fontFamily: 'var(--font-mono)', fontSize: 12,
-          color: '#d2a8ff', marginBottom: 14,
-          padding: '8px 10px',
-          background: 'rgba(210,168,255,0.06)',
-          borderRadius: 6,
-          borderLeft: '2px solid #7c3aed',
-        }}>
-          {prompt}
-        </div>
-
-        <input
-          ref={inputRef}
-          type="password"
-          value={pw}
-          onChange={e => setPw(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') submit() }}
-          placeholder="Enter password…"
-          style={{
-            width: '100%', boxSizing: 'border-box',
-            background: '#0d1117',
-            border: '1px solid #30363d',
-            borderRadius: 6,
-            color: '#e6edf3',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 13,
-            padding: '8px 12px',
-            outline: 'none',
-            marginBottom: 14,
-          }}
-        />
-
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button
-            onClick={submit}
-            style={{
-              padding: '7px 20px',
-              background: 'linear-gradient(135deg, #238636, #2ea043)',
-              border: 'none', borderRadius: 6,
-              color: '#fff', fontWeight: 600, fontSize: 12,
-              cursor: 'pointer',
-              boxShadow: '0 0 12px rgba(46,160,67,0.3)',
-            }}
-          >
-            Authenticate
-          </button>
-        </div>
-
-        <div style={{ marginTop: 10, fontSize: 10, color: '#484f58', textAlign: 'center' }}>
-          Any password is accepted in simulation mode
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Yes/No inline prompt ──────────────────────────────────────────────────────
-function YesNoPrompt({ onAnswer }) {
-  return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: 10,
-      fontFamily: 'var(--font-mono)', fontSize: 12,
-    }}>
-      <span style={{ color: '#e3b341' }}>Are you sure you want to continue connecting (yes/no)?</span>
-      <button
-        onClick={() => onAnswer('yes')}
-        style={{
-          padding: '2px 12px', borderRadius: 4,
-          background: 'rgba(46,160,67,0.15)',
-          border: '1px solid #2ea043', color: '#3fb950',
-          fontFamily: 'var(--font-mono)', fontSize: 11,
-          cursor: 'pointer',
-        }}
-      >yes</button>
-      <button
-        onClick={() => onAnswer('no')}
-        style={{
-          padding: '2px 12px', borderRadius: 4,
-          background: 'rgba(248,81,73,0.1)',
-          border: '1px solid #f85149', color: '#f85149',
-          fontFamily: 'var(--font-mono)', fontSize: 11,
-          cursor: 'pointer',
-        }}
-      >no</button>
-    </div>
-  )
-}
-
-// ── Main Terminal ─────────────────────────────────────────────────────────────
 export default function NodeTerminal({ node, apiBase, onClose }) {
   const kind = getDeviceKind(node)
   const hints = HINT_COMMANDS[kind] || HINT_COMMANDS.host_linux
 
-  // SSH state: 'init' | 'key_warning' | 'awaiting_yes_no' | 'awaiting_password' | 'connected'
+  // SSH states: 'init' | 'awaiting_yes_no' | 'awaiting_password' | 'connected'
   const [sshState, setSshState]     = useState('init')
-  const [handshake, setHandshake]   = useState(null)  // metadata from /api/sim/ssh/connect
-  const [prompt, setPrompt]         = useState(getDefaultPrompt(kind, node))
+  const [handshake, setHandshake]   = useState(null)
+  const [prompt, setPrompt]         = useState('')
 
   const [lines, setLines]   = useState([])
   const [input, setInput]   = useState('')
@@ -206,7 +83,7 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
   const addLine = useCallback((type, text) =>
     setLines(prev => [...prev, { type, text }]), [])
 
-  // ── Boot: fetch SSH handshake data ─────────────────────────────────────────
+  // ── Boot: Fetch SSH Metadata & Simulate Login ──────────────────────────────
   useEffect(() => {
     const boot = async () => {
       try {
@@ -214,122 +91,167 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
         const data = await res.json()
         if (data.error) throw new Error(data.error)
         setHandshake(data)
-        // Use server-supplied prompt if available
-        if (data.prompt) setPrompt(data.prompt)
 
-        // Show the ssh command itself
+        // Show the SSH connection command itself
         const loginUser = data.login_user || 'root'
         const devName = data.name || node.ip
         addLine('ssh', `ssh ${loginUser}@${devName}`)
 
         if (data.key_type) {
-          // Show key warning, then ask yes/no
-          addLine('warn', data.handshake_lines[0])
+          // RSA / ECDSA Warning exists
+          addLine('warn', `Warning: the ${data.key_type} host key for '${devName}' differs from the key for the IP address '${node.ip}'`)
+          setPrompt('Are you sure you want to continue connecting (yes/no)? ')
           setSshState('awaiting_yes_no')
         } else {
-          // Switch: go straight to password
+          // Direct password prompt (e.g. switches or simple hosts)
+          setPrompt(data.password_prompt || 'Password: ')
           setSshState('awaiting_password')
         }
       } catch {
-        // Fallback: connect immediately
+        // Fallback: Bypass SSH simulation if API is unreachable
         addLine('info', `Connected to ${node.name || node.ip} (${node.ip})`)
         addLine('info', `Device type: ${node.type || kind}`)
         addLine('info', 'Type "help" or "?" for available commands.')
         addLine('out', '')
+        setPrompt(getDefaultPrompt(kind, node))
         setSshState('connected')
-        inputRef.current?.focus()
       }
     }
     boot()
   }, []) // eslint-disable-line
 
-  // Auto-scroll
+  // Keep focus on input
+  const focusInput = () => {
+    inputRef.current?.focus()
+  }
+
+  // Auto-scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [lines, sshState])
+  }, [lines, sshState, prompt])
 
-  // Focus input when connected
+  // Focus input automatically on transitions
   useEffect(() => {
-    if (sshState === 'connected') inputRef.current?.focus()
+    focusInput()
   }, [sshState])
 
-  // ── SSH state handlers ─────────────────────────────────────────────────────
-  const handleYesNo = useCallback((answer) => {
-    addLine('out', `Are you sure you want to continue connecting (yes/no)? ${answer}`)
-    if (answer === 'no') {
-      addLine('error', 'Connection aborted.')
-      setSshState('connected')   // allow re-try by closing
+  // ── Submit Input Handler (Handles entire SSH logic + CLI commands) ─────────
+  const handleSubmit = async (e) => {
+    if (e.key !== 'Enter') return
+
+    const trimmed = input.trim()
+    setInput('')
+
+    if (sshState === 'awaiting_yes_no') {
+      // Append what they typed
+      addLine('cmd', `${prompt}${input}`)
+      if (trimmed.toLowerCase() === 'yes') {
+        // Proceed to Password
+        setPrompt(handshake?.password_prompt || 'Password: ')
+        setSshState('awaiting_password')
+      } else if (trimmed.toLowerCase() === 'no') {
+        addLine('error', 'Host key verification failed. Connection closed.')
+        setPrompt('Connection closed.')
+      } else {
+        addLine('error', "Please type 'yes' or 'no'.")
+      }
       return
     }
-    // yes → go to password
-    addLine('out', '')
-    setSshState('awaiting_password')
-  }, [addLine])
 
-  const handlePassword = useCallback((_pw) => {
-    const pwPrompt = handshake?.password_prompt || 'Password:'
-    addLine('ssh', `${pwPrompt} ****`)
-    addLine('out', '')
+    if (sshState === 'awaiting_password') {
+      // Append password line fully masked matching real logs
+      const pwPrompt = handshake?.password_prompt || 'Password: '
+      addLine('cmd', `${pwPrompt}********`)
 
-    // Show the authenticated shell banner
-    const devName = handshake?.name || node.name || node.ip
-    const loginUser = handshake?.login_user || 'root'
-    if (kind === 'switch') {
-      addLine('out', `${devName}:FID100:admin> `)
-    } else if (kind === 'array') {
-      addLine('out', `${loginUser}@${devName}:~# `)
-    } else {
-      addLine('info', `Linux ${devName} — logged in as ${loginUser}`)
+      // Complete login banner and setup shell prompt
+      const devName = handshake?.name || node.name || node.ip
+      const loginUser = handshake?.login_user || 'root'
+
+      if (kind === 'switch') {
+        addLine('out', `${devName}:FID100:admin> `)
+        setPrompt(`${devName}:FID100:admin> `)
+      } else if (kind === 'array') {
+        addLine('out', `root@${devName}:~# `)
+        setPrompt(`root@${devName}:~# `)
+      } else {
+        addLine('info', `Linux ${devName} — logged in as ${loginUser}`)
+        addLine('out', '')
+        setPrompt(`root@${devName}:~$ `)
+      }
+
+      setSshState('connected')
+      return
     }
-    addLine('out', '')
-    setSshState('connected')
-  }, [addLine, handshake, node, kind])
 
-  // ── Command execution ──────────────────────────────────────────────────────
-  const executeCommand = useCallback(async (cmd) => {
-    const trimmed = cmd.trim()
-    if (!trimmed) return
+    if (sshState === 'connected') {
+      if (!trimmed) return
 
-    setLines(prev => [...prev, { type: 'cmd', text: `${prompt}${trimmed}` }])
-    setHistory(prev => [trimmed, ...prev.slice(0, 49)])
-    setHistIdx(-1)
-    setInput('')
+      // Print command in input stream
+      addLine('cmd', `${prompt}${trimmed}`)
+      setHistory(prev => [trimmed, ...prev.slice(0, 49)])
+      setHistIdx(-1)
+      setLoading(true)
+
+      try {
+        const res = await fetch(`${apiBase}/api/sim/exec`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: node.ip, command: trimmed }),
+        })
+        const data = await res.json()
+        const output = data.output || data.error || 'No output'
+        
+        // Print output lines
+        output.split('\n').forEach(line => addLine('out', line))
+        addLine('out', '')
+      } catch (err) {
+        addLine('error', `Error: ${err.message}`)
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
+
+  // ── Quick Hints Auto-Execution ─────────────────────────────────────────────
+  const runHint = async (cmd) => {
+    if (sshState !== 'connected' || loading) return
+    addLine('cmd', `${prompt}${cmd}`)
     setLoading(true)
-
     try {
       const res = await fetch(`${apiBase}/api/sim/exec`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: node.ip, command: trimmed }),
+        body: JSON.stringify({ ip: node.ip, command: cmd }),
       })
       const data = await res.json()
       const output = data.output || data.error || 'No output'
-      const outLines = output.split('\n').map(l => ({ type: 'out', text: l }))
-      setLines(prev => [...prev, ...outLines, { type: 'out', text: '' }])
-    } catch (e) {
-      setLines(prev => [...prev, { type: 'error', text: `Error: ${e.message}` }])
+      output.split('\n').forEach(line => addLine('out', line))
+      addLine('out', '')
+    } catch (err) {
+      addLine('error', `Error: ${err.message}`)
     } finally {
       setLoading(false)
     }
-  }, [prompt, node.ip, apiBase])
+  }
 
+  // Keyboard navigation for command history
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      executeCommand(input)
-    } else if (e.key === 'ArrowUp') {
+    if (e.key === 'ArrowUp') {
       e.preventDefault()
+      if (sshState !== 'connected') return
       const newIdx = Math.min(histIdx + 1, history.length - 1)
       setHistIdx(newIdx)
       setInput(history[newIdx] || '')
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
+      if (sshState !== 'connected') return
       const newIdx = Math.max(histIdx - 1, -1)
       setHistIdx(newIdx)
       setInput(newIdx === -1 ? '' : history[newIdx] || '')
     }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // Dynamic status colors for badges
   const typeBadgeColor = {
     array:        { bg: 'rgba(88,166,255,0.15)', fg: '#58a6ff', border: 'rgba(88,166,255,0.3)' },
     switch:       { bg: 'rgba(63,185,80,0.15)',  fg: '#3fb950', border: 'rgba(63,185,80,0.3)' },
@@ -360,17 +282,8 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
           display: 'flex', flexDirection: 'column',
           maxHeight: '82vh',
           boxShadow: '0 32px 90px rgba(0,0,0,0.8)',
-          position: 'relative',   /* needed for PasswordToast */
         }}
       >
-        {/* Password toast overlay */}
-        {sshState === 'awaiting_password' && (
-          <PasswordToast
-            prompt={handshake?.password_prompt || 'Password:'}
-            onSubmit={handlePassword}
-          />
-        )}
-
         {/* ── Title bar ── */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -394,7 +307,6 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
               border: `1px solid ${typeBadgeColor.border}`,
               textTransform: 'uppercase', letterSpacing: '0.08em',
             }}>{node.type || kind}</span>
-            {/* SSH state indicator */}
             <span style={{
               padding: '1px 6px', borderRadius: 20, fontSize: 9,
               background: sshState === 'connected' ? 'rgba(63,185,80,0.15)' : 'rgba(227,179,65,0.15)',
@@ -408,7 +320,7 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#848d97', fontSize: 16 }}>✕</button>
         </div>
 
-        {/* ── Quick command pills (only when connected) ── */}
+        {/* ── Quick command pills (Only available when logged in) ── */}
         {sshState === 'connected' && (
           <div style={{
             display: 'flex', flexWrap: 'wrap', gap: 5, padding: '8px 14px',
@@ -417,7 +329,7 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
             {hints.map(cmd => (
               <button
                 key={cmd}
-                onClick={() => executeCommand(cmd)}
+                onClick={() => runHint(cmd)}
                 style={{
                   padding: '2px 9px', borderRadius: 20,
                   background: '#161b22', border: '1px solid #30363d',
@@ -441,8 +353,9 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
           style={{
             flex: 1, overflowY: 'auto', padding: '12px 14px',
             fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.8,
+            cursor: 'text',
           }}
-          onClick={() => sshState === 'connected' && inputRef.current?.focus()}
+          onClick={focusInput}
         >
           {lines.map((l, i) => (
             <div key={i} style={{ color: COL[l.type] || '#c9d1d9', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
@@ -450,52 +363,55 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
             </div>
           ))}
 
-          {/* Interactive yes/no prompt */}
-          {sshState === 'awaiting_yes_no' && (
-            <div style={{ marginTop: 6, marginBottom: 4 }}>
-              <YesNoPrompt onAnswer={handleYesNo} />
-            </div>
-          )}
-
           {loading && (
-            <div style={{ color: '#58a6ff', fontSize: 11 }}>
+            <div style={{ color: '#58a6ff', fontSize: 11, marginTop: 4 }}>
               <span className="pulse-dot blue" style={{ marginRight: 6 }} />executing…
             </div>
           )}
           <div ref={bottomRef} />
         </div>
 
-        {/* ── Input bar (only when connected) ── */}
-        {sshState === 'connected' && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 14px',
-            background: '#0d1117',
-            borderTop: '1px solid #21262d',
+        {/* ── Inline Terminal Input Bar (Handles yes/no, password, and CLI input) ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '10px 14px',
+          background: '#0d1117',
+          borderTop: '1px solid #21262d',
+        }}>
+          <span style={{
+            fontFamily: 'var(--font-mono)', fontSize: 12,
+            color: sshState === 'connected' ? '#39c5cf' : '#e3b341',
+            flexShrink: 0,
+            whiteSpace: 'pre',
           }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#39c5cf', flexShrink: 0 }}>
-              {prompt}
-            </span>
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={loading}
-              placeholder={loading ? 'Running…' : 'Type a command…'}
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: '#e6edf3',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 12,
-                caretColor: '#3fb950',
-              }}
-            />
-          </div>
-        )}
+            {prompt}
+          </span>
+          <input
+            ref={inputRef}
+            type={sshState === 'awaiting_password' ? 'password' : 'text'}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onKeyPress={handleSubmit}
+            disabled={loading || prompt === 'Connection closed.'}
+            placeholder={
+              loading ? 'Executing command…' :
+              sshState === 'awaiting_yes_no' ? "type 'yes' or 'no'…" :
+              sshState === 'awaiting_password' ? 'enter password…' :
+              'Type a command…'
+            }
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              color: '#e6edf3',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              caretColor: '#3fb950',
+            }}
+          />
+        </div>
       </div>
     </div>
   )
