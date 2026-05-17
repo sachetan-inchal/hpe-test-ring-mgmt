@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 
-const cardWidth = 190;
+const cardWidth = 220;
 const compactCardHeight = 90;
 const expandedCardHeight = 156;
 const focusedBump = 14;
-const horizontalGap = 68;
-const verticalGap = 24;
-const canvasPadding = 32;
+const horizontalGap = 180;
+const verticalGap = 44;
+const canvasPadding = 56;
 
 const statusStyle = {
   normal: { border: "1px solid rgba(4, 120, 87, 0.6)", background: "rgba(236, 253, 245, 0.05)" },
@@ -15,6 +15,32 @@ const statusStyle = {
 };
 
 const edgePalette = ["#0284c7", "#16a34a", "#dc2626", "#7c3aed", "#ea580c", "#0f766e"];
+const columnOrder = [
+  "Array",
+  "Switch",
+  "Cage",
+  "JBOF",
+  "Node",
+  "Host",
+  "Disk",
+  "Port",
+  "PCI_Device",
+  "Other",
+];
+
+function normalizeType(type) {
+  const t = String(type || "").trim();
+  if (t === "Array" || t === "ArraySystem") return "Array";
+  if (t === "Switch") return "Switch";
+  if (t === "Cage") return "Cage";
+  if (t === "JBOF") return "JBOF";
+  if (t === "Node" || t === "Controller") return "Node";
+  if (t === "Host") return "Host";
+  if (t === "Disk" || t === "PhysicalDisk") return "Disk";
+  if (t === "Port") return "Port";
+  if (t === "PCI_Device") return "PCI_Device";
+  return "Other";
+}
 
 function edgeKey(a, b) {
   return a < b ? `${a}__${b}` : `${b}__${a}`;
@@ -51,6 +77,14 @@ export default function HierarchyTree({
     [nodes, visibleIdSet]
   );
 
+  const nodeById = useMemo(() => {
+    const map = new Map();
+    for (const node of visibleNodes) {
+      map.set(node.id, node);
+    }
+    return map;
+  }, [visibleNodes]);
+
   const adjacency = useMemo(() => {
     const map = new Map();
     for (const node of visibleNodes) {
@@ -79,67 +113,51 @@ export default function HierarchyTree({
     return map;
   }, [expandedSet, focusedId, visibleNodes]);
 
+  const typeColumns = useMemo(() => {
+    const map = new Map();
+    for (const key of columnOrder) {
+      map.set(key, []);
+    }
+
+    for (const node of visibleNodes) {
+      const column = normalizeType(node.type);
+      map.get(column)?.push(node.id);
+    }
+
+    const nonEmptyOrdered = columnOrder.filter((key) => (map.get(key)?.length || 0) > 0);
+    nonEmptyOrdered.forEach((key) => {
+      const ids = map.get(key) || [];
+      ids.sort((a, b) => {
+        const left = nodeById.get(a);
+        const right = nodeById.get(b);
+        const leftName = (left?.name || a).toLowerCase();
+        const rightName = (right?.name || b).toLowerCase();
+        return leftName.localeCompare(rightName);
+      });
+    });
+
+    return nonEmptyOrdered.map((key) => ({ key, ids: map.get(key) || [] }));
+  }, [nodeById, visibleNodes]);
+
   const positions = useMemo(() => {
-    const depthMap = new Map();
-    const queue = [];
-
-    const startIds = rootIds.length > 0 ? rootIds : visibleNodes.filter(n => n.type === 'Host').map(n => n.id);
-    if (startIds.length === 0 && visibleNodes.length > 0) startIds.push(visibleNodes[0].id);
-
-    for (const rootId of startIds) {
-      if (visibleIdSet.has(rootId)) {
-        depthMap.set(rootId, 0);
-        queue.push(rootId);
-      }
-    }
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (!current) {
-        continue;
-      }
-      const nextDepth = (depthMap.get(current) ?? 0) + 1;
-      for (const next of adjacency.get(current) ?? []) {
-        if (!depthMap.has(next)) {
-          depthMap.set(next, nextDepth);
-          queue.push(next);
-        }
-      }
-    }
-
-    let overflowDepth = Math.max(0, ...Array.from(depthMap.values())) + 1;
-    for (const node of visibleNodes) {
-      if (!depthMap.has(node.id)) {
-        depthMap.set(node.id, overflowDepth);
-        overflowDepth += 1;
-      }
-    }
-
-    const byDepth = new Map();
-    for (const node of visibleNodes) {
-      const depth = depthMap.get(node.id) ?? 0;
-      const bucket = byDepth.get(depth) ?? [];
-      bucket.push(node.id);
-      byDepth.set(depth, bucket);
-    }
-
     const result = new Map();
-    for (const [depth, ids] of byDepth.entries()) {
-      ids.sort((a, b) => a.localeCompare(b));
-      let yCursor = canvasPadding;
-      ids.forEach((id) => {
+    const topPadding = canvasPadding + 44;
+
+    typeColumns.forEach((col, colIndex) => {
+      let yCursor = topPadding;
+      col.ids.forEach((id) => {
         const height = cardHeights.get(id) ?? compactCardHeight;
         const extraGap = expandedSet.has(id) ? 14 : 0;
         result.set(id, {
-          x: canvasPadding + depth * (cardWidth + horizontalGap),
+          x: canvasPadding + colIndex * (cardWidth + horizontalGap),
           y: yCursor,
         });
         yCursor += height + verticalGap + extraGap;
       });
-    }
+    });
 
     return result;
-  }, [adjacency, cardHeights, expandedSet, rootIds, visibleIdSet, visibleNodes]);
+  }, [cardHeights, expandedSet, typeColumns]);
 
   const finalPositions = useMemo(() => {
     const merged = new Map();
@@ -161,8 +179,21 @@ export default function HierarchyTree({
     return set;
   }, [pathIds]);
 
+  const focusedEdgeSet = useMemo(() => {
+    const set = new Set();
+    if (!focusedId) {
+      return set;
+    }
+    for (const edge of edges) {
+      if ((edge.from === focusedId || edge.to === focusedId) && visibleIdSet.has(edge.from) && visibleIdSet.has(edge.to)) {
+        set.add(`${edge.from}-${edge.to}`);
+      }
+    }
+    return set;
+  }, [edges, focusedId, visibleIdSet]);
+
   const maxY = useMemo(() => {
-    let value = 360;
+    let value = 560;
     for (const node of visibleNodes) {
       const pos = finalPositions.get(node.id);
       if (!pos) {
@@ -173,6 +204,10 @@ export default function HierarchyTree({
     }
     return value;
   }, [cardHeights, finalPositions, visibleNodes]);
+
+  const maxX = useMemo(() => {
+    return Math.max(1280, canvasPadding * 2 + (typeColumns.length || 1) * cardWidth + Math.max(0, typeColumns.length - 1) * horizontalGap);
+  }, [typeColumns]);
 
   const handleDragStart = (
     nodeId,
@@ -223,7 +258,27 @@ export default function HierarchyTree({
 
   return (
     <div style={{ position: 'relative', height: '100%', minHeight: 420, width: '100%', overflow: 'auto', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--surface-1)' }}>
-      <div style={{ position: 'relative', minWidth: 900, minHeight: maxY }}>
+      <div style={{ position: 'relative', minWidth: maxX, minHeight: maxY }}>
+        <div style={{ position: 'absolute', top: 8, left: 0, right: 0, display: 'flex', pointerEvents: 'none' }}>
+          {typeColumns.map((col, colIndex) => (
+            <div
+              key={col.key}
+              style={{
+                position: 'absolute',
+                left: canvasPadding + colIndex * (cardWidth + horizontalGap),
+                width: cardWidth,
+                textAlign: 'center',
+                fontSize: 11,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--muted)',
+                fontWeight: 700,
+              }}
+            >
+              {col.key}
+            </div>
+          ))}
+        </div>
         <svg style={{ pointerEvents: 'none', position: 'absolute', inset: 0, height: '100%', width: '100%' }} aria-hidden>
           <defs>
             <marker
@@ -248,59 +303,43 @@ export default function HierarchyTree({
             }
 
             const highlighted = pathEdgeSet.has(edgeKey(edge.from, edge.to));
+            const focusLinked = focusedEdgeSet.has(`${edge.from}-${edge.to}`) || focusedEdgeSet.has(`${edge.to}-${edge.from}`);
             const visualKey = `${edge.from}-${edge.to}`;
             const hash = hashString(visualKey);
             const color = edgePalette[hash % edgePalette.length];
-            const laneOffset = ((hash % 7) - 3) * 6;
-            const flowDuration = 1.3 + (hash % 4) * 0.25;
+            const laneOffset = ((hash % 9) - 4) * 6;
             const fromHeight = cardHeights.get(edge.from) ?? compactCardHeight;
             const toHeight = cardHeights.get(edge.to) ?? compactCardHeight;
-            const fromCenterX = fromPos.x + cardWidth / 2;
+            const fromType = normalizeType(nodeById.get(edge.from)?.type);
+            const toType = normalizeType(nodeById.get(edge.to)?.type);
+            const fromColumn = typeColumns.findIndex((col) => col.key === fromType);
+            const toColumn = typeColumns.findIndex((col) => col.key === toType);
+            const leftToRight = fromColumn <= toColumn;
+            const startX = leftToRight ? fromPos.x + cardWidth : fromPos.x;
+            const endX = leftToRight ? toPos.x : toPos.x + cardWidth;
             const fromCenterY = fromPos.y + fromHeight / 2;
-            const toCenterX = toPos.x + cardWidth / 2;
             const toCenterY = toPos.y + toHeight / 2;
-            const dx = toCenterX - fromCenterX;
-            const dy = toCenterY - fromCenterY;
-            const horizontalDominant = Math.abs(dx) >= Math.abs(dy);
-
-            let points = "";
-
-            if (horizontalDominant) {
-              const leftToRight = dx >= 0;
-              const startX = leftToRight ? fromPos.x + cardWidth : fromPos.x;
-              const endX = leftToRight ? toPos.x : toPos.x + cardWidth;
-              const startY = fromCenterY + laneOffset;
-              const endY = toCenterY + laneOffset;
-              const midX = (startX + endX) / 2;
-              points = `${startX},${startY} ${midX},${startY} ${midX},${endY} ${endX},${endY}`;
-            } else {
-              const topToBottom = dy >= 0;
-              const startY = topToBottom ? fromPos.y + fromHeight : fromPos.y;
-              const endY = topToBottom ? toPos.y : toPos.y + toHeight;
-              const startX = fromCenterX + laneOffset;
-              const endX = toCenterX + laneOffset;
-              const midY = (startY + endY) / 2;
-              points = `${startX},${startY} ${startX},${midY} ${endX},${midY} ${endX},${endY}`;
-            }
+            const startY = fromCenterY + laneOffset;
+            const endY = toCenterY + laneOffset;
+            const deltaX = Math.abs(endX - startX);
+            const c1x = startX + (leftToRight ? 1 : -1) * Math.max(36, deltaX * 0.35);
+            const c2x = endX - (leftToRight ? 1 : -1) * Math.max(36, deltaX * 0.35);
+            const pathD = `M ${startX} ${startY} C ${c1x} ${startY}, ${c2x} ${endY}, ${endX} ${endY}`;
+            const edgeOpacity = highlighted ? 0.95 : focusLinked ? 0.8 : focusedId ? 0.16 : 0.35;
+            const edgeStroke = highlighted ? "var(--accent-blue)" : focusLinked ? "var(--accent-green)" : color;
 
             return (
-              <polyline
-                key={visualKey}
-                points={points}
-                fill="none"
-                stroke={highlighted ? "var(--accent-blue)" : color}
-                strokeWidth={highlighted ? 3.2 : 2.1}
-                strokeDasharray={highlighted ? "7 3" : "5 5"}
-                markerEnd="url(#topology-arrow)"
-                strokeLinecap="round"
-              >
-                <animate
-                  attributeName="stroke-dashoffset"
-                  values="24;0"
-                  dur={`${flowDuration}s`}
-                  repeatCount="indefinite"
+              <g key={visualKey}>
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke={edgeStroke}
+                  strokeWidth={highlighted ? 3 : focusLinked ? 2.4 : 1.4}
+                  strokeOpacity={edgeOpacity}
+                  markerEnd="url(#topology-arrow)"
+                  strokeLinecap="round"
                 />
-              </polyline>
+              </g>
             );
           })}
         </svg>
