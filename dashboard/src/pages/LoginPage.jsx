@@ -43,10 +43,10 @@ export default function LoginPage() {
           password,
           ...(isLogin ? {} : {
             role,
-            team,
-            cluster,
-            managedTeams: managedTeams.split(',').map(s => s.trim()).filter(Boolean),
-            managedClusters: managedClusters.split(',').map(s => s.trim()).filter(Boolean),
+            team: role === 'admin' ? 'All Teams' : team,
+            cluster: role === 'admin' ? 'All Clusters' : cluster,
+            managedTeams: role === 'admin' ? ['*'] : managedTeams.split(',').map(s => s.trim()).filter(Boolean),
+            managedClusters: role === 'admin' ? ['*'] : managedClusters.split(',').map(s => s.trim()).filter(Boolean),
           })
         })
       })
@@ -143,27 +143,31 @@ export default function LoginPage() {
                   <option value="admin">Admin</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>Team</label>
-                <input
-                  type="text"
-                  value={team}
-                  onChange={(e) => setTeam(e.target.value)}
-                  placeholder="team-alpha"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Cluster</label>
-                <input
-                  type="text"
-                  value={cluster}
-                  onChange={(e) => setCluster(e.target.value)}
-                  placeholder="cluster-1"
-                  required
-                />
-              </div>
-              {(role === 'manager' || role === 'senior_manager' || role === 'admin') && (
+              {role !== 'admin' && (
+                <>
+                  <div className="form-group">
+                    <label>Team</label>
+                    <input
+                      type="text"
+                      value={team}
+                      onChange={(e) => setTeam(e.target.value)}
+                      placeholder="team-alpha"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Cluster</label>
+                    <input
+                      type="text"
+                      value={cluster}
+                      onChange={(e) => setCluster(e.target.value)}
+                      placeholder="cluster-1"
+                      required
+                    />
+                  </div>
+                </>
+              )}
+              {(role === 'manager' || role === 'senior_manager') && (
                 <>
                   <div className="form-group">
                     <label>Managed Teams (comma separated)</label>

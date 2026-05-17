@@ -178,16 +178,6 @@ def _node_identifier(node):
     return payload.get("id") or node.get("id")
 
 
-def _synthetic_scope_from_identifier(identifier):
-    token = str(identifier or "")
-    if not token:
-        return "team-alpha", "cluster-1"
-    checksum = sum(ord(ch) for ch in token)
-    team = ["team-alpha", "team-beta", "team-gamma"][checksum % 3]
-    cluster = ["cluster-1", "cluster-2"][checksum % 2]
-    return team, cluster
-
-
 def _node_team_and_cluster(node_payload):
     team = (
         node_payload.get("team")
@@ -203,20 +193,26 @@ def _node_team_and_cluster(node_payload):
     )
     team = str(team).strip()
     cluster = str(cluster).strip()
-    if team or cluster:
-        return team, cluster
-    fallback_team, fallback_cluster = _synthetic_scope_from_identifier(
-        node_payload.get("id") or node_payload.get("name") or node_payload.get("ip") or node_payload.get("ip_address")
+    return team, cluster
+
+
+def _node_parent_id(node_payload):
+    return (
+        node_payload.get("parentId")
+        or node_payload.get("parent_id")
+        or node_payload.get("parent")
+        or ""
     )
-    return fallback_team, fallback_cluster
 
 
-def _can_view_node(node_payload, actor):
+def _can_view_scope(node_team, node_cluster, actor):
     role = actor["role"]
     if _ROLE_ORDER.get(role, 0) >= _ROLE_ORDER[_ROLE_ADMIN]:
         return True
 
-    node_team, node_cluster = _node_team_and_cluster(node_payload)
+    # Strict mode: unscoped nodes are not visible to non-admin users.
+    if not node_team and not node_cluster:
+        return False
 
     if role == _ROLE_SENIOR_MANAGER:
         allowed_clusters = set(actor["managed_clusters"])
@@ -240,6 +236,11 @@ def _can_view_node(node_payload, actor):
     return False
 
 
+def _can_view_node(node_payload, actor):
+    node_team, node_cluster = _node_team_and_cluster(node_payload)
+    return _can_view_scope(node_team, node_cluster, actor)
+
+
 def _edge_endpoints(edge):
     if not isinstance(edge, dict):
         return None, None
@@ -257,37 +258,53 @@ def _filter_graph_payload(payload, actor):
     if not isinstance(nodes, list):
         return payload
 
-    # 1. Load topology data from database.json to read team and cluster configurations
+    # 1. Load topology data and teamconfig.json to read configurations
     try:
         topo_data = _topology_db.get_topology()
     except Exception:
-        topo_data = {"nodes": [], "edges": [], "teams": [], "clusters": []}
+        topo_data = {"nodes": [], "edges": []}
 
-    teams_list = topo_data.get("teams", [])
-    clusters_list = topo_data.get("clusters", [])
+    try:
+        config_path = os.path.join(MONOREPO, "data", "ontology", "teamconfig.json")
+        with open(config_path, "r", encoding="utf-8") as f:
+            teamconfig = json.load(f)
+    except Exception:
+        teamconfig = {"teams": [], "clusters": []}
+
+    teams_list = teamconfig.get("teams", [])
+    clusters_list = teamconfig.get("clusters", [])
     has_custom_config = bool(teams_list or clusters_list)
 
     if has_custom_config:
         # 2. Build mapping dictionaries
         team_to_cluster = {}
+        cluster_to_team = {}
         for t in teams_list:
             t_id = t.get("id")
             c_id = t.get("clusterId")
             if t_id and c_id:
-                team_to_cluster[t_id.strip().lower()] = c_id.strip().lower()
+                t_id_clean = t_id.strip().lower()
+                c_id_clean = c_id.strip().lower()
+                team_to_cluster[t_id_clean] = c_id_clean
+                cluster_to_team[c_id_clean] = t_id  # Keep original casing if possible
                 t_name = t.get("name")
                 if t_name:
-                    team_to_cluster[t_name.strip().lower()] = c_id.strip().lower()
+                    team_to_cluster[t_name.strip().lower()] = c_id_clean
 
         cluster_to_devices = {}
+        device_to_cluster = {}
         for c in clusters_list:
             c_id = c.get("id")
             devices = c.get("devices", [])
             if c_id:
-                cluster_to_devices[c_id.strip().lower()] = {d.strip().upper() for d in devices}
+                c_id_clean = c_id.strip().lower()
+                dev_set = {d.strip().upper() for d in devices}
+                cluster_to_devices[c_id_clean] = dev_set
+                for d in dev_set:
+                    device_to_cluster[d] = c_id  # Keep original casing of cluster ID
                 c_name = c.get("name")
                 if c_name:
-                    cluster_to_devices[c_name.strip().lower()] = {d.strip().upper() for d in devices}
+                    cluster_to_devices[c_name.strip().lower()] = dev_set
 
         # 3. Build parent map from the active database.json nodes
         parent_map = {}
@@ -328,20 +345,24 @@ def _filter_graph_payload(payload, actor):
 
         role = actor["role"]
 
-        if role == _ROLE_SENIOR_MANAGER:
+        if _ROLE_ORDER.get(role, 0) >= _ROLE_ORDER[_ROLE_ADMIN]:
+            # Admin has access to all clusters
+            for c in clusters_list:
+                c_id = c.get("id")
+                if c_id:
+                    allowed_clusters.add(c_id.strip().lower())
+        elif role == _ROLE_SENIOR_MANAGER:
             for c in actor["managed_clusters"]:
                 if c:
                     allowed_clusters.add(c.strip().lower())
             if actor["cluster"]:
                 allowed_clusters.add(actor["cluster"].strip().lower())
-
         elif role == _ROLE_MANAGER:
             for t in actor["managed_teams"]:
                 add_team_clusters(t)
             add_team_clusters(actor["team"])
             if actor["cluster"]:
                 allowed_clusters.add(actor["cluster"].strip().lower())
-
         elif role == _ROLE_TEAM_MEMBER:
             add_team_clusters(actor["team"])
             if actor["cluster"]:
@@ -364,17 +385,44 @@ def _filter_graph_payload(payload, actor):
 
         can_view_fn = custom_can_view
     else:
-        can_view_fn = lambda node_data: _can_view_node(node_data, actor)
+        device_to_cluster = {}
+        cluster_to_team = {}
+        def legacy_can_view(node_data):
+            return _can_view_node(node_data, actor)
+        can_view_fn = legacy_can_view
 
     allowed_nodes = []
     allowed_ids = set()
     for node in nodes:
         node_data = _extract_node_data(node)
+        node_id = _node_identifier(node)
         if can_view_fn(node_data):
             allowed_nodes.append(node)
-            node_id = _node_identifier(node)
             if node_id:
                 allowed_ids.add(node_id)
+                # Enrich node with its dynamically resolved team & cluster so frontend renders it correctly!
+                if has_custom_config:
+                    root_ancestor = get_root_ancestor(node_id)
+                    cluster_id = device_to_cluster.get(root_ancestor.upper())
+                    if cluster_id:
+                        team_id = cluster_to_team.get(cluster_id.lower())
+                        
+                        cluster_name = cluster_id
+                        for c in clusters_list:
+                            if c.get("id") == cluster_id:
+                                cluster_name = c.get("name") or cluster_id
+                                break
+                        
+                        team_name = team_id or ""
+                        for t in teams_list:
+                            if t.get("id") == team_id:
+                                team_name = t.get("name") or team_id
+                                break
+
+                        if not node_data.get("cluster"):
+                            node_data["cluster"] = cluster_name
+                        if not node_data.get("team"):
+                            node_data["team"] = team_name
 
     payload["nodes"] = allowed_nodes
 
