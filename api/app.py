@@ -137,14 +137,22 @@ def _split_csv(value):
 
 
 def _get_actor_context():
-    role = (request.headers.get("X-User-Role") or _ROLE_ADMIN).strip().lower()
+    role = (request.headers.get("X-User-Role") or _ROLE_TEAM_MEMBER).strip().lower()
     if role not in _ROLE_ORDER:
-        role = _ROLE_ADMIN
+        role = _ROLE_TEAM_MEMBER
+    team = (request.headers.get("X-User-Team") or "").strip()
+    cluster = (request.headers.get("X-User-Cluster") or "").strip()
+    # Safe fallback: never widen visibility when context headers are missing.
+    if role != _ROLE_ADMIN:
+        if not team:
+            team = "team-alpha"
+        if not cluster:
+            cluster = "cluster-1"
     return {
         "id": request.headers.get("X-User-Id") or "",
         "role": role,
-        "team": (request.headers.get("X-User-Team") or "").strip(),
-        "cluster": (request.headers.get("X-User-Cluster") or "").strip(),
+        "team": team,
+        "cluster": cluster,
         "managed_teams": set(_split_csv(request.headers.get("X-User-Managed-Teams"))),
         "managed_clusters": set(_split_csv(request.headers.get("X-User-Managed-Clusters"))),
     }
