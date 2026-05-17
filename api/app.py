@@ -250,11 +250,120 @@ def _filter_graph_payload(payload, actor):
     if not isinstance(nodes, list):
         return payload
 
+    # 1. Load topology data from database.json to read team and cluster configurations
+    try:
+        topo_data = _topology_db.get_topology()
+    except Exception:
+        topo_data = {"nodes": [], "edges": [], "teams": [], "clusters": []}
+
+    teams_list = topo_data.get("teams", [])
+    clusters_list = topo_data.get("clusters", [])
+    has_custom_config = bool(teams_list or clusters_list)
+
+    if has_custom_config:
+        # 2. Build mapping dictionaries
+        team_to_cluster = {}
+        for t in teams_list:
+            t_id = t.get("id")
+            c_id = t.get("clusterId")
+            if t_id and c_id:
+                team_to_cluster[t_id.strip().lower()] = c_id.strip().lower()
+                t_name = t.get("name")
+                if t_name:
+                    team_to_cluster[t_name.strip().lower()] = c_id.strip().lower()
+
+        cluster_to_devices = {}
+        for c in clusters_list:
+            c_id = c.get("id")
+            devices = c.get("devices", [])
+            if c_id:
+                cluster_to_devices[c_id.strip().lower()] = {d.strip().upper() for d in devices}
+                c_name = c.get("name")
+                if c_name:
+                    cluster_to_devices[c_name.strip().lower()] = {d.strip().upper() for d in devices}
+
+        # 3. Build parent map from the active database.json nodes
+        parent_map = {}
+        for n in topo_data.get("nodes", []):
+            n_id = n.get("id")
+            p_id = n.get("parentId")
+            if n_id:
+                parent_map[n_id.upper()] = p_id.upper() if p_id else None
+
+        # Also build parent map from the payload nodes to handle dynamically generated/discovered nodes
+        for n in nodes:
+            node_data = _extract_node_data(n)
+            n_id = node_data.get("id")
+            p_id = node_data.get("parentId")
+            if n_id:
+                parent_map[n_id.upper()] = p_id.upper() if p_id else parent_map.get(n_id.upper())
+
+        # Helper function to find root parent
+        def get_root_ancestor(node_id):
+            curr = node_id.upper()
+            visited = set()
+            while curr in parent_map and parent_map[curr] is not None:
+                if curr in visited:
+                    break
+                visited.add(curr)
+                curr = parent_map[curr]
+            return curr
+
+        # 4. Resolve the allowed clusters for this actor
+        allowed_clusters = set()
+
+        def add_team_clusters(team_name):
+            if not team_name:
+                return
+            c_id = team_to_cluster.get(team_name.strip().lower())
+            if c_id:
+                allowed_clusters.add(c_id)
+
+        role = actor["role"]
+
+        if role == _ROLE_SENIOR_MANAGER:
+            for c in actor["managed_clusters"]:
+                if c:
+                    allowed_clusters.add(c.strip().lower())
+            if actor["cluster"]:
+                allowed_clusters.add(actor["cluster"].strip().lower())
+
+        elif role == _ROLE_MANAGER:
+            for t in actor["managed_teams"]:
+                add_team_clusters(t)
+            add_team_clusters(actor["team"])
+            if actor["cluster"]:
+                allowed_clusters.add(actor["cluster"].strip().lower())
+
+        elif role == _ROLE_TEAM_MEMBER:
+            add_team_clusters(actor["team"])
+            if actor["cluster"]:
+                allowed_clusters.add(actor["cluster"].strip().lower())
+
+        # 5. Get allowed device IDs
+        allowed_device_ids = set()
+        for c_id in allowed_clusters:
+            devs = cluster_to_devices.get(c_id)
+            if devs:
+                allowed_device_ids.update(devs)
+
+        # 6. View function to check if node_data is allowed
+        def custom_can_view(node_data):
+            node_id = node_data.get("id")
+            if not node_id:
+                return False
+            root_ancestor = get_root_ancestor(node_id)
+            return root_ancestor in allowed_device_ids
+
+        can_view_fn = custom_can_view
+    else:
+        can_view_fn = lambda node_data: _can_view_node(node_data, actor)
+
     allowed_nodes = []
     allowed_ids = set()
     for node in nodes:
         node_data = _extract_node_data(node)
-        if _can_view_node(node_data, actor):
+        if can_view_fn(node_data):
             allowed_nodes.append(node)
             node_id = _node_identifier(node)
             if node_id:
@@ -411,9 +520,208 @@ def legacy_graph_alias():
         neo4j._init_driver()
     return neo4j_graph()
 
+def fake_san():
+    data = request.json or {}
+    arrays_count = int(data.get("arrays", 2))
+    switches_count = int(data.get("switches", 2))
+    hosts_count = int(data.get("hosts", 4))
+    disks_per_array = int(data.get("disks_per_array", 6))
+    name_prefix = str(data.get("name_prefix", "HPESYN")).strip() or "HPESYN"
+
+    nodes = []
+    edges = []
+
+    # 1. Generate ArraySystems
+    for i in range(1, arrays_count + 1):
+        arr_id = f"{name_prefix}-ARR-{i:02d}"
+        nodes.append({
+            "data": {
+                "id": arr_id,
+                "label": "ArraySystem",
+                "name": f"{name_prefix}-Array-{i}",
+                "ip_address": f"10.10.{i}.10",
+                "model": "HPE Alletra Storage MP",
+                "serial": f"SN-ARR-{i}"
+            }
+        })
+        # 2. Controllers (Node) for each ArraySystem
+        for idx in range(2):
+            node_id = f"{arr_id}-NODE-{idx}"
+            nodes.append({
+                "data": {
+                    "id": node_id,
+                    "label": "Node",
+                    "name": f"Controller-{idx}",
+                    "parentId": arr_id,
+                    "node_id": str(idx)
+                }
+            })
+            edges.append({
+                "data": {
+                    "source": arr_id,
+                    "target": node_id,
+                    "label": "HAS_NODE"
+                }
+            })
+        # 3. Cage
+        cage_id = f"{arr_id}-CAGE-0"
+        nodes.append({
+            "data": {
+                "id": cage_id,
+                "label": "Cage",
+                "name": "Cage-0",
+                "parentId": arr_id,
+                "cage_id": "0"
+            }
+        })
+        edges.append({
+            "data": {
+                "source": arr_id,
+                "target": cage_id,
+                "label": "HAS_CAGE"
+            }
+        })
+        # 4. Disks in Cage
+        for d in range(disks_per_array):
+            disk_id = f"{cage_id}-DISK-{d:02d}"
+            nodes.append({
+                "data": {
+                    "id": disk_id,
+                    "label": "PhysicalDisk",
+                    "name": f"Disk-{d}",
+                    "parentId": cage_id,
+                    "serial": f"SN-DSK-{i}-{d}"
+                }
+            })
+            edges.append({
+                "data": {
+                    "source": cage_id,
+                    "target": disk_id,
+                    "label": "CONTAINS"
+                }
+            })
+
+    # 5. Generate Switches
+    for s in range(1, switches_count + 1):
+        sw_id = f"{name_prefix}-SW-{s:02d}"
+        nodes.append({
+            "data": {
+                "id": sw_id,
+                "label": "Switch",
+                "name": f"{name_prefix}-Switch-{s}",
+                "serial": f"SN-SW-{s}",
+                "temperature": 35
+            }
+        })
+        # Connect to ArraySystems
+        for i in range(1, arrays_count + 1):
+            arr_id = f"{name_prefix}-ARR-{i:02d}"
+            edges.append({
+                "data": {
+                    "source": arr_id,
+                    "target": sw_id,
+                    "label": "HAS_SWITCH"
+                }
+            })
+
+    # 6. Generate Hosts
+    for h in range(1, hosts_count + 1):
+        h_id = f"{name_prefix}-HOST-{h:02d}"
+        nodes.append({
+            "data": {
+                "id": h_id,
+                "label": "Host",
+                "name": f"{name_prefix}-Host-{h}",
+                "ip_address": f"10.20.{h}.10",
+                "wwn": f"10:00:00:00:00:00:00:{h:02x}"
+            }
+        })
+        # Connect to round-robin Switch
+        sw_idx = ((h - 1) % switches_count) + 1
+        sw_id = f"{name_prefix}-SW-{sw_idx:02d}"
+        edges.append({
+            "data": {
+                "source": sw_id,
+                "target": h_id,
+                "label": "HAS_HOST"
+            }
+        })
+        # Connect to round-robin ArraySystem
+        arr_idx = ((h - 1) % arrays_count) + 1
+        arr_id = f"{name_prefix}-ARR-{arr_idx:02d}"
+        edges.append({
+            "data": {
+                "source": h_id,
+                "target": arr_id,
+                "label": "CONNECTS_TO"
+            }
+        })
+
+    return jsonify({
+        "topology": {
+            "nodes": nodes,
+            "edges": edges
+        }
+    })
+
+
 @app.route("/api/faker/san", methods=["POST"])
 def api_faker_san():
     return fake_san()
+
+
+@app.route("/api/faker/import", methods=["POST"])
+def api_faker_import():
+    if not neo4j.available:
+        return jsonify({"error": "Neo4j not available"}), 503
+    topology = request.json or {}
+    nodes = topology.get("nodes", [])
+    edges = topology.get("edges", [])
+
+    nodes_created = 0
+    edges_created = 0
+
+    try:
+        # Import Nodes
+        for node in nodes:
+            data = node.get("data", {})
+            node_id = data.get("id")
+            label = data.get("label")
+            if not node_id or not label:
+                continue
+            
+            # Clean properties
+            props = {k: v for k, v in data.items() if k not in ("id", "label")}
+            
+            # Merge Node in Neo4j safely
+            if label in ("ArraySystem", "Node", "Switch", "Host", "Cage", "PhysicalDisk"):
+                cypher = f"MERGE (n:{label} {{id: $node_id}}) SET n += $props RETURN elementId(n)"
+                neo4j._run(cypher, node_id=node_id, props=props)
+                nodes_created += 1
+
+        # Import Edges
+        for edge in edges:
+            data = edge.get("data", {})
+            source = data.get("source")
+            target = data.get("target")
+            rel = data.get("label")
+            if not source or not target or not rel:
+                continue
+
+            if rel in ("HAS_NODE", "HAS_CAGE", "CONTAINS", "HAS_SWITCH", "HAS_HOST", "CONNECTS_TO"):
+                cypher = f"MATCH (a), (b) WHERE a.id = $source AND b.id = $target MERGE (a)-[r:{rel}]->(b) RETURN elementId(r)"
+                neo4j._run(cypher, source=source, target=target)
+                edges_created += 1
+
+        return jsonify({
+            "status": "success",
+            "nodes_created": nodes_created,
+            "edges_created": edges_created
+        })
+    except Exception as ex:
+        log.exception("Importing fake topology failed")
+        return jsonify({"error": str(ex)}), 500
+
 
 # ── Simulator endpoints ───────────────────────────────────────────────────────
 
