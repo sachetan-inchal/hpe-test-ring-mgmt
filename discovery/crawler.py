@@ -168,6 +168,9 @@ class DiscoveryCrawler:
         # Execute the right command set
         if dev_type == DeviceType.HPE_ARRAY:
             raw_outputs = self._run_commands(ip, HPE_COMMANDS)
+            with self._lock:
+                if not self.running:
+                    return
             parsed = parse_sim_array_output(raw_outputs)
             parsed["_ip"] = ip
             parsed["_device_type"] = "hpe_array"
@@ -196,6 +199,9 @@ class DiscoveryCrawler:
 
         elif dev_type == DeviceType.LINUX:
             raw_outputs = self._run_commands(ip, LINUX_COMMANDS)
+            with self._lock:
+                if not self.running:
+                    return
             parsed = parse_linux_output(raw_outputs, ip=ip)
             parsed["_ip"] = ip
             parsed["_device_type"] = "linux_host"
@@ -211,6 +217,9 @@ class DiscoveryCrawler:
 
         elif dev_type == DeviceType.WINDOWS:
             raw_outputs = self._run_commands(ip, WINDOWS_COMMANDS)
+            with self._lock:
+                if not self.running:
+                    return
             parsed = parse_windows_output(raw_outputs, ip=ip)
             parsed["_ip"] = ip
             parsed["_device_type"] = "windows_host"
@@ -267,6 +276,9 @@ class DiscoveryCrawler:
         
         outputs = {}
         for cmd in commands:
+            with self._lock:
+                if not self.running:
+                    break
             output = terminal.execute(cmd)
             outputs[cmd] = output
             self._emit({

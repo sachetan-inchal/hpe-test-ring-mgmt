@@ -158,7 +158,9 @@ class ElasticsearchIndexer:
             document=doc,
         )
 
-        # Index each drive for firmware search
+        # Index each drive for firmware search using high-performance bulk API
+        from elasticsearch.helpers import bulk
+        actions = []
         for drive in parsed.get("drives", []):
             drive_doc = {
                 "array_ip": ip,
@@ -175,11 +177,13 @@ class ElasticsearchIndexer:
                 "sed_state": drive.get("sed_state"),
                 "health": drive.get("state", "normal"),
             }
-            self._client.index(
-                index=f"{ES_INDEX_PREFIX}_drives",
-                id=f"{ip}_{drive.get('pd_id')}",
-                document=drive_doc,
-            )
+            actions.append({
+                "_index": f"{ES_INDEX_PREFIX}_drives",
+                "_id": f"{ip}_{drive.get('pd_id')}",
+                "_source": drive_doc
+            })
+        if actions:
+            bulk(self._client, actions)
 
     def _index_host(self, parsed: dict, ip: str):
         doc = {
