@@ -40,6 +40,8 @@ export default function App() {
   const location = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin'
+  const visibleNavItems = NAV_ITEMS.filter(item => item.path !== '/admin' || isAdmin)
 
   // Login page — no shell
   if (location.pathname === '/login') {
@@ -68,7 +70,7 @@ export default function App() {
               </div>
 
               <nav className="sidebar-nav">
-                {NAV_ITEMS.map(item => (
+                {visibleNavItems.map(item => (
                   <NavLink
                     key={item.path}
                     to={item.path}
@@ -111,9 +113,9 @@ export default function App() {
                   <span className="topbar-label">SAN Unified Platform</span>
                 </div>
                 <div className="topbar-right">
-                  {NAV_ITEMS.find(n => location.pathname.startsWith(n.path)) && (
+                  {visibleNavItems.find(n => location.pathname.startsWith(n.path)) && (
                     <span className="topbar-page-label">
-                      {NAV_ITEMS.find(n => location.pathname.startsWith(n.path))?.label}
+                      {visibleNavItems.find(n => location.pathname.startsWith(n.path))?.label}
                     </span>
                   )}
                 </div>
@@ -128,7 +130,7 @@ export default function App() {
                   <Route path="/inventory" element={<InventoryPage apiBase={FLASK_API} />} />
                   <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} />} />
                   <Route path="/chat" element={<ChatPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
-                  <Route path="/admin" element={<AdminPage apiBase={FLASK_API} />} />
+                  <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} /> : <Navigate to="/discovery" replace />} />
                   <Route path="/health" element={<HealthPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="*" element={<Navigate to="/discovery" replace />} />
                 </Routes>
