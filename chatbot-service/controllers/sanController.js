@@ -1,5 +1,5 @@
 import SANData from '../models/SANData.js';
-import { loadSANData, getSANDataForAI, searchSANNodes, getProblematicComponents, getCapacityInfo } from '../utils/sanDataLoader.js';
+import { getSANDataForAI, searchSANNodes, getProblematicComponents, getCapacityInfo } from '../utils/sanDataLoader.js';
 
 // Get complete SAN infrastructure data
 export const getSANData = async (req, res) => {
@@ -17,15 +17,15 @@ export const getSANData = async (req, res) => {
 // Load/refresh SAN data
 export const refreshSANData = async (req, res) => {
   try {
-    const sanData = await loadSANData();
+    const sanData = await getSANDataForAI();
     res.json({ 
-      message: 'SAN data loaded successfully', 
+      message: 'SAN data is now synced automatically by the discovery crawler.', 
       data: {
-        id: sanData._id,
-        name: sanData.name,
-        nodesCount: sanData.nodes.length,
-        edgesCount: sanData.edges.length,
-        lastUpdated: sanData.lastUpdated
+        id: sanData._id || 'dynamic',
+        name: sanData.name || 'HPE SAN Infrastructure',
+        nodesCount: (sanData.nodes || []).length,
+        edgesCount: (sanData.edges || []).length,
+        lastUpdated: sanData.lastUpdated || new Date()
       }
     });
   } catch (error) {
