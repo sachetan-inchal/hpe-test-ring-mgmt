@@ -3,11 +3,11 @@
  * Cisco Packet Tracer-style interactive terminal for each SAN device.
  * Opens as a modal overlay. Supports HPE CLI, Linux bash, Brocade switch, and Windows PowerShell.
  *
- * State-fully simulates SSH login entirely inline in the terminal flow:
- *   1. Displays key mismatch warnings (RSA for Array, ECDSA for Linux, direct connection for Switch/Windows).
- *   2. Prompts "Are you sure you want to continue connecting (yes/no)?" directly inside the input stream.
- *   3. Prompts for password (fully masked with type="password") directly inside the input stream.
- *   4. Logs in with the correct real shell banner and prompt, keeping full parity with real SSH logs.
+ * Implements a pure, inline-rendered terminal stream:
+ *   - No bottom input text box! You type directly onto the terminal output area.
+ *   - Hidden input element captures focus on click, with standard IME, copy-paste, and mobile support.
+ *   - Authentically simulates SSH logins (yes/no host key warning confirm, completely silent password masking).
+ *   - Premium design aesthetics with blinking terminal block cursor.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
 
@@ -83,6 +83,11 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
   const addLine = useCallback((type, text) =>
     setLines(prev => [...prev, { type, text }]), [])
 
+  // Focus utility
+  const focusInput = () => {
+    inputRef.current?.focus()
+  }
+
   // ── Boot: Fetch SSH Metadata & Simulate Login ──────────────────────────────
   useEffect(() => {
     const boot = async () => {
@@ -92,23 +97,20 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
         if (data.error) throw new Error(data.error)
         setHandshake(data)
 
-        // Show the SSH connection command itself
         const loginUser = data.login_user || 'root'
         const devName = data.name || node.ip
         addLine('ssh', `ssh ${loginUser}@${devName}`)
 
         if (data.key_type) {
-          // RSA / ECDSA Warning exists
           addLine('warn', `Warning: the ${data.key_type} host key for '${devName}' differs from the key for the IP address '${node.ip}'`)
           setPrompt('Are you sure you want to continue connecting (yes/no)? ')
           setSshState('awaiting_yes_no')
         } else {
-          // Direct password prompt (e.g. switches or simple hosts)
           setPrompt(data.password_prompt || 'Password: ')
           setSshState('awaiting_password')
         }
       } catch {
-        // Fallback: Bypass SSH simulation if API is unreachable
+        // Fallback: connect directly
         addLine('info', `Connected to ${node.name || node.ip} (${node.ip})`)
         addLine('info', `Device type: ${node.type || kind}`)
         addLine('info', 'Type "help" or "?" for available commands.')
@@ -118,97 +120,105 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
       }
     }
     boot()
+    focusInput()
   }, []) // eslint-disable-line
 
-  // Keep focus on input
-  const focusInput = () => {
-    inputRef.current?.focus()
-  }
-
-  // Auto-scroll to bottom
+  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [lines, sshState, prompt])
+  }, [lines, sshState, prompt, input])
 
   // Focus input automatically on transitions
   useEffect(() => {
     focusInput()
   }, [sshState])
 
-  // ── Submit Input Handler (Handles entire SSH logic + CLI commands) ─────────
-  const handleSubmit = async (e) => {
-    if (e.key !== 'Enter') return
+  // ── Submit Input Handler (Handles yes/no confirmation, masked passwords, CLI commands) ──
+  const handleKeyDown = async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const trimmed = input.trim()
+      const currentVal = input
+      setInput('')
 
-    const trimmed = input.trim()
-    setInput('')
-
-    if (sshState === 'awaiting_yes_no') {
-      // Append what they typed
-      addLine('cmd', `${prompt}${input}`)
-      if (trimmed.toLowerCase() === 'yes') {
-        // Proceed to Password
-        setPrompt(handshake?.password_prompt || 'Password: ')
-        setSshState('awaiting_password')
-      } else if (trimmed.toLowerCase() === 'no') {
-        addLine('error', 'Host key verification failed. Connection closed.')
-        setPrompt('Connection closed.')
-      } else {
-        addLine('error', "Please type 'yes' or 'no'.")
-      }
-      return
-    }
-
-    if (sshState === 'awaiting_password') {
-      // Append password line fully masked matching real logs
-      const pwPrompt = handshake?.password_prompt || 'Password: '
-      addLine('cmd', `${pwPrompt}********`)
-
-      // Complete login banner and setup shell prompt
-      const devName = handshake?.name || node.name || node.ip
-      const loginUser = handshake?.login_user || 'root'
-
-      if (kind === 'switch') {
-        addLine('out', `${devName}:FID100:admin> `)
-        setPrompt(`${devName}:FID100:admin> `)
-      } else if (kind === 'array') {
-        addLine('out', `root@${devName}:~# `)
-        setPrompt(`root@${devName}:~# `)
-      } else {
-        addLine('info', `Linux ${devName} — logged in as ${loginUser}`)
-        addLine('out', '')
-        setPrompt(`root@${devName}:~$ `)
+      if (sshState === 'awaiting_yes_no') {
+        // Render completed line
+        addLine('cmd', `${prompt}${currentVal}`)
+        if (trimmed.toLowerCase() === 'yes') {
+          setPrompt(handshake?.password_prompt || 'Password: ')
+          setSshState('awaiting_password')
+        } else if (trimmed.toLowerCase() === 'no') {
+          addLine('error', 'Host key verification failed. Connection closed.')
+          setPrompt('Connection closed.')
+        } else {
+          addLine('error', "Please type 'yes' or 'no'.")
+        }
+        return
       }
 
-      setSshState('connected')
-      return
-    }
+      if (sshState === 'awaiting_password') {
+        // Authentic Linux SSH password input displays absolutely NOTHING as you type
+        // Output prompt followed by empty space (or asterisk masking to verify submission)
+        addLine('cmd', `${prompt}`)
 
-    if (sshState === 'connected') {
-      if (!trimmed) return
+        const devName = handshake?.name || node.name || node.ip
+        const loginUser = handshake?.login_user || 'root'
 
-      // Print command in input stream
-      addLine('cmd', `${prompt}${trimmed}`)
-      setHistory(prev => [trimmed, ...prev.slice(0, 49)])
-      setHistIdx(-1)
-      setLoading(true)
+        if (kind === 'switch') {
+          addLine('out', `${devName}:FID100:admin> `)
+          setPrompt(`${devName}:FID100:admin> `)
+        } else if (kind === 'array') {
+          addLine('out', `root@${devName}:~# `)
+          setPrompt(`root@${devName}:~# `)
+        } else {
+          addLine('info', `Linux ${devName} — logged in as ${loginUser}`)
+          addLine('out', '')
+          setPrompt(`root@${devName}:~$ `)
+        }
 
-      try {
-        const res = await fetch(`${apiBase}/api/sim/exec`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ip: node.ip, command: trimmed }),
-        })
-        const data = await res.json()
-        const output = data.output || data.error || 'No output'
-        
-        // Print output lines
-        output.split('\n').forEach(line => addLine('out', line))
-        addLine('out', '')
-      } catch (err) {
-        addLine('error', `Error: ${err.message}`)
-      } finally {
-        setLoading(false)
+        setSshState('connected')
+        return
       }
+
+      if (sshState === 'connected') {
+        if (!trimmed) {
+          addLine('cmd', prompt)
+          return
+        }
+
+        addLine('cmd', `${prompt}${trimmed}`)
+        setHistory(prev => [trimmed, ...prev.slice(0, 49)])
+        setHistIdx(-1)
+        setLoading(true)
+
+        try {
+          const res = await fetch(`${apiBase}/api/sim/exec`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip: node.ip, command: trimmed }),
+          })
+          const data = await res.json()
+          const output = data.output || data.error || 'No output'
+          output.split('\n').forEach(line => addLine('out', line))
+          addLine('out', '')
+        } catch (err) {
+          addLine('error', `Error: ${err.message}`)
+        } finally {
+          setLoading(false)
+        }
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (sshState !== 'connected') return
+      const newIdx = Math.min(histIdx + 1, history.length - 1)
+      setHistIdx(newIdx)
+      setInput(history[newIdx] || '')
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (sshState !== 'connected') return
+      const newIdx = Math.max(histIdx - 1, -1)
+      setHistIdx(newIdx)
+      setInput(newIdx === -1 ? '' : history[newIdx] || '')
     }
   }
 
@@ -234,24 +244,6 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
     }
   }
 
-  // Keyboard navigation for command history
-  const handleKeyDown = (e) => {
-    if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      if (sshState !== 'connected') return
-      const newIdx = Math.min(histIdx + 1, history.length - 1)
-      setHistIdx(newIdx)
-      setInput(history[newIdx] || '')
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      if (sshState !== 'connected') return
-      const newIdx = Math.max(histIdx - 1, -1)
-      setHistIdx(newIdx)
-      setInput(newIdx === -1 ? '' : history[newIdx] || '')
-    }
-  }
-
-  // Dynamic status colors for badges
   const typeBadgeColor = {
     array:        { bg: 'rgba(88,166,255,0.15)', fg: '#58a6ff', border: 'rgba(88,166,255,0.3)' },
     switch:       { bg: 'rgba(63,185,80,0.15)',  fg: '#3fb950', border: 'rgba(63,185,80,0.3)' },
@@ -271,6 +263,23 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
+      {/* Dynamic Keyframe style for blinking terminal cursor */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
+        .term-cursor {
+          display: inline-block;
+          width: 8px;
+          height: 15px;
+          background: #3fb950;
+          margin-left: 2px;
+          animation: blink 1s step-start infinite;
+          vertical-align: middle;
+        }
+      `}} />
+
       <div
         className="rise-in"
         style={{
@@ -320,7 +329,7 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#848d97', fontSize: 16 }}>✕</button>
         </div>
 
-        {/* ── Quick command pills (Only available when logged in) ── */}
+        {/* ── Quick command pills (Only available when connected) ── */}
         {sshState === 'connected' && (
           <div style={{
             display: 'flex', flexWrap: 'wrap', gap: 5, padding: '8px 14px',
@@ -348,12 +357,13 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
           </div>
         )}
 
-        {/* ── Terminal output ── */}
+        {/* ── Terminal body (captures clicks to keep focus on hidden input) ── */}
         <div
           style={{
-            flex: 1, overflowY: 'auto', padding: '12px 14px',
-            fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.8,
+            flex: 1, overflowY: 'auto', padding: '16px 18px',
+            fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.8,
             cursor: 'text',
+            position: 'relative',
           }}
           onClick={focusInput}
         >
@@ -363,54 +373,45 @@ export default function NodeTerminal({ node, apiBase, onClose }) {
             </div>
           ))}
 
+          {/* Active Inline Input Line */}
+          {prompt !== 'Connection closed.' && (
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', color: '#e6edf3' }}>
+              <span style={{ color: sshState === 'connected' ? '#39c5cf' : '#e3b341', marginRight: 8, whiteSpace: 'pre' }}>
+                {prompt}
+              </span>
+              <span style={{ color: '#e6edf3', whiteSpace: 'pre' }}>
+                {sshState === 'awaiting_password' ? '' : input}
+              </span>
+              <span className="term-cursor" />
+            </div>
+          )}
+
           {loading && (
-            <div style={{ color: '#58a6ff', fontSize: 11, marginTop: 4 }}>
+            <div style={{ color: '#58a6ff', fontSize: 11, marginTop: 6 }}>
               <span className="pulse-dot blue" style={{ marginRight: 6 }} />executing…
             </div>
           )}
-          <div ref={bottomRef} />
-        </div>
 
-        {/* ── Inline Terminal Input Bar (Handles yes/no, password, and CLI input) ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '10px 14px',
-          background: '#0d1117',
-          borderTop: '1px solid #21262d',
-        }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 12,
-            color: sshState === 'connected' ? '#39c5cf' : '#e3b341',
-            flexShrink: 0,
-            whiteSpace: 'pre',
-          }}>
-            {prompt}
-          </span>
+          {/* Invisible input element that processes typing */}
           <input
             ref={inputRef}
-            type={sshState === 'awaiting_password' ? 'password' : 'text'}
+            type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            onKeyPress={handleSubmit}
             disabled={loading || prompt === 'Connection closed.'}
-            placeholder={
-              loading ? 'Executing command…' :
-              sshState === 'awaiting_yes_no' ? "type 'yes' or 'no'…" :
-              sshState === 'awaiting_password' ? 'enter password…' :
-              'Type a command…'
-            }
             style={{
-              flex: 1,
-              background: 'transparent',
+              position: 'absolute',
+              opacity: 0,
+              pointerEvents: 'none',
+              width: 0,
+              height: 0,
               border: 'none',
               outline: 'none',
-              color: '#e6edf3',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 12,
-              caretColor: '#3fb950',
             }}
           />
+
+          <div ref={bottomRef} />
         </div>
       </div>
     </div>
