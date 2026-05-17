@@ -227,85 +227,87 @@ export default function InventoryPage({ apiBase }) {
       </div>
 
       {/* RBAC Scope Panel */}
-      <div className="glass-card" style={{ display: 'flex', gap: 16, padding: '10px 16px', border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: '8px', marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+      {(user?.role === 'admin' || user?.role === 'manager') && (
+        <div className="glass-card" style={{ display: 'flex', gap: 16, padding: '10px 16px', border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: '8px', marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
 
-        {/* Role Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Simulate Role:</span>
-          <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
-            value={role} onChange={e => handleRoleChange(e.target.value)}>
-            <option value="admin">🔒 Administrator</option>
-            <option value="manager">🗂️ Manager</option>
-            <option value="user">👥 Team Member</option>
-          </select>
-        </div>
-
-        <div style={{ height: 16, width: 1, background: 'var(--line)' }} />
-
-        {/* Team selector — admin & manager can switch; user is locked */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team:</span>
-          {role === 'user' ? (
-            <span style={{ fontSize: 11, color: '#58a6ff', background: 'rgba(58,166,255,0.1)', border: '1px solid rgba(58,166,255,0.2)', padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>
-              🔒 {teamIdToName[selectedTeamId] || selectedTeamId}
-            </span>
-          ) : role === 'manager' ? (
-            // Manager: can switch team but not cluster
+          {/* Role Switcher */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Simulate Role:</span>
             <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
-              value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
-              {teamConfig.teams.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
+              value={role} onChange={e => handleRoleChange(e.target.value)}>
+              <option value="admin">🔒 Administrator</option>
+              <option value="manager">🗂️ Manager</option>
+              <option value="user">👥 Team Member</option>
             </select>
-          ) : (
-            // Admin: can pick all or specific team
-            <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
-              value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
-              <option value="all">All Teams</option>
-              {teamConfig.teams.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+          </div>
+
+          <div style={{ height: 16, width: 1, background: 'var(--line)' }} />
+
+          {/* Team selector — admin & manager can switch; user is locked */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team:</span>
+            {role === 'user' ? (
+              <span style={{ fontSize: 11, color: '#58a6ff', background: 'rgba(58,166,255,0.1)', border: '1px solid rgba(58,166,255,0.2)', padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>
+                🔒 {teamIdToName[selectedTeamId] || selectedTeamId}
+              </span>
+            ) : role === 'manager' ? (
+              // Manager: can switch team but not cluster
+              <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
+                value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
+                {teamConfig.teams.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            ) : (
+              // Admin: can pick all or specific team
+              <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
+                value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
+                <option value="all">All Teams</option>
+                {teamConfig.teams.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Cluster display — always read-only for manager/user, derived from their team */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cluster:</span>
+            {role === 'admin' && selectedTeamId === 'all' ? (
+              <span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-strong)', padding: '4px 8px', borderRadius: 4 }}>All Clusters</span>
+            ) : (
+              // For all roles: cluster is auto-derived from selected team — no control for manager/user
+              <span style={{ fontSize: 11, color: role === 'admin' ? 'var(--muted)' : '#58a6ff',
+                background: role === 'admin' ? 'var(--line-strong)' : 'rgba(58,166,255,0.1)',
+                border: role !== 'admin' ? '1px solid rgba(58,166,255,0.2)' : 'none',
+                padding: '3px 8px', borderRadius: 4, fontWeight: role !== 'admin' ? 600 : 400 }}>
+                {role !== 'admin' && '🔒 '}
+                {teamConfig.clusters.find(c => c.id === selectedTeamClusterId)?.name || selectedTeamClusterId || '—'}
+              </span>
+            )}
+          </div>
+
+          {/* Role badge */}
+          {role === 'user' && (
+            <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(88,166,255,0.1)', color: '#58a6ff', border: '1px solid rgba(88,166,255,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#58a6ff', boxShadow: '0 0 8px #58a6ff' }} />
+              Team-Scoped View
+            </div>
+          )}
+          {role === 'manager' && (
+            <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(210,153,34,0.1)', color: '#d29922', border: '1px solid rgba(210,153,34,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d29922', boxShadow: '0 0 8px #d29922' }} />
+              Manager View
+            </div>
+          )}
+          {role === 'admin' && (
+            <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(63,185,80,0.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3fb950', boxShadow: '0 0 8px #3fb950' }} />
+              Administrator Override
+            </div>
           )}
         </div>
-
-        {/* Cluster display — always read-only for manager/user, derived from their team */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cluster:</span>
-          {role === 'admin' && selectedTeamId === 'all' ? (
-            <span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-strong)', padding: '4px 8px', borderRadius: 4 }}>All Clusters</span>
-          ) : (
-            // For all roles: cluster is auto-derived from selected team — no control for manager/user
-            <span style={{ fontSize: 11, color: role === 'admin' ? 'var(--muted)' : '#58a6ff',
-              background: role === 'admin' ? 'var(--line-strong)' : 'rgba(58,166,255,0.1)',
-              border: role !== 'admin' ? '1px solid rgba(58,166,255,0.2)' : 'none',
-              padding: '3px 8px', borderRadius: 4, fontWeight: role !== 'admin' ? 600 : 400 }}>
-              {role !== 'admin' && '🔒 '}
-              {teamConfig.clusters.find(c => c.id === selectedTeamClusterId)?.name || selectedTeamClusterId || '—'}
-            </span>
-          )}
-        </div>
-
-        {/* Role badge */}
-        {role === 'user' && (
-          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(88,166,255,0.1)', color: '#58a6ff', border: '1px solid rgba(88,166,255,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#58a6ff', boxShadow: '0 0 8px #58a6ff' }} />
-            Team-Scoped View
-          </div>
-        )}
-        {role === 'manager' && (
-          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(210,153,34,0.1)', color: '#d29922', border: '1px solid rgba(210,153,34,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d29922', boxShadow: '0 0 8px #d29922' }} />
-            Manager View
-          </div>
-        )}
-        {role === 'admin' && (
-          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(63,185,80,0.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3fb950', boxShadow: '0 0 8px #3fb950' }} />
-            Administrator Override
-          </div>
-        )}
-      </div>
+      )}
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 16 }}>
         <div style={{ flex: 1, overflow: 'hidden' }}>
