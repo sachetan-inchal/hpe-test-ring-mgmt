@@ -33,6 +33,7 @@ export default function TopologyPage({ apiBase }) {
   const [error, setError] = useState(null)
   const [focusedId, setFocusedId] = useState(null)
   const [expandedIds, setExpandedIds] = useState([])
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('diagram')
   const [showImport, setShowImport] = useState(false)
@@ -237,15 +238,47 @@ export default function TopologyPage({ apiBase }) {
     const text = await file.text()
     try {
       const json = JSON.parse(text)
-      if (json.nodes && json.edges) { setData(json); setShowImport(false) }
+      if (json.nodes && json.edges) {
+        setData(json)
+        setSelectedIds(new Set())
+        setShowImport(false)
+      }
     } catch { alert('Invalid JSON configuration file') }
   }
 
+  const handleSelectToggle = (id, checked) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const exportData = useMemo(() => {
+    if (selectedIds.size === 0) return data
+
+    const allowedIds = new Set()
+    selectedIds.forEach(id => {
+      let current = nodesById.get(id)
+      while (current) {
+        allowedIds.add(current.id)
+        if (!current.parentId) break
+        current = nodesById.get(current.parentId)
+      }
+    })
+
+    const nodes = data.nodes.filter(node => allowedIds.has(node.id))
+    const edges = data.edges.filter(edge => allowedIds.has(edge.from) && allowedIds.has(edge.to))
+
+    return { nodes, edges }
+  }, [data, nodesById, selectedIds])
+
   const handleExportConfig = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = `san_topology_${new Date().toISOString().slice(0, 10)}.json`; a.click()
+    a.href = url; a.download = `san_topology_${selectedIds.size > 0 ? 'selected_' : ''}${new Date().toISOString().slice(0, 10)}.json`; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -281,6 +314,11 @@ export default function TopologyPage({ apiBase }) {
             <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--status-critical)' }} />{healthStats.failed}</span>
           </div>
           <input className="input" style={{ width: 180 }} placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          {selectedIds.size > 0 && (
+            <span style={{ fontSize: 11, color: 'var(--accent-blue)', background: 'rgba(88,166,255,0.1)', border: '1px solid rgba(88,166,255,0.2)', padding: '4px 8px', borderRadius: 999 }}>
+              {selectedIds.size} selected
+            </span>
+          )}
           <button className="btn" onClick={handleExportConfig}><Download size={14} />Export</button>
           <button className="btn" onClick={() => setShowImport(true)}>Import Config</button>
         </div>
@@ -380,7 +418,7 @@ export default function TopologyPage({ apiBase }) {
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 16 }}>
         <div className="glass-card" style={{ flex: 1, minWidth: 0, overflow: 'hidden', padding: 0 }}>
-          {activeTab === 'diagram' && <SANDiagram data={activeData} focusedId={focusedId} expandedIds={expandedIds} onNodeClick={handleNodeClick} />}
+          {activeTab === 'diagram' && <SANDiagram data={activeData} focusedId={focusedId} expandedIds={expandedIds} onNodeClick={handleNodeClick} selectedIds={selectedIds} onSelectToggle={handleSelectToggle} />}
           {activeTab === 'visual' && <TopologyCanvas data={activeData} onNodeClick={(id) => handleNodeClick(id, false)} />}
           {activeTab === 'decommissioned' && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
