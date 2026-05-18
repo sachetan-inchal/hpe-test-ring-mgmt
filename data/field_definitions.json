@@ -1,8 +1,10 @@
 {
-  "ArraySystem": ["ip_address", "name", "model", "serial", "release_version", "config_type", "node_count", "total_cap_mib", "free_cap_mib", "is_decommissioned"],
-  "Node": ["node_id", "name", "is_master", "mem_mib", "up_since", "is_decommissioned"],
-  "Switch": ["name", "state", "mode", "serial", "temperature", "model", "ip_address", "is_decommissioned"],
-  "Host": ["ip_address", "name", "os_name", "wwn", "multipath", "is_decommissioned"],
-  "Cage": ["cage_id", "name", "state", "model", "drive_count", "temperature", "is_decommissioned"],
-  "PhysicalDisk": ["serial", "pd_id", "cage_pos", "state", "capacity_gb", "model", "manufacturer", "is_decommissioned"]
+  "ArraySystem": ["ip_address", "array_id", "name", "model", "serial", "release_version", "release_type", "config_type", "node_count", "master_node", "total_cap_mib", "alloc_cap_mib", "free_cap_mib", "failed_cap_mib", "protocols_supported", "is_decommissioned"],
+  "Node": ["node_id", "name", "encl_bay", "is_master", "in_cluster", "mem_mib", "up_since", "is_decommissioned"],
+  "Port": ["port_id", "nsp", "node", "slot", "port_num", "mode", "state", "node_wwn_ip", "port_wwn_hw", "type", "protocol", "label"],
+  "Switch": ["name", "state", "mode", "locate_led", "serial", "ps1", "ps2", "fans", "temperature", "model", "ip_address", "is_decommissioned"],
+  "Host": ["ip_address", "host_id", "name", "persona", "wwn", "port", "os_name", "multipath", "is_decommissioned"],
+  "Cage": ["cage_id", "name", "state", "detailed_state", "model", "form_factor", "drive_count", "temperature", "is_decommissioned"],
+  "PhysicalDisk": ["serial", "pd_id", "cage_pos", "state", "detailed_state", "sed_state", "drive_type", "manufacturer", "model", "firmware_rev", "capacity_gb", "protocol", "admission_time", "is_decommissioned"],
+  "CageSlot": ["slot_id", "cage_id", "name", "slot_num", "type", "manufacturer", "slotModel", "slotState", "statusDetails", "txPower", "rxPower", "qualified", "rxLoss"]
 }

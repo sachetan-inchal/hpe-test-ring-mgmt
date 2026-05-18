@@ -3,7 +3,7 @@ discovery/mongo_store.py
 
 MongoDB store for the discovery engine.
 Stores the discovered SAN entities in a format compatible with the Chatbot's
-Mongoose SANData schema.
+Mongoose SANData schema, fully mapping all parsed parameters.
 """
 import os
 import logging
@@ -16,6 +16,7 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://127.0.0.1:27017/hpe_san")
+
 
 class MongoStore:
     def __init__(self, uri=MONGO_URI):
@@ -48,12 +49,12 @@ class MongoStore:
     def _normalize_status(self, status: str) -> str:
         if not status:
             return "normal"
-        s = status.lower()
-        if s in ["normal", "degraded", "failed", "offline"]:
+        s = str(status).lower()
+        if s in ["normal", "degraded", "failed", "offline", "ok"]:
             return s
-        if "ok" in s or "ready" in s or "online" in s or "up" in s or "logged_in" in s:
+        if "ok" in s or "ready" in s or "online" in s or "up" in s or "logged_in" in s or "qualified" in s:
             return "normal"
-        if "loss" in s or "warning" in s or "degraded" in s:
+        if "loss" in s or "warning" in s or "degraded" in s or "no_light" in s:
             return "degraded"
         if "fail" in s or "error" in s:
             return "failed"
@@ -74,11 +75,12 @@ class MongoStore:
     def _store_array(self, p: dict):
         ip = p.get("_ip", "")
         
-        # 1. Array
+        # 1. ArraySystem
         array_id = ip
         tc_tb = p.get("total_cap_mib", 0) / 1048576.0 if p.get("total_cap_mib") else 0
         fc_tb = p.get("free_cap_mib", 0) / 1048576.0 if p.get("free_cap_mib") else 0
-        uc_tb = max(0, tc_tb - fc_tb)
+        ac_tb = p.get("alloc_cap_mib", 0) / 1048576.0 if p.get("alloc_cap_mib") else 0
+        fac_tb = p.get("failed_cap_mib", 0) / 1048576.0 if p.get("failed_cap_mib") else 0
         
         self.nodes[array_id] = {
             "id": array_id,
@@ -89,14 +91,19 @@ class MongoStore:
             "model": p.get("model", ""),
             "serialNumber": p.get("serial", ""),
             "firmware": p.get("release_version", ""),
-            "totalCapacityTb": round(tc_tb, 2),
-            "usedCapacityTb": round(uc_tb, 2),
-            "freeCapacityTb": round(fc_tb, 2),
+            "releaseType": p.get("release_type", ""),
+            "totalCapacityTb": round(tc_tb, 4),
+            "usedCapacityTb": round(ac_tb, 4),
+            "freeCapacityTb": round(fc_tb, 4),
+            "failedCapacityTb": round(fac_tb, 4),
             "nodeCount": p.get("node_count", 0),
+            "masterNode": p.get("master_node", 0),
+            "configType": p.get("config_type", ""),
+            "protocolsSupported": p.get("protocols_supported", []),
             "ipAddress": ip
         }
 
-        # 2. Nodes
+        # 2. Nodes (Controllers)
         for n in p.get("nodes", []):
             nid = f"{ip}_N{n.get('node_id')}"
             self.nodes[nid] = {
@@ -106,12 +113,39 @@ class MongoStore:
                 "status": self._normalize_status("normal"),
                 "category": "sub",
                 "parentId": array_id,
+                "enclBay": n.get("encl_bay", ""),
                 "isMaster": n.get("is_master", False),
-                "memoryGb": round(n.get("mem_mib", 0) / 1024.0, 2)
+                "inCluster": n.get("in_cluster", False),
+                "memoryGb": round(n.get("mem_mib", 0) / 1024.0, 2),
+                "upSince": str(n.get("up_since", ""))
             }
             self.edges.add((array_id, nid, "has_node"))
 
-        # 3. Switches
+        # 3. Ports
+        for port in p.get("ports", []):
+            port_id = f"{ip}_P{port.get('nsp')}"
+            self.nodes[port_id] = {
+                "id": port_id,
+                "name": port.get("label") or f"Port {port.get('nsp')}",
+                "type": "Port",
+                "status": self._normalize_status(port.get("state")),
+                "category": "sub",
+                "parentId": array_id,
+                "nsp": port.get("nsp", ""),
+                "node": port.get("node", 0),
+                "slot": port.get("slot", 0),
+                "portNum": port.get("port", 0),
+                "mode": port.get("mode", ""),
+                "state": port.get("state", ""),
+                "nodeWwnIp": port.get("node_wwn_ip", ""),
+                "portWwnHw": port.get("port_wwn_hw", ""),
+                "portType": port.get("type", ""),
+                "protocol": port.get("protocol", ""),
+                "label": port.get("label", "")
+            }
+            self.edges.add((array_id, port_id, "has_port"))
+
+        # 4. Switches
         for s in p.get("switches", []):
             sid = s.get("name") or s.get("serial") or s.get("ip_address")
             if sid:
@@ -123,11 +157,17 @@ class MongoStore:
                     "category": "main",
                     "model": s.get("model", ""),
                     "serialNumber": s.get("serial", ""),
-                    "temperature": float(s.get("temperature")) if s.get("temperature") else None
+                    "state": s.get("state", ""),
+                    "mode": s.get("mode", ""),
+                    "locateLed": s.get("locate_led", ""),
+                    "ps1": s.get("ps1", ""),
+                    "ps2": s.get("ps2", ""),
+                    "fans": s.get("fans", ""),
+                    "temperature": float(s.get("temp", s.get("temperature"))) if (s.get("temp") or s.get("temperature")) else None
                 }
                 self.edges.add((array_id, sid, "has_switch"))
 
-        # 4. Hosts
+        # 5. Hosts
         for h in p.get("hosts", []):
             h_ip = h.get("ip_address") or h.get("wwn") or f"wwn_{h.get('host_id')}"
             self.nodes[h_ip] = {
@@ -136,13 +176,17 @@ class MongoStore:
                 "type": "Host",
                 "status": self._normalize_status("normal"),
                 "category": "main",
-                "osType": h.get("os_name", ""),
+                "hostId": h.get("host_id"),
+                "persona": h.get("persona", ""),
+                "wwn": h.get("wwn", ""),
+                "port": h.get("port", ""),
+                "osType": h.get("os", h.get("os_name", "")),
                 "ipAddress": h.get("ip_address", ""),
-                "multipathStatus": "active" if h.get("multipath") else "inactive"
+                "multipathStatus": "active"
             }
             self.edges.add((h_ip, array_id, "zoned"))
 
-        # 5. Cages
+        # 6. Cages
         for cage in p.get("cages", []):
             cid = f"{ip}_cage_{cage.get('cage_id')}"
             self.nodes[cid] = {
@@ -153,11 +197,13 @@ class MongoStore:
                 "category": "sub",
                 "parentId": array_id,
                 "cageModel": cage.get("model", ""),
-                "temperature": float(cage.get("temperature")) if cage.get("temperature") else None
+                "formFactor": cage.get("form_factor", ""),
+                "driveCount": cage.get("drives", cage.get("drive_count", 0)),
+                "temperature": float(cage.get("temp", cage.get("temperature"))) if (cage.get("temp") or cage.get("temperature")) else None
             }
             self.edges.add((array_id, cid, "has_cage"))
 
-        # 6. Drives
+        # 7. Drives
         for d in p.get("drives", []):
             serial = d.get("serial") or f"{ip}_pd_{d.get('pd_id')}"
             cid = f"{ip}_cage_{d.get('cage_pos','0:0').split(':')[0]}"
@@ -168,12 +214,43 @@ class MongoStore:
                 "status": self._normalize_status(d.get("state")),
                 "category": "sub",
                 "parentId": cid,
+                "pdId": str(d.get("pd_id")),
+                "cagePos": d.get("cage_pos", ""),
                 "diskModel": d.get("model", ""),
-                "diskType": d.get("drive_type", ""),
+                "diskType": d.get("type", d.get("disk_type", "")),
                 "diskProtocol": d.get("protocol", ""),
-                "capacity": f"{d.get('capacity_gb', 0)} GB"
+                "manufacturer": d.get("manufacturer", ""),
+                "firmwareRev": d.get("fw_rev", d.get("firmware_rev", "")),
+                "sedState": d.get("sed_state", ""),
+                "admissionTime": d.get("admission_time", ""),
+                "capacity": f"{d.get('capacity_gb', round(d.get('total_mib', 0)/1024.0, 2))} GB"
             }
             self.edges.add((cid, serial, "has_disk"))
+
+        # 8. Cage Slots (PCI and SFPs diagnostics)
+        for slot in p.get("cage_slots", []):
+            slot_id = f"{ip}_cage_{slot.get('cage_id')}_slot_{slot.get('slot')}"
+            cage_node_id = f"{ip}_cage_{slot.get('cage_id')}"
+            self.nodes[slot_id] = {
+                "id": slot_id,
+                "name": slot.get("name") or f"Slot {slot.get('slot')}",
+                "type": "CageSlot",
+                "status": self._normalize_status(slot.get("state", slot.get("status"))),
+                "category": "sub",
+                "parentId": cage_node_id,
+                "cageId": slot.get("cage_id"),
+                "slotNum": slot.get("slot"),
+                "slotType": slot.get("type", ""),
+                "manufacturer": slot.get("manufacturer", ""),
+                "slotModel": slot.get("model", ""),
+                "slotState": slot.get("state", ""),
+                "statusDetails": slot.get("status", ""),
+                "txPower": slot.get("tx_power", ""),
+                "rxPower": slot.get("rx_power", ""),
+                "qualified": slot.get("qualified", ""),
+                "rxLoss": slot.get("rx_loss", "")
+            }
+            self.edges.add((cage_node_id, slot_id, "has_slot"))
 
         # Remote peers
         for peer_ip in p.get("connected_array_ips", []):

@@ -47,6 +47,8 @@ HPE_COMMANDS = [
     "showhost",
     "showcage",
     "showcage -state",
+    "showcage -pci",
+    "showcage -sfp",
     "showpd",
     "showpd -s",
     "showpd -i",

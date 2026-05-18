@@ -125,16 +125,20 @@ class ArrayDumpBuilder:
     def build_showswitch(self):
         c = self.c
         self._cmd("showswitch")
-        self._add("Switch -----------WWN----------- State  Mode   -Serial- -Temp-")
+        if not c["switches"]:
+            self._add("No switches listed")
+            return
+        self._add("Name State Mode LocateLED Serial PS1 PS2 Fans Temp")
         for s in c["switches"]:
-            self._add(f"{s['name']:<8} {s['wwn']} {s['state']:<7} {s['mode']:<7} {s['serial']} {s['temperature']}")
+            self._add(f"{s['name']} {s['state']} Native off {s['serial']} OK OK OK {s['temperature']}")
 
     def build_showhost(self):
         c = self.c
         self._cmd("showhost")
-        self._add(" Id Name              Persona       -WWN/iSCSI_Name-    Port  OS")
+        self._add(" Id Name              Persona       -WWN/iSCSI_Name/NQN-    Port  OS")
         for h in c["hosts"]:
-            self._add(f"  {h['host_id']:<3} {h['name']:<18} Generic-ALUA  {h['wwn']} {h['port']}  {h['os_name']}")
+            clean_wwn = h['wwn'].replace(":", "")
+            self._add(f"  {h['host_id']:<3} {h['name']:<18} Generic-ALUA  {clean_wwn} {h['port']}  {h['os_name']}")
 
     def build_showcage(self):
         c = self.c
@@ -156,23 +160,28 @@ class ArrayDumpBuilder:
     def build_showpd(self):
         c = self.c
         self._cmd("showpd")
-        self._add(" Id CagePos  Type State    Total_MiB Free_MiB Cap_GB")
+        self._add("Id CagePos Type RPM State Total Free Capacity(GB)")
         for d in c["drives"]:
-            self._add(f"  {d['pd_id']:<4} {d['cage_pos']:<8} {d['drive_type']:<5} {d['state']:<8} {d['total_mib']:<10} {d['free_mib']:<8} {d['capacity_gb']}")
+            self._add(f" {d['pd_id']} {d['cage_pos']} {d['drive_type']} N/A {d['state']} {d['total_mib']} {d['free_mib']} {d['capacity_gb']}")
 
     def build_showpd_s(self):
         c = self.c
         self._cmd("showpd -s")
-        self._add(" Id Manufacturer Model              Serial           FW_Rev Protocol")
+        self._add("Id CagePos Type Size(GB) State DetailedState SEDState")
         for d in c["drives"]:
-            self._add(f"  {d['pd_id']:<4} {d['manufacturer']:<13} {d['model']:<18} {d['serial']:<16} {d['firmware_rev']:<7} {d['protocol']}")
+            self._add(f" {d['pd_id']} {d['cage_pos']} {d['drive_type']} {d['capacity_gb']} {d['state']} OK {d['sed_state']}")
 
     def build_showpd_i(self):
         c = self.c
         self._cmd("showpd -i")
-        self._add(" Id SedState")
+        self._add("Id CagePos State Node_WWN Manufacturer Model Serial FW_Rev Protocol DiskType AdmissionTime")
         for d in c["drives"]:
-            self._add(f"  {d['pd_id']:<4} {d['sed_state']}")
+            mfg = d.get("manufacturer", "SAMSUNG")
+            mdl = d.get("model", "MZ-1")
+            serial = d.get("serial", "SN1")
+            fw = d.get("firmware_rev", "1.0")
+            proto = d.get("protocol", "SAS")
+            self._add(f" {d['pd_id']} {d['cage_pos']} {d['state']} 2FF70002AC07F065 {mfg} {mdl} {serial} {fw} {proto} {d['drive_type']} 2026-05-18_13:12:33")
 
     def build_showversion(self):
         c = self.c
@@ -461,10 +470,10 @@ def generate_full_san_topology() -> dict:
             "ip": "10.20.10.5",
             "model": "HPE Alletra Storage MP",
             "node_count": 4,
-            "drive_count": 96,
+            "drive_count": 192,
             "switch_count": 2,
             "host_count": 8,
-            "cage_count": 4,
+            "cage_count": 8,
             "subnet": "10.20.10",
             "connected_array_ips": ["10.20.20.5"],
         },
