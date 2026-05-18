@@ -208,6 +208,16 @@ export default function TopologyPage({ apiBase }) {
 
   const activeData = useMemo(() => ({ nodes: activeNodes, edges: activeEdges }), [activeNodes, activeEdges])
 
+  const visualMapData = useMemo(() => {
+    if (selectedIds.size === 0) return activeData
+
+    const ids = selectedIds
+    return {
+      nodes: activeData.nodes.filter(n => ids.has(n.id)),
+      edges: activeData.edges.filter(e => ids.has(e.from) && ids.has(e.to)),
+    }
+  }, [activeData, selectedIds])
+
   const handleDecommission = (id) => {
     setData(prev => ({
       ...prev,
@@ -253,6 +263,10 @@ export default function TopologyPage({ apiBase }) {
       else next.delete(id)
       return next
     })
+  }
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
   }
 
   const exportData = useMemo(() => {
@@ -307,17 +321,22 @@ export default function TopologyPage({ apiBase }) {
           </h2>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 6, fontSize: 11, color: 'var(--muted)', alignItems: 'center' }}>
-            <span><strong style={{ color: 'var(--foreground)' }}>{healthStats.total}</strong> Total</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--status-ok)' }} />{healthStats.normal}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--status-warn)' }} />{healthStats.degraded}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--status-critical)' }} />{healthStats.failed}</span>
-          </div>
+          {user?.role === 'admin' && (
+            <div style={{ display: 'flex', gap: 6, fontSize: 11, color: 'var(--muted)', alignItems: 'center' }}>
+              <span><strong style={{ color: 'var(--foreground)' }}>{healthStats.total}</strong> Total</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--status-ok)' }} />{healthStats.normal}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--status-warn)' }} />{healthStats.degraded}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--status-critical)' }} />{healthStats.failed}</span>
+            </div>
+          )}
           <input className="input" style={{ width: 180 }} placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
           {selectedIds.size > 0 && (
             <span style={{ fontSize: 11, color: 'var(--accent-blue)', background: 'rgba(88,166,255,0.1)', border: '1px solid rgba(88,166,255,0.2)', padding: '4px 8px', borderRadius: 999 }}>
               {selectedIds.size} selected
             </span>
+          )}
+          {selectedIds.size > 0 && (
+            <button className="btn" onClick={handleClearSelection}>Clear Selection</button>
           )}
           <button className="btn" onClick={handleExportConfig}><Download size={14} />Export</button>
           <button className="btn" onClick={() => setShowImport(true)}>Import Config</button>
@@ -419,7 +438,7 @@ export default function TopologyPage({ apiBase }) {
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 16 }}>
         <div className="glass-card" style={{ flex: 1, minWidth: 0, overflow: 'hidden', padding: 0 }}>
           {activeTab === 'diagram' && <SANDiagram data={activeData} focusedId={focusedId} expandedIds={expandedIds} onNodeClick={handleNodeClick} selectedIds={selectedIds} onSelectToggle={handleSelectToggle} />}
-          {activeTab === 'visual' && <TopologyCanvas data={activeData} onNodeClick={(id) => handleNodeClick(id, false)} />}
+          {activeTab === 'visual' && <TopologyCanvas data={visualMapData} onNodeClick={(id) => handleNodeClick(id, false)} />}
           {activeTab === 'decommissioned' && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
               {activeNodes.length === 0 ? "No decommissioned nodes." : "Decommissioned nodes are hidden from topology views."}
