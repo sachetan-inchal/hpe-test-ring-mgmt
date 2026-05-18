@@ -56,14 +56,12 @@ export default function App() {
           <div className="app-shell">
             {/* Sidebar */}
             <aside className={`app-sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'mobile-open' : ''}`}>
-              <div className="sidebar-brand">
-                <div className="brand-logo">
-                  <span className="brand-rect" />
-                  <div className="brand-text">
-                    <strong>Hewlett Packard</strong>
-                    <small>Enterprise</small>
-                  </div>
-                </div>
+              <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
+                <img 
+                  src="/images/hpe-logo-dark.avif" 
+                  alt="HPE Logo" 
+                  style={{ width: sidebarCollapsed ? '0' : '140px', opacity: sidebarCollapsed ? 0 : 1, transition: 'all 0.3s ease', objectFit: 'contain' }} 
+                />
                 <button className="sidebar-collapse-btn" onClick={() => setSidebarCollapsed(c => !c)}>
                   <ChevronRight size={16} style={{ transform: sidebarCollapsed ? 'rotate(0)' : 'rotate(180deg)', transition: 'transform 0.3s' }} />
                 </button>

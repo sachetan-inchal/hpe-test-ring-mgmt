@@ -77,12 +77,12 @@ export default function LoginPage() {
 
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-logo-row">
-            <span className="brand-rect large" />
-            <div>
-              <div className="login-brand-name">Hewlett Packard</div>
-              <div className="login-brand-sub">Enterprise</div>
-            </div>
+          <div className="login-logo-row" style={{ justifyContent: 'center', marginBottom: '1rem' }}>
+            <img 
+              src="/images/hpe-logo.jpg" 
+              alt="Hewlett Packard Enterprise" 
+              style={{ width: '180px', borderRadius: '8px', objectFit: 'contain' }} 
+            />
           </div>
           <h1 className="login-title">SAN Unified Platform</h1>
           <p className="login-subtitle">
