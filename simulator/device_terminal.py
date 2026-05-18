@@ -77,13 +77,12 @@ class HPEArrayTerminal(BaseTerminal):
 
     def __init__(self, device_id: str, ip: str, config: dict, device_file: str):
         self.device_file = device_file
-        # Lazy-load proxy; it resolves DATA_DIR relative to its own location
-        sys.path.insert(0, os.path.join(BASE_DIR, "..", "discovery"))
         super().__init__(device_id, ip, config)
 
     def _handle(self, command: str) -> str:
         from proxy_engine import get_command_output
         time.sleep(0.05)  # simulate real latency
+        # self.device_file is already an absolute path (passed from simulator_manager)
         output = get_command_output(self.device_file, command)
         return f"{self.PROMPT}{command}\n{output}"
 

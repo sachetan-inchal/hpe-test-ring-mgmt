@@ -297,30 +297,33 @@ class DiscoveryCrawler:
 
     def _extract_linked_ips(self, parsed: dict) -> List[str]:
         """
-        Extract all routable IPs from a parsed array entity.
-        Looks in: connected_array_ips, switch IPs, host IPs.
+        Extract all routable IPs to visit next from a parsed array entity.
+
+        Strategy (in priority order):
+        1. Connected peer arrays (from virtual_network metadata for this array's IP).
+        2. All devices registered in the virtual network whose parent_array matches
+           this array's name — catches every switch and host without fragile name
+           string comparisons against parsed CLI text.
         """
         ips = []
-        # From connected arrays (from network topology metadata)
-        ip = parsed.get("_ip", "")
-        meta = virtual_network.get_metadata(ip) if hasattr(virtual_network, 'get_metadata') else {}
-        ips.extend(meta.get("connected_array_ips", []))
-        # From switches parsed
-        for sw in parsed.get("switches", []):
-            sw_name = sw.get("name", "")
-            # Look up IP from network topology
-            devices = virtual_network.list_devices()
-            for d in devices:
-                if d.get("name") == sw_name and d.get("ip"):
-                    ips.append(d["ip"])
-        # From hosts parsed out of showhost
-        for h in parsed.get("hosts", []):
-            h_name = h.get("name", "")
-            devices = virtual_network.list_devices()
-            for d in devices:
-                if d.get("name") == h_name and d.get("ip"):
-                    ips.append(d["ip"])
+        array_ip = parsed.get("_ip", "")
+        all_devices = virtual_network.list_devices()
+
+        # 1. Peer arrays from the array's own metadata
+        array_meta = virtual_network.get_metadata(array_ip)
+        for peer_ip in array_meta.get("connected_to", []):
+            ips.append(peer_ip)
+
+        # 2. All switches and hosts that belong to this array
+        array_name = array_meta.get("name", "")
+        for d in all_devices:
+            if d.get("parent_array") == array_name:
+                dev_ip = d.get("ip")
+                if dev_ip:
+                    ips.append(dev_ip)
+
         return [x for x in ips if x and x not in self.visited]
+
 
     def get_status(self) -> dict:
         with self._lock:
