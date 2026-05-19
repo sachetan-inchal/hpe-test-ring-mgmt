@@ -314,7 +314,7 @@ export default function TopologyPage({ apiBase }) {
       <div className="page-header">
         <div>
           <h2 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            SAN Topology
+            Test Ring Viewer
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, background: 'var(--surface-1)', padding: '3px 10px', borderRadius: 20, border: '1px solid var(--line)' }}>
               <span className="pulse-dot green" /> Live DB
             </span>

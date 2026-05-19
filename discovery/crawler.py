@@ -52,6 +52,8 @@ HPE_COMMANDS = [
     "showpd",
     "showpd -s",
     "showpd -i",
+    "showportdev ns -nohdtot 0:3:1",
+    "showportdev ns -nohdtot 1:3:1",
     "showversion -b",
     "lscpu",
 ]

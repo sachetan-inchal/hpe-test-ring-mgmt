@@ -16,7 +16,7 @@ from discovery.parsers.sim_parser import parse_sim_array_output
 
 # Same allowlist as discovery crawler (+ health commands)
 ALLOWED_COMMANDS = frozenset(HPE_COMMANDS) | frozenset({
-    "checkhealth", "cli checkhealth", "showversion",
+    "checkhealth", "cli checkhealth", "showversion", "showportdev",
 })
 
 FORBIDDEN_PATTERNS = re.compile(
@@ -105,6 +105,20 @@ class SanAgent:
                 name = (d.get("name") if isinstance(d, dict) else str(d)) or ""
                 if name and not name.startswith("host") and not name.startswith("sw"):
                     arrays.append(d if isinstance(d, dict) else {"ip": name, "name": name})
+                    
+        import os
+        from pathlib import Path
+        try:
+            repo_root = Path(__file__).resolve().parent.parent.parent
+            devices_dir = repo_root / "simulator" / "data" / "devices"
+            if devices_dir.exists():
+                for file_path in devices_dir.glob("*.txt"):
+                    name = file_path.stem
+                    if not any(a.get("name") == name or a.get("ip") == file_path.name for a in arrays):
+                        arrays.append({"ip": file_path.name, "name": name, "type": "hpe_array"})
+        except Exception:
+            pass
+            
         return arrays
 
     def _resolve_array(self, hint: Optional[str]) -> Optional[dict]:
@@ -114,6 +128,21 @@ class SanAgent:
         if not hint:
             return arrays[0]
         h = hint.lower().replace(".txt", "")
+        
+        # 1. Host or Device name lookup: check if hint refers to a host/device that belongs to a parent array
+        devices = self.list_devices() or []
+        for d in devices:
+            dname = (d.get("name") or "").lower()
+            dip = (d.get("ip") or "").lower()
+            if (h in dname or dname in h or h in dip) and d.get("parent_array"):
+                p_array = d["parent_array"].lower()
+                for a in arrays:
+                    aname = (a.get("name") or a.get("id") or "").lower()
+                    aip = (a.get("ip") or "").lower()
+                    if p_array == aname or p_array == aip:
+                        return a
+
+        # 2. Direct array name match
         for a in arrays:
             name = (a.get("name") or a.get("id") or "").lower()
             ip = (a.get("ip") or "").lower()
@@ -155,6 +184,18 @@ class SanAgent:
                     "MATCH (a:ArraySystem)<-[:CONNECTS_TO]-(h:Host) "
                     f"WHERE toLower(a.name) = toLower('{array_name}') "
                     "RETURN h.name AS host_name, h.os_name AS os_type, h.multipath AS paths "
+                    "ORDER BY h.name"
+                )
+
+        if any(k in q for k in ("hba", "driver", "portdev")):
+            reasoning.append("Need HBA detail, driver, and firmware versions from showportdev ns.")
+            commands.extend(["showportdev ns -nohdtot 0:3:1", "showportdev ns -nohdtot 1:3:1"])
+            if not cypher:
+                cypher = (
+                    "MATCH (a:ArraySystem)<-[:CONNECTS_TO]-(h:Host) "
+                    f"WHERE toLower(a.name) = toLower('{array_name}') "
+                    "RETURN h.name AS host_name, h.os_name AS os_type, h.wwn AS wwn, "
+                    "h.hba_fw AS hba_fw, h.hba_driver AS hba_driver, h.hba_model AS hba_model "
                     "ORDER BY h.name"
                 )
 
@@ -286,14 +327,14 @@ class SanAgent:
             edges.append({"data": {"source": hid, "target": f"array:{array_name}", "label": "CONNECTS_TO"}})
         return {"nodes": nodes, "edges": edges}
 
-    def run(self, query: str, array_hint: Optional[str] = None, on_step: Optional[callable] = None) -> dict:
+    def run(self, query: str, array_hint: Optional[str] = None, on_step: Optional[callable] = None, use_ollama=False, disable_think=False) -> dict:
         self.on_step = on_step
         try:
-            return self._run_internal(query, array_hint)
+            return self._run_internal(query, array_hint, use_ollama=use_ollama, disable_think=disable_think)
         finally:
             self.on_step = None
 
-    def _run_internal(self, query: str, array_hint: Optional[str] = None) -> dict:
+    def _run_internal(self, query: str, array_hint: Optional[str] = None, use_ollama=False, disable_think=False) -> dict:
         steps: list[dict] = []
         t0 = time.time()
         hint = array_hint or _extract_array_hint(query)
@@ -390,8 +431,25 @@ class SanAgent:
         if not rows and parsed_snapshot.get("protocols_supported"):
             rows = [{"array_name": array_name, "protocols": parsed_snapshot["protocols_supported"]}]
 
-        answer = self._summarize(query, array_name, rows, parsed_snapshot, plan)
-        self._step(steps, "final", "Final result", "Successfully compiled SAN diagnostics and generated array upgrade readiness report.")
+        answer = self._summarize(query, array_name, rows, parsed_snapshot, plan, use_ollama=use_ollama, disable_think=disable_think)
+        
+        # Dynamically extract a short, informative sentence from the AI's actual summary
+        final_desc = "Successfully completed SAN diagnostics."
+        summary_lines = [l.strip() for l in answer.split('\n') if l.strip()]
+        for line in summary_lines:
+            # Strip markdown headers, bolding, lists, etc.
+            clean = re.sub(r'^[#*\s\-\[\]\(\)]+', '', line).strip()
+            if clean and not clean.lower().startswith('san diagnostic') and len(clean) > 10:
+                # Skip simple headers
+                if clean.lower() in ("array health and status", "host details", "recommendation", "health summary", "host zoning status", "tpd version"):
+                    continue
+                if len(clean) > 140:
+                    final_desc = clean[:137] + "..."
+                else:
+                    final_desc = clean
+                break
+                
+        self._step(steps, "final", "Final result", final_desc)
 
         return {
             "answer": answer,
@@ -404,7 +462,7 @@ class SanAgent:
             "elapsed_ms": int((time.time() - t0) * 1000),
         }
 
-    def _analyze_batch(self, entity_type: str, items: list, chunk_size: int = 30) -> list:
+    def _analyze_batch(self, entity_type: str, items: list, chunk_size: int = 30, use_ollama=False, disable_think=False) -> list:
         """Analyze large lists of hardware entities in batches to prevent LLM token overflow."""
         issues = []
         if not self.llm_call or not items:
@@ -428,7 +486,9 @@ class SanAgent:
             try:
                 res = self.llm_call(
                     "You are a hardware diagnostics agent that returns strictly raw, valid JSON. Do not include markdown formatting (like ```json). Return ONLY a valid JSON list [] of abnormal, degraded, or failed component objects, or an empty list [] if all are healthy.",
-                    prompt
+                    prompt,
+                    use_ollama=use_ollama,
+                    disable_think=disable_think
                 )
                 # Try to parse the LLM's response as a list
                 try:
@@ -450,7 +510,7 @@ class SanAgent:
                 
         return issues
 
-    def _summarize(self, query: str, array_name: str, rows: list, parsed: dict, plan: dict) -> str:
+    def _summarize(self, query: str, array_name: str, rows: list, parsed: dict, plan: dict, use_ollama=False, disable_think=False) -> str:
         if self.llm_call and (rows or parsed):
             # 1. Try sending the full context first (for Dev Tier or high token limit configurations)
             try:
@@ -473,6 +533,8 @@ class SanAgent:
                     "If the query asked about physical disks, cages, nodes, or checkhealth and they are all healthy, state that explicitly! "
                     "Provide a clear recommendation on whether the array is ready for a firmware update based on the health check. Be concise.",
                     json.dumps(summary_context, default=str),
+                    use_ollama=use_ollama,
+                    disable_think=disable_think
                 )
                 if ans and (ans.startswith("LLM Error:") or ans.startswith("Error:") or any(k in ans.lower() for k in ("rate_limit", "rate limit", "413", "too large", "tpm", "token"))):
                     raise ValueError(ans)
@@ -489,10 +551,10 @@ class SanAgent:
                     hosts = parsed.get("hosts", [])
 
                     # Parallelize/Batch analyze the 96 drives in chunks of 30
-                    unhealthy_drives = self._analyze_batch("physical drive", drives, chunk_size=30)
+                    unhealthy_drives = self._analyze_batch("physical drive", drives, chunk_size=30, use_ollama=use_ollama, disable_think=disable_think)
                     
                     # Batch analyze cages in chunks of 10
-                    unhealthy_cages = self._analyze_batch("enclosure cage", cages, chunk_size=10)
+                    unhealthy_cages = self._analyze_batch("enclosure cage", cages, chunk_size=10, use_ollama=use_ollama, disable_think=disable_think)
 
                     # Compact hosts to preserve essential fields
                     compact_hosts = [
@@ -531,6 +593,8 @@ class SanAgent:
                             "If the query asked about physical disks, cages, nodes, or checkhealth and they are all healthy, state that explicitly! "
                             "Provide a clear recommendation on whether the array is ready for a firmware update based on the health check. Be concise.",
                             json.dumps(summary_context_compact, default=str),
+                            use_ollama=use_ollama,
+                            disable_think=disable_think
                         )
                         if ans and not (ans.startswith("LLM Error:") or ans.startswith("Error:") or any(k in ans.lower() for k in ("rate_limit", "rate limit", "413", "too large", "tpm", "token"))):
                             return ans

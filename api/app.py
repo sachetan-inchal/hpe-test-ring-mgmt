@@ -456,8 +456,8 @@ _rag_engine = RAGEngine(
 )
 
 
-def _san_agent_llm(system: str, user: str) -> str:
-    return _rag_engine._llm_call(system, user)
+def _san_agent_llm(system: str, user: str, use_ollama=False, disable_think=False) -> str:
+    return _rag_engine._llm_call(system, user, use_ollama=use_ollama, disable_think=disable_think)
 
 
 # Per-command parsers: api REST parsers + sim_parser (simulator / discovery)
@@ -469,14 +469,245 @@ _AGENT_PARSERS = {
     "showcage -state": sim_parser.parse_showcage_state,
     "showpd -s": sim_parser.parse_showpd_s,
     "showpd -i": sim_parser.parse_showpd_i,
+    "showportdev": sim_parser.parse_showportdev_ns,
 }
 
+# ── Embedded Desktop Shell ────────────────────────────────────────────────────
+class DesktopShell:
+    """Manages a persistent interactive shell subprocess for the embedded browser terminal."""
+
+    def __init__(self):
+        self.proc        = None          # subprocess.Popen instance
+        self.output_q    = None          # queue.Queue of str chunks
+        self._reader_t   = None          # background reader thread
+        self._env        = None          # shell environment
+        self._lock       = threading.Lock()
+
+    def is_running(self):
+        return self.proc is not None and self.proc.poll() is None
+
+    def spawn(self):
+        """Spawn (or respawn) the shell subprocess."""
+        import sys, os, queue
+        self.kill()
+
+        mock_cli_dir = os.path.abspath(os.path.join(MONOREPO, 'scratch', 'mock_hpe_cli'))
+        env = os.environ.copy()
+        path_key = next((k for k in env if k.upper() == 'PATH'), 'PATH')
+        env[path_key] = mock_cli_dir + os.pathsep + env.get(path_key, '')
+        self._env = env
+
+        if sys.platform == 'win32':
+            shell_cmd = ['powershell.exe', '-NoLogo', '-NoExit', '-Command', '-']
+        else:
+            shell_cmd = ['bash', '--norc', '--noprofile', '-i']
+
+        self.output_q = queue.Queue(maxsize=4096)
+
+        self.proc = subprocess.Popen(
+            shell_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+            bufsize=0,
+        )
+
+        self._reader_t = threading.Thread(target=self._read_loop, daemon=True)
+        self._reader_t.start()
+        log.info('[DesktopShell] Shell spawned: %s', shell_cmd[0])
+
+    def _read_loop(self):
+        """Background thread: read raw bytes from shell stdout, decode and queue."""
+        buf = b''
+        while self.proc and self.proc.poll() is None:
+            try:
+                chunk = self.proc.stdout.read(256)
+            except Exception:
+                break
+            if not chunk:
+                break
+            buf += chunk
+            # decode as much as possible (ignore partial UTF-8 sequences)
+            try:
+                text = buf.decode('utf-8', errors='replace')
+                buf = b''
+            except Exception:
+                text = buf.decode('latin-1')
+                buf = b''
+            if text:
+                try:
+                    self.output_q.put_nowait(text)
+                except Exception:
+                    pass  # queue full — drop
+        log.info('[DesktopShell] Reader loop exited.')
+
+    def write(self, data: str):
+        """Send raw keyboard input to the shell stdin."""
+        if not self.is_running():
+            return
+        try:
+            self.proc.stdin.write(data.encode('utf-8'))
+            self.proc.stdin.flush()
+        except Exception as e:
+            log.warning('[DesktopShell] write error: %s', e)
+
+    def run_command(self, cmd: str, timeout: float = 30.0) -> str:
+        """Send a complete command line and collect its output (used by SAN agent)."""
+        import sys, time, queue as _q
+
+        if not self.is_running():
+            return 'Error: Desktop shell is not running. Please reconnect via Gateway Settings.'
+
+        # Use a sentinel to detect end-of-output
+        sentinel = f'__SAN_DONE_{int(time.time()*1000)}__'
+        if sys.platform == 'win32':
+            full_cmd = f"{cmd}\r\nWrite-Host '{sentinel}'\r\n"
+        else:
+            full_cmd = f"{cmd}\necho '{sentinel}'\n"
+
+        # Drain any existing queued output first
+        while not self.output_q.empty():
+            try: self.output_q.get_nowait()
+            except: break
+
+        self.write(full_cmd)
+
+        collected = []
+        start = time.time()
+        while time.time() - start < timeout:
+            try:
+                chunk = self.output_q.get(timeout=0.15)
+                collected.append(chunk)
+                combined = ''.join(collected)
+                if sentinel in combined:
+                    # Strip sentinel and everything after
+                    combined = combined[:combined.index(sentinel)]
+                    # Also strip the echoed command line
+                    lines = combined.splitlines()
+                    lines = [l for l in lines if cmd.strip() not in l]
+                    return '\n'.join(lines).strip()
+            except _q.Empty:
+                combined = ''.join(collected)
+                if sentinel in combined:
+                    combined = combined[:combined.index(sentinel)]
+                    lines = [l for l in combined.splitlines() if cmd.strip() not in l]
+                    return '\n'.join(lines).strip()
+
+        return ''.join(collected).strip() or 'Error: Command timed out.'
+
+    def kill(self):
+        """Terminate the running shell."""
+        if self.proc:
+            try: self.proc.kill()
+            except: pass
+            self.proc = None
+        log.info('[DesktopShell] Shell terminated.')
+
+
+_desktop_shell = DesktopShell()
+
+# ── ActiveTerminalGateway ──────────────────────────────────────────────────────
+class ActiveTerminalGateway:
+    def __init__(self):
+        self.connection_type = "simulated"  # "simulated", "local", "ssh", "desktop"
+        self.ssh_host = None
+        self.ssh_username = None
+        self.ssh_password = None
+        self.execution_mode = "auto"  # "auto", "manual"
+        self.selected_hwnd = None
+        
+        # Approval flow properties
+        self.pending_command = None
+        self.pending_ip = None
+        self.approval_event = threading.Event()
+        self.user_decision = None  # "approve", "reject"
+        self.modified_command = None
+
+_terminal_gateway = ActiveTerminalGateway()
+
+def _san_agent_executor(ip, cmd):
+    # Check if we are in manual approval mode
+    if _terminal_gateway.execution_mode == "manual":
+        # Clear previous state
+        _terminal_gateway.pending_command = cmd
+        _terminal_gateway.pending_ip = ip
+        _terminal_gateway.user_decision = None
+        _terminal_gateway.modified_command = None
+        _terminal_gateway.approval_event.clear()
+        
+        # Wait until user decision is set
+        print(f"[TerminalGateway] Pausing execution. Waiting for approval of: {cmd} on {ip}")
+        _terminal_gateway.approval_event.wait()
+        
+        pending_cmd = _terminal_gateway.pending_command
+        _terminal_gateway.pending_command = None
+        _terminal_gateway.pending_ip = None
+        
+        if _terminal_gateway.user_decision == "reject":
+            return "Command execution rejected by user."
+            
+        cmd_to_run = _terminal_gateway.modified_command or pending_cmd
+    else:
+        cmd_to_run = cmd
+
+    # Route execution to proper connection type
+    if _terminal_gateway.connection_type == "ssh":
+        import paramiko
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(
+                _terminal_gateway.ssh_host,
+                username=_terminal_gateway.ssh_username,
+                password=_terminal_gateway.ssh_password,
+                timeout=10
+            )
+            stdin, stdout, stderr = ssh.exec_command(cmd_to_run)
+            out = stdout.read().decode('utf-8', errors='replace')
+            err = stderr.read().decode('utf-8', errors='replace')
+            ssh.close()
+            return out + "\n" + err
+        except Exception as e:
+            return f"SSH Connection Error: {str(e)}"
+    elif _terminal_gateway.connection_type == "local":
+        import subprocess
+        import os
+        try:
+            # Dynamically locate the scratch/mock_hpe_cli folder in the monorepo
+            mock_cli_dir = os.path.abspath(os.path.join(MONOREPO, "scratch", "mock_hpe_cli"))
+            
+            # Setup environment with the mock CLI in Path
+            env = os.environ.copy()
+            path_key = "PATH"
+            for k in env.keys():
+                if k.upper() == "PATH":
+                    path_key = k
+                    break
+            env[path_key] = mock_cli_dir + os.pathsep + env.get(path_key, "")
+            
+            res = subprocess.run(["powershell", "-Command", cmd_to_run], capture_output=True, text=True, env=env, timeout=15)
+            return res.stdout + "\n" + res.stderr
+        except Exception as e:
+            return f"Local PowerShell Error: {str(e)}"
+    elif _terminal_gateway.connection_type == "desktop":
+        # Use the embedded browser shell (DesktopShell subprocess)
+        if not _desktop_shell.is_running():
+            return (
+                "Error: Embedded terminal shell is not running. "
+                "Please open Gateway Settings and click 'Connect Desktop Terminal'."
+            )
+        return _desktop_shell.run_command(cmd_to_run)
+    else:
+        # Fall back to simulated network
+        return virtual_network.execute(ip, cmd_to_run)
+
 _san_agent = SanAgent(
-    execute_fn=lambda ip, cmd: virtual_network.execute(ip, cmd),
+    execute_fn=_san_agent_executor,
     list_devices_fn=lambda: virtual_network.list_devices(),
     neo4j_store=neo4j,
     run_cypher_fn=lambda q, params=None: neo4j_run_cypher(neo4j, q, params),
-    llm_call=_san_agent_llm if _rag_engine.client else None,
+    llm_call=_san_agent_llm,
     command_parsers=_AGENT_PARSERS,
     parse_array_outputs=parse_sim_array_output,
 )
@@ -1026,12 +1257,223 @@ def neo4j_graph():
 
 # ── RAG chat, ingest, faker ───────────────────────────────────────────────────
 
+_cancelled_requests = set()
+
+@app.route("/api/chat/stop", methods=["POST"])
+@app.route("/api/chat/cancel", methods=["POST"])
+def cancel_chat_request():
+    data = request.json or {}
+    req_id = data.get("requestId", "").strip()
+    if req_id:
+        _cancelled_requests.add(req_id)
+        log.info(f"[Cancellation] Added request {req_id} to cancelled list.")
+    return jsonify({"success": True, "cancelled": req_id})
+
+@app.route("/api/terminal/windows", methods=["GET"])
+def get_desktop_windows():
+    """Returns open windows on Windows, or relay status on Linux/macOS."""
+    import sys
+    import os
+    
+    if sys.platform != 'win32':
+        # On Linux/macOS there's no window-picker; just return relay status
+        tmp_dir = os.environ.get('TMPDIR', '/tmp')
+        cmd_file = os.path.join(tmp_dir, 'san_agent_cmd.txt')
+        out_file = os.path.join(tmp_dir, 'san_agent_out.txt')
+        relay_active = not os.path.exists(cmd_file)  # relay is running if cmd file was cleaned up
+        return jsonify({
+            "success": True,
+            "platform": "linux",
+            "windows": [],
+            "relayInfo": {
+                "tmpDir": tmp_dir,
+                "relayActive": relay_active
+            }
+        })
+    
+    import ctypes
+    from ctypes import wintypes
+    
+    user32 = ctypes.windll.user32
+    WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    
+    # Window classes that are known terminal/shell hosts
+    TERMINAL_CLASSES = {
+        'ConsoleWindowClass',       # Classic conhost (cmd.exe, PowerShell legacy)
+        'CASCADIA_HOSTING_WINDOW_CLASS',  # Windows Terminal (new)
+        'VirtualConsoleClass',      # ConEmu
+        'mintty',                   # Git Bash / Cygwin
+        'cygwin',
+        'XTerm',
+    }
+    
+    windows = []
+    all_windows = []
+    
+    def enum_windows_callback(hwnd, lParam):
+        if user32.IsWindowVisible(hwnd):
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                title_buf = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(hwnd, title_buf, length + 1)
+                title = title_buf.value
+                
+                class_buf = ctypes.create_unicode_buffer(256)
+                user32.GetClassNameW(hwnd, class_buf, 256)
+                class_name = class_buf.value
+                
+                if title.strip():
+                    entry = {
+                        "hwnd": str(hwnd),
+                        "title": title,
+                        "className": class_name,
+                        "isTerminal": class_name in TERMINAL_CLASSES
+                    }
+                    all_windows.append(entry)
+                    if class_name in TERMINAL_CLASSES:
+                        windows.append(entry)
+        return True
+    
+    try:
+        user32.EnumWindows(WNDENUMPROC(enum_windows_callback), 0)
+        # Return terminals first, then the rest
+        windows.sort(key=lambda w: w['title'].lower())
+        others = [w for w in all_windows if not w['isTerminal']]
+        others.sort(key=lambda w: w['title'].lower())
+        return jsonify({
+            "success": True,
+            "platform": "windows",
+            "windows": windows + others
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/terminal/connect", methods=["POST"])
+def terminal_connect():
+    data = request.json or {}
+    _terminal_gateway.connection_type = data.get("type", "simulated")
+    _terminal_gateway.execution_mode = data.get("executionMode", "auto")
+    if _terminal_gateway.connection_type == "ssh":
+        _terminal_gateway.ssh_host = data.get("host")
+        _terminal_gateway.ssh_username = data.get("username")
+        _terminal_gateway.ssh_password = data.get("password")
+    elif _terminal_gateway.connection_type == "desktop":
+        _terminal_gateway.selected_hwnd = data.get("hwnd")
+        # Auto-spawn the embedded shell subprocess
+        try:
+            _desktop_shell.spawn()
+            log.info('[TerminalGateway] Desktop shell spawned automatically on connect.')
+        except Exception as e:
+            log.warning('[TerminalGateway] Failed to auto-spawn shell: %s', e)
+    log.info(f"[TerminalGateway] Configured connection to {_terminal_gateway.connection_type} ({_terminal_gateway.execution_mode} mode)")
+    return jsonify({
+        "success": True, 
+        "connectionType": _terminal_gateway.connection_type, 
+        "executionMode": _terminal_gateway.execution_mode,
+        "selectedHwnd": _terminal_gateway.selected_hwnd
+    })
+
+@app.route("/api/terminal/pending", methods=["GET"])
+def terminal_pending():
+    return jsonify({
+        "command": _terminal_gateway.pending_command,
+        "ip": _terminal_gateway.pending_ip,
+        "mode": _terminal_gateway.execution_mode
+    })
+
+@app.route("/api/terminal/approval", methods=["POST"])
+def terminal_approval():
+    data = request.json or {}
+    decision = data.get("decision", "approve")
+    modified_command = data.get("modifiedCommand")
+    
+    _terminal_gateway.user_decision = decision
+    _terminal_gateway.modified_command = modified_command
+    _terminal_gateway.approval_event.set() # RESUME executor thread!
+    
+    log.info(f"[TerminalGateway] User decision received: {decision} (modified command: {modified_command})")
+    return jsonify({"success": True})
+
+# ── Embedded terminal: spawn / SSE output stream / keyboard input ─────────────
+@app.route("/api/terminal/spawn", methods=["POST"])
+def terminal_spawn():
+    """Spawn (or respawn) the embedded desktop shell subprocess."""
+    try:
+        _desktop_shell.spawn()
+        return jsonify({"success": True, "message": "Shell spawned."})
+    except Exception as e:
+        log.exception('[DesktopShell] Failed to spawn')
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/terminal/output")
+def terminal_output_stream():
+    """SSE stream: push shell stdout chunks to the browser xterm.js terminal."""
+    def generate():
+        import queue as _q
+        yield 'data: {"data": ""} \n\n'  # keep-alive / initial handshake
+        while True:
+            if not _desktop_shell.is_running():
+                import time
+                time.sleep(0.3)
+                continue
+            try:
+                chunk = _desktop_shell.output_q.get(timeout=1.0)
+                import json
+                yield f'data: {json.dumps({"data": chunk})}\n\n'
+            except _q.Empty:
+                yield ': keepalive\n\n'
+            except GeneratorExit:
+                break
+            except Exception:
+                break
+
+    resp = Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control':   'no-cache',
+            'X-Accel-Buffering':'no',
+            'Connection':      'keep-alive',
+        }
+    )
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    return resp
+
+
+@app.route("/api/terminal/input", methods=["POST"])
+def terminal_input():
+    """Receive keystroke data from the browser xterm.js and write to shell stdin."""
+    data = (request.json or {}).get('data', '')
+    if data:
+        _desktop_shell.write(data)
+    return jsonify({"success": True})
+
+
+@app.route("/api/terminal/session/stop", methods=["DELETE", "POST"])
+def terminal_session_stop():
+    _terminal_gateway.connection_type = "simulated"
+    _terminal_gateway.execution_mode = "auto"
+    _terminal_gateway.ssh_host = None
+    _terminal_gateway.ssh_username = None
+    _terminal_gateway.ssh_password = None
+    _terminal_gateway.pending_command = None
+    _terminal_gateway.pending_ip = None
+    _terminal_gateway.selected_hwnd = None
+    _terminal_gateway.approval_event.set()
+    _desktop_shell.kill()
+    log.info("[TerminalGateway] Disconnected from terminal and reset to simulated environment.")
+    return jsonify({"success": True})
+
 @app.route("/api/agent/run/stream")
 def agent_run_stream():
     """Stream SAN AI Agent execution steps in real-time via SSE."""
     import collections
     query = request.args.get("query", "").strip()
     array_hint = request.args.get("array", "").strip()
+    use_ollama = str(request.args.get("useOllama", "false")).lower() == "true"
+    disable_think = str(request.args.get("disableThink", "false")).lower() == "true"
+    req_id = request.args.get("requestId", "").strip()
     if not query:
         return Response("data: {\"error\": \"query is required\"}\n\n", mimetype="text/event-stream")
 
@@ -1046,7 +1488,7 @@ def agent_run_stream():
         
         def run_thread():
             try:
-                res = _san_agent.run(query, array_hint=array_hint or None, on_step=on_step)
+                res = _san_agent.run(query, array_hint=array_hint or None, on_step=on_step, use_ollama=use_ollama, disable_think=disable_think)
                 result.update(res)
             except Exception as e:
                 log.exception("agent stream run failed")
@@ -1056,6 +1498,10 @@ def agent_run_stream():
         t.start()
 
         while t.is_alive() or queue:
+            if req_id in _cancelled_requests:
+                log.info(f"Agent stream aborted via cancel request: {req_id}")
+                yield f"data: {json.dumps({'type': 'cancelled'})}\n\n"
+                return
             while queue:
                 step = queue.popleft()
                 yield f"data: {json.dumps({'type': 'step', 'step': step})}\n\n"
@@ -1095,11 +1541,44 @@ def agent_run():
 def chat():
     data = request.json or {}
     q = (data.get("query") or "").strip()
+    use_ollama = data.get("useOllama", False)
+    disable_think = data.get("disableThink", False)
+    stream = data.get("stream", False)
+    mode = data.get("mode", "auto")
+    req_id = data.get("requestId", "").strip()
+    
     if not q:
         return jsonify({"error": "query is required"}), 400
     history = data.get("history") or []
     try:
-        result = _rag_engine.query(q, history=history if isinstance(history, list) else [])
+        if mode == "standard":
+            result = _rag_engine.standard_rag(q, history=history if isinstance(history, list) else [], use_ollama=use_ollama, disable_think=disable_think, stream=stream)
+        elif mode == "graphrag":
+            result = _rag_engine.graph_rag(q, history=history if isinstance(history, list) else [], use_ollama=use_ollama, disable_think=disable_think, stream=stream)
+        else:
+            result = _rag_engine.query(q, history=history if isinstance(history, list) else [], use_ollama=use_ollama, disable_think=disable_think, stream=stream)
+        
+        if stream and "stream_generator" in result:
+            def generate():
+                for chunk in result["stream_generator"]:
+                    if req_id in _cancelled_requests:
+                        log.info(f"SSE chat stream aborted via cancel request: {req_id}")
+                        yield f"data: {json.dumps({'type': 'cancelled'})}\n\n"
+                        break
+                    try:
+                        chunk_data = json.loads(chunk)
+                        # Yield the chunk in SSE format
+                        c_type = 'think' if chunk_data.get('type') == 'think' else 'chunk'
+                        yield f"data: {json.dumps({'type': c_type, 'content': chunk_data.get('message', {}).get('content', ''), 'done': chunk_data.get('done', False)})}\n\n"
+                    except json.JSONDecodeError:
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                        
+                # After the stream finishes, yield the final result structure (cypher, table etc)
+                final_result = {k: v for k, v in result.items() if k != "stream_generator"}
+                yield f"data: {json.dumps({'type': 'final', 'result': final_result})}\n\n"
+                
+            return Response(generate(), mimetype="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
         return jsonify(result)
     except Exception as ex:
         log.exception("chat failed")
