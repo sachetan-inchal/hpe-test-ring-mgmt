@@ -290,6 +290,9 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         setTerminalMode(mode)
         if (hwnd) setSelectedHwnd(hwnd)
         setShowConnectModal(false)
+        if (type === 'desktop') {
+          setShowTerminalPanel(true)
+        }
       }
     } catch(e) {}
   }
@@ -1010,9 +1013,11 @@ export default function ChatPage({ apiBase, chatbotApi }) {
               <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto' }}>{showTerminalPanel ? '▾ collapse' : '▸ expand'}</span>
             </div>
             {/* xterm.js terminal */}
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <EmbeddedTerminal ref={terminalRef} apiBase={apiBase} active={terminalType === 'desktop'} />
-            </div>
+            {showTerminalPanel && (
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <EmbeddedTerminal ref={terminalRef} apiBase={apiBase} active={terminalType === 'desktop'} />
+              </div>
+            )}
           </div>
         )}
 

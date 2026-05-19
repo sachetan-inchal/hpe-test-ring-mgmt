@@ -11,9 +11,7 @@ import HealthPage from './pages/HealthPage'
 import InventoryPage from './pages/InventoryPage'
 import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database } from 'lucide-react'
 
-const FLASK_API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://127.0.0.1:5005'
-  : ''
+const FLASK_API = `http://${window.location.hostname}:5005`
 const CHATBOT_API = '/chatbot'
 
 const NAV_ITEMS = [

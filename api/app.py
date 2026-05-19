@@ -22,7 +22,7 @@ import threading
 import time
 
 # pyrefly: ignore [missing-import]
-from flask import Flask, Response, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 from flask_cors import CORS
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -478,7 +478,9 @@ class DesktopShell:
 
     def __init__(self):
         self.proc        = None          # subprocess.Popen instance
-        self.output_q    = None          # queue.Queue of str chunks
+        self.output_q    = None          # queue.Queue of str chunks for browser
+        self.agent_qs    = []            # active listeners for run_command
+        self._qs_lock    = threading.Lock()
         self._reader_t   = None          # background reader thread
         self._env        = None          # shell environment
         self._lock       = threading.Lock()
@@ -488,21 +490,29 @@ class DesktopShell:
 
     def spawn(self):
         """Spawn (or respawn) the shell subprocess."""
-        import sys, os, queue
+        import sys, os, queue, subprocess
         self.kill()
 
         mock_cli_dir = os.path.abspath(os.path.join(MONOREPO, 'scratch', 'mock_hpe_cli'))
         env = os.environ.copy()
-        path_key = next((k for k in env if k.upper() == 'PATH'), 'PATH')
-        env[path_key] = mock_cli_dir + os.pathsep + env.get(path_key, '')
+        
+        # Ensure all casing variants of PATH exist in env so Windows subprocess picks it up 100% reliably
+        existing_paths = [env.get(k) for k in env if k.upper() == 'PATH' if env.get(k)]
+        base_path = existing_paths[0] if existing_paths else ''
+        env['PATH'] = mock_cli_dir + os.pathsep + base_path
+        env['Path'] = env['PATH']
+        env['path'] = env['PATH']
+        
         self._env = env
 
         if sys.platform == 'win32':
-            shell_cmd = ['powershell.exe', '-NoLogo', '-NoExit', '-Command', '-']
+            shell_cmd = ['powershell.exe', '-NoLogo', '-NoExit']
         else:
             shell_cmd = ['bash', '--norc', '--noprofile', '-i']
 
         self.output_q = queue.Queue(maxsize=4096)
+        with self._qs_lock:
+            self.agent_qs = []
 
         self.proc = subprocess.Popen(
             shell_cmd,
@@ -522,24 +532,40 @@ class DesktopShell:
         buf = b''
         while self.proc and self.proc.poll() is None:
             try:
-                chunk = self.proc.stdout.read(256)
+                chunk = self.proc.stdout.read(1)
             except Exception:
                 break
             if not chunk:
                 break
             buf += chunk
-            # decode as much as possible (ignore partial UTF-8 sequences)
             try:
-                text = buf.decode('utf-8', errors='replace')
+                text = buf.decode('utf-8')
                 buf = b''
+            except UnicodeDecodeError:
+                # If partial multi-byte UTF-8, wait for next byte (max 4 bytes for UTF-8)
+                if len(buf) > 4:
+                    text = buf.decode('utf-8', errors='replace')
+                    buf = b''
+                else:
+                    text = ''
             except Exception:
                 text = buf.decode('latin-1')
                 buf = b''
+                
             if text:
+                # 1. Put in browser xterm stream
                 try:
                     self.output_q.put_nowait(text)
                 except Exception:
-                    pass  # queue full — drop
+                    pass  # queue full
+                
+                # 2. Fan-out to any active run_command collectors
+                with self._qs_lock:
+                    for aq in self.agent_qs:
+                        try:
+                            aq.put_nowait(text)
+                        except Exception:
+                            pass
         log.info('[DesktopShell] Reader loop exited.')
 
     def write(self, data: str):
@@ -547,6 +573,10 @@ class DesktopShell:
         if not self.is_running():
             return
         try:
+            # Map xterm.js backspace (\x7f) to Windows-native backspace (\x08)
+            import sys
+            if sys.platform == 'win32':
+                data = data.replace('\x7f', '\x08')
             self.proc.stdin.write(data.encode('utf-8'))
             self.proc.stdin.flush()
         except Exception as e:
@@ -559,6 +589,11 @@ class DesktopShell:
         if not self.is_running():
             return 'Error: Desktop shell is not running. Please reconnect via Gateway Settings.'
 
+        # Create a temporary queue for this command execution
+        aq = _q.Queue(maxsize=8192)
+        with self._qs_lock:
+            self.agent_qs.append(aq)
+
         # Use a sentinel to detect end-of-output
         sentinel = f'__SAN_DONE_{int(time.time()*1000)}__'
         if sys.platform == 'win32':
@@ -566,33 +601,32 @@ class DesktopShell:
         else:
             full_cmd = f"{cmd}\necho '{sentinel}'\n"
 
-        # Drain any existing queued output first
-        while not self.output_q.empty():
-            try: self.output_q.get_nowait()
-            except: break
-
         self.write(full_cmd)
 
         collected = []
         start = time.time()
-        while time.time() - start < timeout:
-            try:
-                chunk = self.output_q.get(timeout=0.15)
-                collected.append(chunk)
-                combined = ''.join(collected)
-                if sentinel in combined:
-                    # Strip sentinel and everything after
-                    combined = combined[:combined.index(sentinel)]
-                    # Also strip the echoed command line
-                    lines = combined.splitlines()
-                    lines = [l for l in lines if cmd.strip() not in l]
-                    return '\n'.join(lines).strip()
-            except _q.Empty:
-                combined = ''.join(collected)
-                if sentinel in combined:
-                    combined = combined[:combined.index(sentinel)]
-                    lines = [l for l in combined.splitlines() if cmd.strip() not in l]
-                    return '\n'.join(lines).strip()
+        try:
+            while time.time() - start < timeout:
+                try:
+                    chunk = aq.get(timeout=0.15)
+                    collected.append(chunk)
+                    combined = ''.join(collected)
+                    if sentinel in combined:
+                        combined = combined[:combined.index(sentinel)]
+                        lines = combined.splitlines()
+                        lines = [l for l in lines if cmd.strip() not in l]
+                        return '\n'.join(lines).strip()
+                except _q.Empty:
+                    combined = ''.join(collected)
+                    if sentinel in combined:
+                        combined = combined[:combined.index(sentinel)]
+                        lines = [l for l in combined.splitlines() if cmd.strip() not in l]
+                        return '\n'.join(lines).strip()
+        finally:
+            # Clean up the queue
+            with self._qs_lock:
+                if aq in self.agent_qs:
+                    self.agent_qs.remove(aq)
 
         return ''.join(collected).strip() or 'Error: Command timed out.'
 
@@ -693,10 +727,11 @@ def _san_agent_executor(ip, cmd):
     elif _terminal_gateway.connection_type == "desktop":
         # Use the embedded browser shell (DesktopShell subprocess)
         if not _desktop_shell.is_running():
-            return (
-                "Error: Embedded terminal shell is not running. "
-                "Please open Gateway Settings and click 'Connect Desktop Terminal'."
-            )
+            try:
+                _desktop_shell.spawn()
+                log.info('[TerminalGateway] Desktop shell auto-spawned on-demand.')
+            except Exception as e:
+                return f"Error: Failed to auto-spawn terminal shell: {e}"
         return _desktop_shell.run_command(cmd_to_run)
     else:
         # Fall back to simulated network
@@ -1444,6 +1479,13 @@ def terminal_output_stream():
 @app.route("/api/terminal/input", methods=["POST"])
 def terminal_input():
     """Receive keystroke data from the browser xterm.js and write to shell stdin."""
+    if not _desktop_shell.is_running():
+        try:
+            _desktop_shell.spawn()
+            log.info('[TerminalGateway] Desktop shell auto-spawned on keystroke.')
+        except Exception as e:
+            log.warning('[TerminalGateway] Failed to auto-spawn on keystroke: %s', e)
+            
     data = (request.json or {}).get('data', '')
     if data:
         _desktop_shell.write(data)

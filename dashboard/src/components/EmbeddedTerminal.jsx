@@ -5,12 +5,7 @@ import 'xterm/css/xterm.css'
 
 /**
  * EmbeddedTerminal
- * Renders a full xterm.js terminal that connects to the SAN Agent's
- * backend shell subprocess via SSE (output) + REST (input).
- *
- * Props:
- *   apiBase  – e.g. "http://localhost:5000"
- *   active   – boolean; whether the terminal should be connected
+ * Renders a full xterm.js terminal with unified, robust SSE connection management.
  */
 const EmbeddedTerminal = forwardRef(function EmbeddedTerminal({ apiBase, active }, ref) {
   const containerRef = useRef(null)
@@ -18,16 +13,20 @@ const EmbeddedTerminal = forwardRef(function EmbeddedTerminal({ apiBase, active 
   const fitAddon     = useRef(null)
   const esRef        = useRef(null)
 
-  // Expose a write() method so parent can inject text programmatically
+  // Expose methods for parent
   useImperativeHandle(ref, () => ({
-    write: (text) => termRef.current?.write(text),
+    write: (text) => {
+      console.log('[EmbeddedTerminal] Writing text from parent:', text)
+      termRef.current?.write(text)
+    },
     clear: () => termRef.current?.clear(),
   }))
 
   useEffect(() => {
     if (!containerRef.current) return
 
-    // ── Create terminal ──────────────────────────────────────────────────
+    console.log('[EmbeddedTerminal] Initializing terminal component...')
+
     const term = new Terminal({
       fontFamily: '"Cascadia Code", "JetBrains Mono", "Fira Code", monospace',
       fontSize: 13,
@@ -53,93 +52,113 @@ const EmbeddedTerminal = forwardRef(function EmbeddedTerminal({ apiBase, active 
 
     const fit = new FitAddon()
     term.loadAddon(fit)
-    term.open(containerRef.current)
-    fit.fit()
-    termRef.current = term
-    fitAddon.current = fit
 
-    term.writeln('\x1b[36m  ┌────────────────────────────────────────────┐\x1b[0m')
-    term.writeln('\x1b[36m  │  HPE SAN Agent — Embedded Terminal         │\x1b[0m')
-    term.writeln('\x1b[36m  │  Connecting to shell...                     │\x1b[0m')
-    term.writeln('\x1b[36m  └────────────────────────────────────────────┘\x1b[0m')
-    term.writeln('')
-
-    // ── Resize observer ──────────────────────────────────────────────────
-    const ro = new ResizeObserver(() => fit.fit())
-    ro.observe(containerRef.current)
-
-    // ── Keyboard input → backend ─────────────────────────────────────────
-    term.onData((data) => {
-      fetch(`${apiBase}/api/terminal/input`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data }),
-      }).catch(() => {})
-    })
-
-    // ── SSE output stream from backend ───────────────────────────────────
-    const connect = () => {
-      if (esRef.current) {
-        esRef.current.close()
-        esRef.current = null
+    const safeFit = () => {
+      if (containerRef.current && containerRef.current.clientWidth > 0 && containerRef.current.clientHeight > 0) {
+        try {
+          fit.fit()
+        } catch (err) {
+          console.warn('[EmbeddedTerminal] fit.fit() deferred:', err)
+        }
       }
+    }
+
+    let opened = false
+    const tryInitialize = () => {
+      if (opened) return
+      if (containerRef.current && containerRef.current.clientWidth > 20 && containerRef.current.clientHeight > 20) {
+        console.log('[EmbeddedTerminal] Viewport has dimensions, opening xterm...')
+        if (containerRef.current) {
+          containerRef.current.innerHTML = ''
+        }
+        term.open(containerRef.current)
+        safeFit()
+        termRef.current = term
+        fitAddon.current = fit
+        opened = true
+
+        term.writeln('\x1b[36m  ┌────────────────────────────────────────────┐\x1b[0m')
+        term.writeln('\x1b[36m  │  HPE SAN Agent — Embedded Terminal         │\x1b[0m')
+        term.writeln('\x1b[36m  │  Connecting to shell...                     │\x1b[0m')
+        term.writeln('\x1b[36m  └────────────────────────────────────────────┘\x1b[0m')
+        term.writeln('')
+
+        if (active) startConnection()
+      } else {
+        // Try again shortly as layout grows
+        setTimeout(tryInitialize, 50)
+      }
+    }
+
+    // Connect SSE to Flask stream
+    const startConnection = () => {
+      if (esRef.current) {
+        console.log('[EmbeddedTerminal] Closing previous connection...')
+        esRef.current.close()
+      }
+
+      console.log('[EmbeddedTerminal] Opening EventSource connection to output stream...')
       const es = new EventSource(`${apiBase}/api/terminal/output`)
       esRef.current = es
 
+      es.onopen = () => {
+        console.log('[EmbeddedTerminal] EventSource opened successfully.')
+        term.writeln('\x1b[32m  ✓ Shell stream connected. You can type here or let the SAN Agent execute.\x1b[0m')
+        term.writeln('')
+      }
+
       es.onmessage = (e) => {
         try {
-          const { data: chunk } = JSON.parse(e.data)
-          if (chunk) term.write(chunk)
+          const payload = JSON.parse(e.data)
+          if (payload && typeof payload.data === 'string') {
+            term.write(payload.data)
+          } else if (e.data) {
+            term.write(e.data)
+          }
         } catch {
           if (e.data) term.write(e.data)
         }
       }
 
-      es.addEventListener('connected', () => {
-        term.writeln('\x1b[32m  ✓ Shell connected. You can type here or let the SAN Agent run commands.\x1b[0m')
-        term.writeln('')
-      })
-
-      es.onerror = () => {
-        // Reconnect after 2s if SSE drops
-        setTimeout(connect, 2000)
+      es.onerror = (err) => {
+        console.warn('[EmbeddedTerminal] EventSource disconnected, retrying in 2s...', err)
+        es.close()
+        esRef.current = null
+        setTimeout(startConnection, 2000)
       }
     }
 
-    if (active) connect()
+    let initTimeout = setTimeout(tryInitialize, 150)
+
+    const ro = new ResizeObserver(() => safeFit())
+    ro.observe(containerRef.current)
+
+    // Send local keystrokes to Flask endpoint
+    const dataHandler = term.onData((data) => {
+      console.log('[EmbeddedTerminal] Keystroke sent:', JSON.stringify(data))
+      fetch(`${apiBase}/api/terminal/input`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data }),
+      }).catch((err) => {
+        console.error('[EmbeddedTerminal] Keystroke post error:', err)
+      })
+    })
 
     return () => {
+      console.log('[EmbeddedTerminal] Cleaning up component...')
+      clearTimeout(initTimeout)
+      dataHandler.dispose()
       ro.disconnect()
-      esRef.current?.close()
+      if (esRef.current) {
+        esRef.current.close()
+        esRef.current = null
+      }
       term.dispose()
       termRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBase])
-
-  // Reconnect SSE when active changes
-  useEffect(() => {
-    if (!termRef.current) return
-    if (active && !esRef.current) {
-      const es = new EventSource(`${apiBase}/api/terminal/output`)
-      esRef.current = es
-      es.onmessage = (e) => {
-        try {
-          const { data: chunk } = JSON.parse(e.data)
-          if (chunk) termRef.current?.write(chunk)
-        } catch {
-          if (e.data) termRef.current?.write(e.data)
-        }
-      }
-      es.onerror = () => setTimeout(() => {
-        esRef.current?.close()
-        esRef.current = null
-      }, 1000)
-    } else if (!active && esRef.current) {
-      esRef.current.close()
-      esRef.current = null
-    }
-  }, [active, apiBase])
+  }, [apiBase, active])
 
   return (
     <div
