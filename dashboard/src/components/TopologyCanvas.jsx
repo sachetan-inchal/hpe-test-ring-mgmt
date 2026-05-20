@@ -181,7 +181,7 @@ export default function TopologyCanvas({ data, nodes: legacyNodes, edges: legacy
     const rawMatch = rawNodes.find(x => x.id === n.id);
     if (!rawMatch) return 'var(--line-strong)';
     if (rawMatch.type === 'Array') return 'var(--color-array)';
-    if (rawMatch.type === 'Switch') return 'var(--color-switch)';
+    if (rawMatch.type === 'Switch' || rawMatch.type.toLowerCase().includes('switch') || (rawMatch.switchType && rawMatch.switchType.toLowerCase().includes('switch'))) return 'var(--color-switch)';
     if (rawMatch.type === 'Host') return 'var(--color-host)';
     return 'var(--line-strong)';
   }, [rawNodes]);

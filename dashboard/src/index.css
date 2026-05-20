@@ -357,3 +357,12 @@ body {
 .animate-pulse-subtle {
   animation: flashPulse 1.8s infinite ease-in-out;
 }
+
+@keyframes searchHighlightPulse {
+  0%, 100% { box-shadow: 0 0 0 1px var(--accent-blue), 0 0 4px rgba(88,166,255,0.4); }
+  50% { box-shadow: 0 0 0 2px var(--accent-blue), 0 0 16px rgba(88,166,255,0.8); }
+}
+
+.search-match-pulse {
+  animation: searchHighlightPulse 1.5s infinite ease-in-out !important;
+}

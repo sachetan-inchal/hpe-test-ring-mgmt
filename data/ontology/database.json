@@ -343,20 +343,6 @@
       "switchType": "FC"
     },
     {
-      "id": "SW-03",
-      "name": "Eth-Switch-Mgmt",
-      "type": "Switch",
-      "status": "degraded",
-      "category": "main",
-      "parentId": null,
-      "isDecommissioned": true,
-      "model": "Aruba CX 6300",
-      "serialNumber": "ARU9901",
-      "firmware": "10.09.1020",
-      "temperature": 38,
-      "switchType": "Ethernet"
-    },
-    {
       "id": "SW01-SP1",
       "name": "sw1/port-0",
       "type": "SwitchPort",
@@ -1499,6 +1485,62 @@
       "serialNumber": "BRC1001",
       "firmware": "v7.4.2",
       "switchType": "FC"
+    },
+    {
+      "id": "SW-ETH-01",
+      "name": "Eth-Switch-Prod-01",
+      "type": "Ethernet Switch",
+      "status": "normal",
+      "category": "main",
+      "parentId": null,
+      "isDecommissioned": false,
+      "model": "Aruba CX 6300",
+      "serialNumber": "ARU-ETH-110",
+      "firmware": "10.09.1020",
+      "temperature": 39,
+      "switchType": "Ethernet"
+    },
+    {
+      "id": "SW-SAS-01",
+      "name": "SAS-Switch-Storage-01",
+      "type": "SAS Switch",
+      "status": "normal",
+      "category": "main",
+      "parentId": null,
+      "isDecommissioned": false,
+      "model": "HPE 12Gb SAS LTO Switch",
+      "serialNumber": "HPE-SAS-224",
+      "firmware": "v2.5.1a",
+      "temperature": 41,
+      "switchType": "SAS"
+    },
+    {
+      "id": "SW-IB-01",
+      "name": "IB-Switch-HPC-01",
+      "type": "InfiniBand Switch",
+      "status": "normal",
+      "category": "main",
+      "parentId": null,
+      "isDecommissioned": false,
+      "model": "HPE InfiniBand HDR100 Switch",
+      "serialNumber": "Mellanox-IB-301",
+      "firmware": "v15.24.1000",
+      "temperature": 44,
+      "switchType": "InfiniBand"
+    },
+    {
+      "id": "SW-FCOE-01",
+      "name": "FCoE-Switch-Transit-01",
+      "type": "FCoE Switch",
+      "status": "normal",
+      "category": "main",
+      "parentId": null,
+      "isDecommissioned": false,
+      "model": "HPE StoreFabric FCoE Switch",
+      "serialNumber": "HPE-FCOE-412",
+      "firmware": "v7.3.2",
+      "temperature": 43,
+      "switchType": "FCoE"
     }
   ],
   "edges": [
@@ -2051,6 +2093,46 @@
       "from": "HOST-B04",
       "to": "HB04-HP1",
       "label": "has_port"
+    },
+    {
+      "from": "ARR-01",
+      "to": "SW-ETH-01",
+      "label": "iSCSI 10G"
+    },
+    {
+      "from": "SW-ETH-01",
+      "to": "HOST-01",
+      "label": "iSCSI 10G"
+    },
+    {
+      "from": "ARR-04",
+      "to": "SW-SAS-01",
+      "label": "SAS 12G"
+    },
+    {
+      "from": "SW-SAS-01",
+      "to": "HOST-04",
+      "label": "SAS 12G"
+    },
+    {
+      "from": "ARR-02",
+      "to": "SW-IB-01",
+      "label": "IB HDR"
+    },
+    {
+      "from": "SW-IB-01",
+      "to": "HOST-02",
+      "label": "IB HDR"
+    },
+    {
+      "from": "ARR-03",
+      "to": "SW-FCOE-01",
+      "label": "FCoE 10G"
+    },
+    {
+      "from": "SW-FCOE-01",
+      "to": "HOST-03",
+      "label": "FCoE 10G"
     }
   ]
 }

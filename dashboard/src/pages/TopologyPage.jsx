@@ -260,8 +260,44 @@ export default function TopologyPage({ apiBase }) {
   const handleSelectToggle = (id, checked) => {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      if (checked) next.add(id)
-      else next.delete(id)
+      
+      const toggleNodeAndDescendants = (nodeId) => {
+        if (checked) {
+          next.add(nodeId)
+        } else {
+          next.delete(nodeId)
+        }
+        data.nodes.forEach(n => {
+          if (n.parentId === nodeId) {
+            toggleNodeAndDescendants(n.id)
+          }
+        })
+      }
+      
+      toggleNodeAndDescendants(id)
+      return next
+    })
+  }
+
+  const handleSelectSearchResults = () => {
+    if (!searchQuery) return
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      activeNodes.forEach(n => {
+        const q = searchQuery.toLowerCase()
+        if (n.id.toLowerCase().includes(q) || n.name?.toLowerCase().includes(q) || n.type?.toLowerCase().includes(q)) {
+          next.add(n.id)
+          const selectDescendants = (parentId) => {
+            data.nodes.forEach(child => {
+              if (child.parentId === parentId) {
+                next.add(child.id)
+                selectDescendants(child.id)
+              }
+            })
+          }
+          selectDescendants(n.id)
+        }
+      })
       return next
     })
   }
@@ -274,7 +310,20 @@ export default function TopologyPage({ apiBase }) {
     if (selectedIds.size === 0) return data
 
     const allowedIds = new Set()
+    
+    const addNodeAndDescendants = (id) => {
+      if (allowedIds.has(id)) return
+      allowedIds.add(id)
+      data.nodes.forEach(n => {
+        if (n.parentId === id) addNodeAndDescendants(n.id)
+      })
+    }
+
     selectedIds.forEach(id => {
+      // Add the node and all its descendants recursively
+      addNodeAndDescendants(id)
+      
+      // Also walk up to parents to ensure the parent hierarchy is included
       let current = nodesById.get(id)
       while (current) {
         allowedIds.add(current.id)
@@ -350,7 +399,19 @@ export default function TopologyPage({ apiBase }) {
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--status-critical)' }} />{healthStats.failed}</span>
             </div>
           )}
-          <input className="input" style={{ width: 180 }} placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input className="input" style={{ width: 150 }} placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            {searchQuery && (
+              <button 
+                onClick={handleSelectSearchResults}
+                className="btn btn-primary"
+                style={{ height: 32, padding: '0 10px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}
+                title="Automatically check all items matching search query"
+              >
+                Select Matches
+              </button>
+            )}
+          </div>
           {selectedIds.size > 0 && (
             <span style={{ fontSize: 11, color: 'var(--accent-blue)', background: 'rgba(88,166,255,0.1)', border: '1px solid rgba(88,166,255,0.2)', padding: '4px 8px', borderRadius: 999 }}>
               {selectedIds.size} selected
@@ -458,7 +519,7 @@ export default function TopologyPage({ apiBase }) {
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 16 }}>
         <div className="glass-card" style={{ flex: 1, minWidth: 0, overflow: 'hidden', padding: 0 }}>
-          {activeTab === 'diagram' && <SANDiagram data={activeData} focusedId={focusedId} expandedIds={expandedIds} onNodeClick={handleNodeClick} selectedIds={selectedIds} onSelectToggle={handleSelectToggle} />}
+          {activeTab === 'diagram' && <SANDiagram data={activeData} focusedId={focusedId} expandedIds={expandedIds} onNodeClick={handleNodeClick} selectedIds={selectedIds} onSelectToggle={handleSelectToggle} searchQuery={searchQuery} />}
           {activeTab === 'visual' && <TopologyCanvas data={visualMapData} onNodeClick={(id) => handleNodeClick(id, false)} />}
           {activeTab === 'decommissioned' && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
@@ -467,7 +528,189 @@ export default function TopologyPage({ apiBase }) {
           )}
         </div>
         <div style={{ width: 340, flexShrink: 0, height: '100%' }}>
-          <NodeCard node={focusedNode} connections={focusedConnections} onDecommissionToggle={handleDecommission} onUpdateNode={handleUpdate} />
+          {focusedNode ? (
+            <NodeCard node={focusedNode} connections={focusedConnections} onDecommissionToggle={handleDecommission} onUpdateNode={handleUpdate} />
+          ) : (
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '24px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, background: 'rgba(57,197,207,0.1)', color: 'var(--accent-blue)' }}>
+                  <svg style={{ width: 18, height: 18 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)' }}>Topology Overview</h3>
+                  <p style={{ fontSize: 11, color: 'var(--muted)' }}>Scope metrics & batch controls</p>
+                </div>
+              </div>
+
+              {/* Active Scope Summary */}
+              <div style={{ background: 'var(--surface-1)', border: '1px solid var(--line)', borderRadius: 10, padding: 14, marginBottom: 20 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--muted)', marginBottom: 8 }}>Active Scope</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted)' }}>Current Team:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>
+                      {selectedTeamId === 'all' ? 'All Teams (Global)' : (teamIdToName[selectedTeamId] || selectedTeamId)}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted)' }}>Scope Cluster:</span>
+                    <span style={{ fontWeight: 600, color: '#58a6ff' }}>
+                      {selectedTeamId === 'all' ? 'All Clusters' : (teamConfig.clusters.find(c => c.id === selectedTeamClusterId)?.name || selectedTeamClusterId || '—')}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted)' }}>Total Devices:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>{healthStats.total}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selection Summary */}
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--muted)', marginBottom: 12 }}>
+                  Selection Statistics
+                </h4>
+
+                {selectedIds.size === 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '24px 0', border: '1px dashed var(--line)', borderRadius: 10, background: 'var(--surface-1)', color: 'var(--muted)', textAlign: 'center', minHeight: 180, marginBottom: 20 }}>
+                    <svg style={{ width: 36, height: 36, opacity: 0.3, marginBottom: 10 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', marginBottom: 4 }}>No active selections</p>
+                    <p style={{ fontSize: 11, padding: '0 16px', lineHeight: 1.4 }}>
+                      Check items in the diagram to inspect batch statistics, invert selections, or export specific nodes.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ background: 'var(--surface-1)', border: '1px solid var(--line)', borderRadius: 10, padding: 14, marginBottom: 20 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                        {selectedIds.size} Device{selectedIds.size > 1 ? 's' : ''} Selected
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--accent-blue)', background: 'rgba(88,166,255,0.1)', padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>
+                        Active Export Set
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    {(() => {
+                      const selectedNodesList = data.nodes.filter(n => selectedIds.has(n.id) && !n.isDecommissioned);
+                      const totalSelected = selectedNodesList.length;
+                      const normal = selectedNodesList.filter(n => n.status === 'normal').length;
+                      const degraded = selectedNodesList.filter(n => n.status === 'degraded').length;
+                      const failed = selectedNodesList.filter(n => n.status === 'failed').length;
+
+                      const normalPercent = totalSelected > 0 ? (normal / totalSelected) * 100 : 0;
+                      const degradedPercent = totalSelected > 0 ? (degraded / totalSelected) * 100 : 0;
+                      const failedPercent = totalSelected > 0 ? (failed / totalSelected) * 100 : 0;
+
+                      return (
+                        <>
+                          <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--line-strong)', marginBottom: 14 }}>
+                            <div style={{ width: `${normalPercent}%`, background: 'var(--status-ok)', transition: 'width 0.3s' }} />
+                            <div style={{ width: `${degradedPercent}%`, background: 'var(--status-warn)', transition: 'width 0.3s' }} />
+                            <div style={{ width: `${failedPercent}%`, background: 'var(--status-critical)', transition: 'width 0.3s' }} />
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, fontSize: 11 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 10px', background: 'rgba(63,185,80,0.06)', borderRadius: 6, border: '1px solid rgba(63,185,80,0.15)' }}>
+                              <span style={{ color: 'var(--status-ok)', fontWeight: 600 }}>Normal</span>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--foreground)' }}>{normal}</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 10px', background: 'rgba(210,153,34,0.06)', borderRadius: 6, border: '1px solid rgba(210,153,34,0.15)' }}>
+                              <span style={{ color: 'var(--status-warn)', fontWeight: 600 }}>Degraded</span>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--foreground)' }}>{degraded}</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 10px', background: 'rgba(248,81,73,0.06)', borderRadius: 6, border: '1px solid rgba(248,81,73,0.15)' }}>
+                              <span style={{ color: 'var(--status-critical)', fontWeight: 600 }}>Failed</span>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--foreground)' }}>{failed}</span>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Batch Actions Group */}
+                <div style={{ marginTop: 'auto' }}>
+                  <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--muted)', marginBottom: 12 }}>
+                    ⚡ Batch Operations
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                    <button 
+                      onClick={() => {
+                        const next = new Set()
+                        activeNodes.forEach(n => next.add(n.id))
+                        setSelectedIds(next)
+                      }} 
+                      className="btn" 
+                      style={{ fontSize: 11, padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    >
+                      <svg style={{ width: 12, height: 12 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      Select All
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setSelectedIds(prev => {
+                          const next = new Set()
+                          activeNodes.forEach(n => {
+                            if (!prev.has(n.id)) next.add(n.id)
+                          })
+                          return next
+                        })
+                      }} 
+                      className="btn" 
+                      style={{ fontSize: 11, padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    >
+                      <svg style={{ width: 12, height: 12 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                      </svg>
+                      Invert
+                    </button>
+                  </div>
+
+                  <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--muted)', marginBottom: 12 }}>
+                    👁️ Layout Presentation
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <button 
+                      onClick={() => {
+                        const parentIds = new Set()
+                        activeNodes.forEach(n => {
+                          if (n.parentId) parentIds.add(n.parentId)
+                        })
+                        setExpandedIds(Array.from(parentIds))
+                      }} 
+                      className="btn" 
+                      style={{ fontSize: 11, padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    >
+                      <svg style={{ width: 12, height: 12 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      Expand All
+                    </button>
+                    <button 
+                      onClick={() => setExpandedIds([])} 
+                      className="btn" 
+                      style={{ fontSize: 11, padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    >
+                      <svg style={{ width: 12, height: 12 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
+                      </svg>
+                      Collapse All
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -107,7 +107,7 @@ export default function HealthPage({ apiBase, chatbotApi }) {
   const activeNodes = topology.nodes.filter(n => !n.isDecommissioned)
   const issues = activeNodes.filter(n => n.status === 'failed' || n.status === 'degraded')
   const arrays = activeNodes.filter(n => n.type === 'ArraySystem' || n.type === 'Array')
-  const switches = activeNodes.filter(n => n.type === 'Switch')
+  const switches = activeNodes.filter(n => n.type === 'Switch' || n.type.toLowerCase().includes('switch') || (n.switchType && n.switchType.toLowerCase().includes('switch')))
   const hosts = activeNodes.filter(n => n.type === 'Host')
   const disks = activeNodes.filter(n => n.type === 'PhysicalDisk' || n.type === 'Disk')
 
@@ -146,7 +146,7 @@ export default function HealthPage({ apiBase, chatbotApi }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
         <StatCard label="Total Nodes" value={activeNodes.length} icon={Activity} color="var(--hpe-green)" sub={`${topology.edges.length} connections`} />
         <StatCard label="Storage Arrays" value={arrays.length} icon={Server} color="var(--accent-blue)" sub={arrays.filter(a => a.status === 'normal').length + ' healthy'} />
-        <StatCard label="FC Switches" value={switches.length} icon={Wifi} color="var(--accent-purple)" sub={switches.filter(s => s.status === 'normal').length + ' healthy'} />
+        <StatCard label="FC / Ethernet / Other Switches" value={switches.length} icon={Wifi} color="var(--accent-purple)" sub={switches.filter(s => s.status === 'normal').length + ' healthy'} />
         <StatCard label="Hosts" value={hosts.length} icon={Activity} color="var(--accent-cyan)" sub={hosts.filter(h => h.status === 'normal').length + ' healthy'} />
         <StatCard label="Issues" value={issues.length} icon={AlertTriangle} color={issues.length > 0 ? 'var(--accent-rose)' : 'var(--status-ok)'}
           sub={issues.length === 0 ? 'All clear' : `${issues.filter(n => n.status === 'failed').length} failed`} />

@@ -200,7 +200,7 @@ export default function DiscoveryPage({ apiBase }) {
 
   const stats = {
     arrays: graph.nodes.filter(n => n.type === 'Array' || n.type === 'ArraySystem').length,
-    switches: graph.nodes.filter(n => n.type === 'Switch').length,
+    switches: graph.nodes.filter(n => n.type === 'Switch' || n.type.toLowerCase().includes('switch') || (n.switchType && n.switchType.toLowerCase().includes('switch'))).length,
     hosts: graph.nodes.filter(n => n.type === 'Host').length,
     drives: graph.nodes.filter(n => n.type === 'PhysicalDisk').length,
   }

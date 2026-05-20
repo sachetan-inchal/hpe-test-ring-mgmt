@@ -26,7 +26,9 @@
         "HOST-01",
         "ARR-04",
         "SW-04",
-        "HOST-04"
+        "HOST-04",
+        "SW-ETH-01",
+        "SW-SAS-01"
       ]
     },
     {
@@ -38,7 +40,8 @@
         "HOST-02",
         "ARR-B03",
         "SW-B03",
-        "HOST-B03"
+        "HOST-B03",
+        "SW-IB-01"
       ]
     },
     {
@@ -50,7 +53,8 @@
         "HOST-03",
         "ARR-B04",
         "SW-B04",
-        "HOST-B04"
+        "HOST-B04",
+        "SW-FCOE-01"
       ]
     }
   ]

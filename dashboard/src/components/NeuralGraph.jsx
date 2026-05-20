@@ -17,14 +17,17 @@ export default function NeuralGraph({ nodes, edges, onNodeClick }) {
   const cyRef = useRef(null);
 
   const elements = useMemo(() => {
-    const cyNodes = nodes.map(n => ({
-      data: { 
-        id: n.id, 
-        label: n.name || n.id, 
-        type: n.type,
-        color: TYPE_COLORS[n.type] || '#8b949e',
-      }
-    }));
+    const cyNodes = nodes.map(n => {
+      const isSwitch = n.type === 'Switch' || n.type.toLowerCase().includes('switch');
+      return {
+        data: { 
+          id: n.id, 
+          label: n.name || n.id, 
+          type: n.type,
+          color: isSwitch ? TYPE_COLORS.Switch : (TYPE_COLORS[n.type] || '#8b949e'),
+        }
+      };
+    });
 
     const cyEdges = edges.map(e => ({
       data: { 
@@ -48,9 +51,9 @@ export default function NeuralGraph({ nodes, edges, onNodeClick }) {
     padding: 40,
     gravity: 0.2, // Moderate gravity to keep parts bound, but not collapse clusters
     nodeRepulsion: (node) => {
-      const type = node.data('type');
+      const type = node.data('type') || '';
       if (type === 'Array' || type === 'ArraySystem') return 200000;
-      if (type === 'Switch') return 80000;
+      if (type === 'Switch' || type.toLowerCase().includes('switch')) return 80000;
       if (type === 'Host') return 60000;
       if (type === 'Cage') return 30000;
       if (type === 'PhysicalDisk') return 200; // Small repulsion so they group together perfectly around Cages
