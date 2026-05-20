@@ -115,8 +115,15 @@ function main() {
         process.exit(1);
     }
 
-    const target = args[0];
-    const funcName = COMMAND_TO_FUNC[target.toLowerCase()] || COMMAND_TO_FUNC[target] || target;
+    const target = args[0].toLowerCase();
+    let funcName = COMMAND_TO_FUNC[target];
+    if (!funcName) {
+        if (target.startsWith("showportdev")) {
+            funcName = "parseShowPortDevNS";
+        } else {
+            funcName = args[0];
+        }
+    }
 
     // Stream stdin fully
     let cliOutput = "";

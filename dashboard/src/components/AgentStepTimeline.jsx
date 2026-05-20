@@ -32,7 +32,13 @@ export default function AgentStepTimeline({ steps = [] }) {
         const isLast = i === steps.length - 1
         const stepId = step.id || i + 1
         const isExpanded = !!expandedSteps[stepId]
-        const hasOutput = step.type === 'command' && step.command_output
+        const rawOutput = step.command_output || ''
+        const cleanOutput = rawOutput
+          .split('\n')
+          .filter(line => !line.trimStart().startsWith('cli%'))
+          .join('\n')
+          .trim()
+        const hasOutput = step.type === 'command' && cleanOutput
 
         return (
           <div key={step.id || i} className="agent-step animate-reveal" style={{ animationDelay: `${i * 150}ms` }}>
@@ -73,7 +79,7 @@ export default function AgentStepTimeline({ steps = [] }) {
                     borderRadius: 6,
                     border: '1px solid var(--line)',
                     whiteSpace: 'pre-wrap'
-                  }}>{step.command_output}</pre>
+                  }}>{cleanOutput}</pre>
                 </div>
               )}
 

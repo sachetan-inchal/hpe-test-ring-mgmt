@@ -7,10 +7,10 @@ export default defineConfig({
     port: 3000,
     allowedHosts: true,
     proxy: {
-      '/api': 'http://localhost:5005',
-      '/sim': 'http://localhost:5001',
+      '/api': 'http://127.0.0.1:5005',
+      '/sim': 'http://127.0.0.1:5001',
       '/chatbot': {
-        target: 'http://localhost:5010',
+        target: 'http://127.0.0.1:5010',
         rewrite: (path) => path.replace(/^\/chatbot/, '/api'),
       },
     }

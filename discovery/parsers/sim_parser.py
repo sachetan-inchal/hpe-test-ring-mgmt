@@ -116,6 +116,9 @@ def parse_showpd_i(text: str) -> dict:
 def parse_showversion(text: str) -> dict:
     return run_js_parser("parseShowVersion", text)
 
+def parse_showportdev_ns(text: str) -> dict:
+    return run_js_parser("parseShowPortDevNS", text)
+
 
 # ─────────────────────────────── Top-level ─────────────────────────────────────
 
@@ -136,6 +139,66 @@ def parse_sim_array_output(cmd_outputs: dict) -> dict:
     nodes    = parse_shownode(_get("shownode"))
     ports    = parse_showport(_get("showport"))
     hosts    = parse_showhost(_get("showhost"))
+    
+    # Merge HBA detail, driver, firmware from showportdev ns if available
+    portdev_keys = [k for k in cmd_outputs if k.strip().lower().startswith("showportdev")]
+    for pk in portdev_keys:
+        try:
+            pd_parsed = parse_showportdev_ns(cmd_outputs[pk])
+            entries = pd_parsed.get("entries", [])
+            for entry in entries:
+                wwn = entry.get("port_wwn") or entry.get("node_wwn")
+                hname = entry.get("connected_host") or entry.get("hostname")
+                if not hname:
+                    continue
+                hname_short = hname.split(".")[0]
+                
+                matched = False
+                for h in hosts:
+                    h_wwn = (h.get("wwn") or "").lower()
+                    h_name = (h.get("name") or "").lower()
+                    if (wwn and h_wwn == wwn.lower()) or (hname_short.lower() in h_name) or (h_name in hname_short.lower()):
+                        h["os"] = entry.get("os")
+                        h["os_name"] = entry.get("os")
+                        h["hba_fw"] = entry.get("hba_fw")
+                        h["hba_driver"] = entry.get("hba_driver")
+                        h["hba_model"] = entry.get("hba_model")
+                        if "Port" not in h:
+                            h["Port"] = []
+                        if pd_parsed.get("array_port") and not any(p.get("nsp") == pd_parsed["array_port"] for p in h["Port"]):
+                            pParts = pd_parsed["array_port"].split(":")
+                            portObj = {"nsp": pd_parsed["array_port"]}
+                            if len(pParts) == 3:
+                                portObj["node"] = int(pParts[0])
+                                portObj["slot"] = int(pParts[1])
+                                portObj["port"] = int(pParts[2])
+                            h["Port"].append(portObj)
+                        matched = True
+                        break
+                
+                if not matched:
+                    new_h = {
+                        "wwn": wwn,
+                        "name": hname_short,
+                        "os": entry.get("os"),
+                        "os_name": entry.get("os"),
+                        "hba_fw": entry.get("hba_fw"),
+                        "hba_driver": entry.get("hba_driver"),
+                        "hba_model": entry.get("hba_model"),
+                        "Port": []
+                    }
+                    if pd_parsed.get("array_port"):
+                        pParts = pd_parsed["array_port"].split(":")
+                        portObj = {"nsp": pd_parsed["array_port"]}
+                        if len(pParts) == 3:
+                            portObj["node"] = int(pParts[0])
+                            portObj["slot"] = int(pParts[1])
+                            portObj["port"] = int(pParts[2])
+                        new_h["Port"].append(portObj)
+                    hosts.append(new_h)
+        except Exception as e:
+            log.error(f"Failed to merge showportdev details: {e}")
+
     switches = parse_showswitch(_get("showswitch"))
 
     # Cages: Merge basic and state cage details

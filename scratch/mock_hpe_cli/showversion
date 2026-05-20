@@ -1,0 +1,11 @@
+#!/bin/bash
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Dynamically run with available python interpreter
+if command -v py &> /dev/null; then
+    py "$DIR/mock_hpe_cli.py" showversion "$@"
+elif command -v python3 &> /dev/null; then
+    python3 "$DIR/mock_hpe_cli.py" showversion "$@"
+else
+    python "$DIR/mock_hpe_cli.py" showversion "$@"
+fi

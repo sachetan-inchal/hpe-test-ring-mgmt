@@ -138,16 +138,24 @@ class Neo4jStore:
         # Hosts with WWN mappings
         for h in p.get("hosts", []):
             h_ip = h.get("ip_address") or h.get("wwn", f"wwn_{h.get('host_id')}")
+            # Correctly extract os and port from modern/legacy parsed keys
+            os_val = h.get("os") or h.get("os_name") or h.get("persona", "")
+            port_list = h.get("Port") or []
+            first_nsp = port_list[0].get("nsp") if (isinstance(port_list, list) and len(port_list) > 0) else ""
+            port_val = h.get("port") or h.get("multipath") or first_nsp or ""
+            
             self._run("""
                 MERGE (h:Host {ip_address: $hip})
                 SET h.host_id=$hid, h.name=$name, h.persona=$persona,
-                    h.wwn=$wwn, h.port=$port, h.os_name=$os
+                    h.wwn=$wwn, h.port=$port, h.os_name=$os, h.multipath=$port,
+                    h.hba_fw=$hba_fw, h.hba_driver=$hba_driver, h.hba_model=$hba_model
                 WITH h
                 MATCH (a:ArraySystem {ip_address: $ip})
                 MERGE (h)-[:CONNECTS_TO]->(a)
             """, hip=h_ip, hid=h.get("host_id"), name=h.get("name"),
                 persona=h.get("persona"), wwn=h.get("wwn",""),
-                port=h.get("port",""), os=h.get("os",""), ip=ip)
+                port=port_val, os=os_val, ip=ip,
+                hba_fw=h.get("hba_fw", ""), hba_driver=h.get("hba_driver", ""), hba_model=h.get("hba_model", ""))
 
         # Cages
         for cage in p.get("cages", []):

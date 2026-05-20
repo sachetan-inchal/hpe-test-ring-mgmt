@@ -11,12 +11,12 @@ import HealthPage from './pages/HealthPage'
 import InventoryPage from './pages/InventoryPage'
 import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database } from 'lucide-react'
 
-const FLASK_API = ''
+const FLASK_API = `http://${window.location.hostname}:5005`
 const CHATBOT_API = '/chatbot'
 
 const NAV_ITEMS = [
   { path: '/discovery', label: 'Discovery', icon: Radar, desc: 'Live BFS network scan' },
-  { path: '/topology', label: 'Topology', icon: Map, desc: 'SAN diagram & graph' },
+  { path: '/topology', label: 'Test Ring Viewer', icon: Map, desc: 'SAN diagram & ring topology' },
   { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
   { path: '/emulator', label: 'Emulator', icon: Terminal, desc: 'CLI terminal' },
   { path: '/chat', label: 'AI Assistant', icon: MessageSquare, desc: 'Intelligent chat' },

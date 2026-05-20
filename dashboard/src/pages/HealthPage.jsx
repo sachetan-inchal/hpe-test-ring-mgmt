@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Activity, Server, HardDrive, Wifi, AlertTriangle, CheckCircle, XCircle, RefreshCw, Zap } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Activity, Server, HardDrive, Wifi, AlertTriangle, CheckCircle, XCircle, RefreshCw, Zap, Search } from 'lucide-react'
 
 function StatCard({ label, value, sub, color, icon: Icon }) {
   return (
@@ -28,18 +29,29 @@ function ServiceBadge({ name, ok, detail }) {
   )
 }
 
-function IssueRow({ node }) {
+function IssueRow({ node, onInvestigate }) {
   const color = node.status === 'failed' ? 'var(--accent-rose)' : 'var(--accent-amber)'
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--surface-2)', borderRadius: 8, marginBottom: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <AlertTriangle size={14} style={{ color }} />
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 500 }}>{node.name || node.id}</div>
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{node.type} {node.parentId ? `· child of ${node.parentId}` : ''}</div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--surface-2)', borderRadius: 8, marginBottom: 6, gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+        <AlertTriangle size={14} style={{ color, flexShrink: 0 }} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name || node.id}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{node.type}{node.parentId ? ` · child of ${node.parentId}` : ''}</div>
         </div>
       </div>
-      <span className={`badge ${node.status === 'failed' ? 'badge-crit' : 'badge-warn'}`}>{node.status}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <span className={`badge ${node.status === 'failed' ? 'badge-crit' : 'badge-warn'}`}>{node.status}</span>
+        <button
+          onClick={() => onInvestigate && onInvestigate(node)}
+          title="Trace with SAN Agent"
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', fontSize: 10, fontWeight: 600, background: 'rgba(1,169,130,0.1)', border: '1px solid rgba(1,169,130,0.3)', color: 'var(--hpe-green)', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' }}
+          onMouseOver={e => e.currentTarget.style.background = 'rgba(1,169,130,0.2)'}
+          onMouseOut={e => e.currentTarget.style.background = 'rgba(1,169,130,0.1)'}
+        >
+          <Search size={10} /> Investigate
+        </button>
+      </div>
     </div>
   )
 }
@@ -61,6 +73,7 @@ function CapacityBar({ label, used, total, unit = 'TB' }) {
 }
 
 export default function HealthPage({ apiBase, chatbotApi }) {
+  const navigate = useNavigate()
   const [health, setHealth] = useState(null)
   const [sanData, setSanData] = useState(null)
   const [topology, setTopology] = useState({ nodes: [], edges: [] })
@@ -188,7 +201,11 @@ export default function HealthPage({ apiBase, chatbotApi }) {
           <div style={{ maxHeight: 280, overflowY: 'auto' }}>
             {issues.length === 0
               ? <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: 20 }}>✓ No issues detected</div>
-              : issues.map(n => <IssueRow key={n.id} node={n} />)}
+              : issues.map(n => <IssueRow key={n.id} node={n} onInvestigate={(node) => {
+                  sessionStorage.setItem('agent_prefill_query', `Trace offline ${node.type} component "${node.name || node.id}" using HPE CLI commands (showpd, showcage, shownode, showport). Identify root cause, check status, and list any related degraded or failed components.`)
+                  sessionStorage.setItem('agent_array_hint', node.parentId || node.id || '')
+                  navigate('/chat')
+                }} />)}
           </div>
         </div>
       </div>

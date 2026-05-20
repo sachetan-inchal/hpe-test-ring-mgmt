@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HPE SAN Topology Editor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* TOP BAR */
+#topbar{height:48px;background:#161b22;border-bottom:1px solid #30363d;display:flex;align-items:center;padding:0 16px;gap:12px;z-index:100;flex-shrink:0}
+#topbar h1{font-size:14px;font-weight:700;color:#58a6ff;letter-spacing:.5px;margin-right:auto}
+.tb-btn{padding:6px 14px;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#e6edf3;font-size:12px;cursor:pointer;transition:all .2s}
+.tb-btn:hover{background:#30363d;border-color:#58a6ff}
+.tb-btn.primary{background:#1f6feb;border-color:#1f6feb}
+.tb-btn.primary:hover{background:#388bfd}
+.tb-btn.danger{background:#da3633;border-color:#da3633}
+select.tb-select{padding:5px 10px;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#e6edf3;font-size:12px;cursor:pointer}
+
+/* MAIN LAYOUT */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* LEFT PALETTE */
+#palette{width:220px;background:#161b22;border-right:1px solid #30363d;display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+#palette::-webkit-scrollbar{width:4px}
+#palette::-webkit-scrollbar-thumb{background:#30363d;border-radius:2px}
+.pal-section{padding:10px 12px 4px}
+.pal-section h3{font-size:10px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.pal-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:grab;border:1px solid transparent;margin-bottom:4px;transition:all .15s;user-select:none}
+.pal-item:hover{background:#21262d;border-color:#30363d}
+.pal-item:active{cursor:grabbing;background:#30363d}
+.pal-icon{width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.pal-info{flex:1;min-width:0}
+.pal-info .name{font-size:11px;font-weight:600;color:#e6edf3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pal-info .sub{font-size:10px;color:#8b949e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* CANVAS AREA */
+#canvas-wrap{flex:1;position:relative;overflow:hidden;background:#0d1117}
+#canvas-wrap::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,#21262d 1px,transparent 1px);background-size:24px 24px;pointer-events:none;z-index:0}
+#canvas{position:absolute;inset:0;z-index:1}
+svg#edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+#nodes-layer{position:absolute;inset:0;z-index:3}
+#drop-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;z-index:1}
+#drop-hint .icon{font-size:48px;opacity:.15}
+#drop-hint .text{font-size:13px;color:#8b949e;margin-top:8px;opacity:.5}
+
+/* DEVICE NODES ON CANVAS */
+.device-node{position:absolute;background:#161b22;border:2px solid #30363d;border-radius:12px;padding:10px 14px;cursor:pointer;user-select:none;min-width:120px;transition:border-color .2s,box-shadow .2s;z-index:10}
+.device-node:hover{border-color:#58a6ff;box-shadow:0 0 0 3px rgba(88,166,255,.15)}
+.device-node.selected{border-color:#58a6ff;box-shadow:0 0 0 4px rgba(88,166,255,.25)}
+.device-node.connecting-source{border-color:#f78166;box-shadow:0 0 0 4px rgba(247,129,102,.25)}
+.device-node .node-icon{font-size:22px;text-align:center;margin-bottom:4px}
+.device-node .node-name{font-size:11px;font-weight:700;text-align:center;color:#e6edf3;white-space:nowrap}
+.device-node .node-model{font-size:9px;text-align:center;color:#8b949e;margin-top:2px;white-space:nowrap}
+.device-node .node-badge{display:inline-block;font-size:9px;padding:1px 5px;border-radius:3px;margin-top:4px;font-weight:600}
+.badge-array{background:rgba(31,111,235,.3);color:#58a6ff;border:1px solid rgba(31,111,235,.4)}
+.badge-fc-sw{background:rgba(214,93,14,.3);color:#ffa657;border:1px solid rgba(214,93,14,.4)}
+.badge-eth-sw{background:rgba(63,185,80,.3);color:#56d364;border:1px solid rgba(63,185,80,.4)}
+.badge-host{background:rgba(139,148,158,.3);color:#8b949e;border:1px solid rgba(139,148,158,.4)}
+.badge-jbof{background:rgba(188,140,255,.3);color:#bc8cff;border:1px solid rgba(188,140,255,.4)}
+
+/* RESIZE HANDLE */
+.node-drag-handle{position:absolute;top:0;left:0;right:0;bottom:0;border-radius:10px;cursor:move}
+
+/* RIGHT PANEL */
+#props{width:280px;background:#161b22;border-left:1px solid #30363d;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+#props-header{padding:14px 16px;border-bottom:1px solid #30363d;font-size:13px;font-weight:700;color:#58a6ff}
+#props-body{flex:1;overflow-y:auto;padding:12px}
+#props-body::-webkit-scrollbar{width:4px}
+#props-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:2px}
+.prop-group{margin-bottom:16px}
+.prop-group label{display:block;font-size:10px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.prop-group input,.prop-group select,.prop-group textarea{width:100%;padding:7px 10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:12px;font-family:inherit;transition:border-color .2s}
+.prop-group input:focus,.prop-group select:focus,.prop-group textarea:focus{outline:none;border-color:#58a6ff}
+.prop-group textarea{resize:vertical;min-height:60px}
+.prop-empty{text-align:center;color:#8b949e;font-size:12px;padding:40px 16px}
+.prop-empty .icon{font-size:32px;margin-bottom:8px;opacity:.3}
+
+/* STATUS BAR */
+#statusbar{height:26px;background:#161b22;border-top:1px solid #30363d;display:flex;align-items:center;padding:0 16px;gap:16px;font-size:11px;color:#8b949e;flex-shrink:0}
+#statusbar span{display:flex;align-items:center;gap:4px}
+
+/* MODAL */
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:center;justify-content:center}
+#modal-overlay.open{display:flex}
+#modal{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;width:420px;max-width:90vw}
+#modal h2{font-size:16px;font-weight:700;margin-bottom:16px;color:#e6edf3}
+#modal .close-btn{float:right;background:none;border:none;color:#8b949e;font-size:18px;cursor:pointer;margin-top:-4px}
+#modal-body{max-height:60vh;overflow-y:auto}
+
+/* CONNECTION MODE INDICATOR */
+#conn-indicator{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#1f6feb;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;z-index:50;display:none;pointer-events:none}
+#conn-indicator.active{display:block}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <h1>🗄️ HPE SAN Topology Editor</h1>
+  <select class="tb-select" id="conn-type-select">
+    <option value="FC">🔴 FC Connection</option>
+    <option value="iSCSI">🔵 iSCSI / Ethernet</option>
+    <option value="NVMe">🟣 NVMe-oF</option>
+    <option value="ISL">🟠 ISL (E-Port Trunk)</option>
+    <option value="RCOPY">🟡 Remote Copy</option>
+    <option value="NVMe-disk">⚪ NVMe Disk (internal)</option>
+  </select>
+  <button class="tb-btn" id="btn-connect-mode">🔗 Connect Mode</button>
+  <button class="tb-btn" id="btn-clear-sel">✖ Deselect</button>
+  <button class="tb-btn danger" id="btn-delete">🗑 Delete</button>
+  <button class="tb-btn" id="btn-clear-all">🧹 Clear All</button>
+  <button class="tb-btn primary" id="btn-export">📤 Export .txt</button>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- PALETTE -->
+  <div id="palette">
+    <div class="pal-section">
+      <h3>HPE Arrays</h3>
+      <div class="pal-item" draggable="true" data-type="array" data-subtype="alletra-mp">
+        <div class="pal-icon" style="background:rgba(31,111,235,.2)">🗄️</div>
+        <div class="pal-info"><div class="name">Alletra MP</div><div class="sub">HPE Alletra Storage MP</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="array" data-subtype="alletra-9000">
+        <div class="pal-icon" style="background:rgba(31,111,235,.2)">🗄️</div>
+        <div class="pal-info"><div class="name">Alletra 9000</div><div class="sub">HPE Alletra 9000</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="array" data-subtype="primera">
+        <div class="pal-icon" style="background:rgba(31,111,235,.2)">🗄️</div>
+        <div class="pal-info"><div class="name">Primera 600</div><div class="sub">HPE Primera 600</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="array" data-subtype="3par">
+        <div class="pal-icon" style="background:rgba(31,111,235,.2)">🗄️</div>
+        <div class="pal-info"><div class="name">3PAR 8450</div><div class="sub">HPE 3PAR 8450</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="array" data-subtype="nimble">
+        <div class="pal-icon" style="background:rgba(31,111,235,.2)">💾</div>
+        <div class="pal-info"><div class="name">Nimble HF60</div><div class="sub">HPE Nimble HF60</div></div>
+      </div>
+    </div>
+
+    <div class="pal-section">
+      <h3>JBOF / Cages</h3>
+      <div class="pal-item" draggable="true" data-type="jbof" data-subtype="nvme-jbof">
+        <div class="pal-icon" style="background:rgba(188,140,255,.2)">📦</div>
+        <div class="pal-info"><div class="name">NVMe JBOF</div><div class="sub">HPE NVMe JBOF</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="jbof" data-subtype="drive-cage">
+        <div class="pal-icon" style="background:rgba(188,140,255,.2)">📦</div>
+        <div class="pal-info"><div class="name">Drive Cage</div><div class="sub">DCS-4048-G</div></div>
+      </div>
+    </div>
+
+    <div class="pal-section">
+      <h3>FC Switches</h3>
+      <div class="pal-item" draggable="true" data-type="fc-switch" data-subtype="brocade-g630">
+        <div class="pal-icon" style="background:rgba(214,93,14,.2)">🔀</div>
+        <div class="pal-info"><div class="name">Brocade G630</div><div class="sub">Core FC Switch</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="fc-switch" data-subtype="brocade-6510">
+        <div class="pal-icon" style="background:rgba(214,93,14,.2)">🔀</div>
+        <div class="pal-info"><div class="name">Brocade 6510</div><div class="sub">Edge FC Switch</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="fc-switch" data-subtype="cisco-mds-9148">
+        <div class="pal-icon" style="background:rgba(214,93,14,.2)">🔀</div>
+        <div class="pal-info"><div class="name">Cisco MDS 9148S</div><div class="sub">FC Director</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="fc-switch" data-subtype="cisco-mds-9396">
+        <div class="pal-icon" style="background:rgba(214,93,14,.2)">🔀</div>
+        <div class="pal-info"><div class="name">Cisco MDS 9396T</div><div class="sub">FC Director</div></div>
+      </div>
+    </div>
+
+    <div class="pal-section">
+      <h3>Ethernet Switches</h3>
+      <div class="pal-item" draggable="true" data-type="eth-switch" data-subtype="aruba-cx6300">
+        <div class="pal-icon" style="background:rgba(63,185,80,.2)">🌐</div>
+        <div class="pal-info"><div class="name">Aruba CX 6300</div><div class="sub">Eth/iSCSI Switch</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="eth-switch" data-subtype="cisco-nexus">
+        <div class="pal-icon" style="background:rgba(63,185,80,.2)">🌐</div>
+        <div class="pal-info"><div class="name">Cisco Nexus</div><div class="sub">Data Center Switch</div></div>
+      </div>
+    </div>
+
+    <div class="pal-section">
+      <h3>Hosts</h3>
+      <div class="pal-item" draggable="true" data-type="host" data-subtype="linux">
+        <div class="pal-icon" style="background:rgba(139,148,158,.2)">🖥️</div>
+        <div class="pal-info"><div class="name">Linux Host</div><div class="sub">RHEL / Ubuntu</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="host" data-subtype="vmware">
+        <div class="pal-icon" style="background:rgba(139,148,158,.2)">☁️</div>
+        <div class="pal-info"><div class="name">VMware ESXi</div><div class="sub">ESXi 8.0</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="host" data-subtype="windows">
+        <div class="pal-icon" style="background:rgba(139,148,158,.2)">🪟</div>
+        <div class="pal-info"><div class="name">Windows Server</div><div class="sub">WS 2022</div></div>
+      </div>
+      <div class="pal-item" draggable="true" data-type="host" data-subtype="oracle">
+        <div class="pal-icon" style="background:rgba(139,148,158,.2)">🖥️</div>
+        <div class="pal-info"><div class="name">Oracle Linux</div><div class="sub">OL 8.6</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div id="canvas-wrap">
+    <div id="conn-indicator">🔗 Connect Mode — click source, then target</div>
+    <div id="drop-hint">
+      <div class="icon">🗄️</div>
+      <div class="text">Drag devices from the left panel onto the canvas</div>
+    </div>
+    <div id="canvas">
+      <svg id="edges"></svg>
+      <div id="nodes-layer"></div>
+    </div>
+  </div>
+
+  <!-- PROPERTIES -->
+  <div id="props">
+    <div id="props-header">Properties</div>
+    <div id="props-body">
+      <div class="prop-empty" id="props-empty">
+        <div class="icon">⚙️</div>
+        Click a device to edit its properties
+      </div>
+      <div id="props-form" style="display:none"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- STATUS BAR -->
+<div id="statusbar">
+  <span>📦 Devices: <b id="stat-devices">0</b></span>
+  <span>🔗 Connections: <b id="stat-conns">0</b></span>
+  <span id="stat-mode">Mode: <b>Select</b></span>
+  <span style="margin-left:auto;color:#58a6ff" id="stat-msg"></span>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div id="modal">
+    <button class="close-btn" onclick="closeModal()">✕</button>
+    <h2 id="modal-title">Modal</h2>
+    <div id="modal-body"></div>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="tb-btn" onclick="closeModal()">Cancel</button>
+      <button class="tb-btn primary" id="modal-ok">OK</button>
+    </div>
+  </div>
+</div>
+
+<script src="editor.js"></script>
+</body>
+</html>

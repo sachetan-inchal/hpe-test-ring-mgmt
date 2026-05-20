@@ -3,9 +3,10 @@ import { useMemo, useState, useRef, useEffect } from "react";
 export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeClick, selectedIds, onSelectToggle }) {
   const { nodes = [], edges = [] } = data || {};
 
-  const [colWidths, setColWidths] = useState([350, 350, 350]);
+  const [colWidths, setColWidths] = useState([350, 380, 350]);
   const [showArrays, setShowArrays] = useState(true);
   const [showSwitches, setShowSwitches] = useState(true);
+  const [showEthSwitches, setShowEthSwitches] = useState(true);
   const [showHosts, setShowHosts] = useState(true);
   const dragState = useRef({ isDragging: -1, startX: 0, startWidth: 0 });
 
@@ -48,7 +49,9 @@ export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeCl
   const activeNodes = useMemo(() => nodes.filter(n => !n.isDecommissioned), [nodes]);
 
   const arrays = activeNodes.filter(n => n.category === "main" && (n.type === "Array" || n.type === "ArraySystem"));
-  const switches = activeNodes.filter(n => n.category === "main" && n.type === "Switch");
+  const fcSwitches = activeNodes.filter(n => n.category === "main" && n.type === "Switch");
+  const ethSwitches = activeNodes.filter(n => n.category === "main" && (n.type === "EthernetSwitch" || n.type === "Ethernet Switch"));
+  const switches = [...fcSwitches, ...ethSwitches];
   const hosts = activeNodes.filter(n => n.category === "main" && n.type === "Host");
 
   // Helper to get sub-components for a parent
@@ -199,19 +202,40 @@ export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeCl
           <div style={{ height: '60%', width: 1, background: 'linear-gradient(to bottom, transparent, var(--accent-blue), transparent)', pointerEvents: 'none' }}></div>
         </div>
 
-        {/* Column 2: Switches */}
+        {/* Column 2: Switches (FC + Ethernet) */}
         <div style={{ display: 'flex', width: colWidths[1], flexDirection: 'column', alignItems: 'center', padding: '0 8px', flexShrink: 0 }}>
-          <div 
+          {/* FC Switches sub-section */}
+          <div
             onClick={() => setShowSwitches(!showSwitches)}
             style={{ marginBottom: 8, display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderBottom: '1px solid var(--line)', paddingBottom: 8, fontSize: 14, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--muted)', cursor: 'pointer' }}
           >
-             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-               <svg style={{ width: 16, height: 16 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
-               Fabric Switches
-             </div>
-             <svg style={{ width: 16, height: 16, transition: 'transform 0.3s', transform: showSwitches ? 'rotate(180deg)' : 'none' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg style={{ width: 16, height: 16 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
+              FC Switches
+              <span style={{ fontSize: 10, background: 'rgba(88,166,255,0.12)', color: '#58a6ff', border: '1px solid rgba(88,166,255,0.25)', borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>{fcSwitches.length}</span>
+            </div>
+            <svg style={{ width: 16, height: 16, transition: 'transform 0.3s', transform: showSwitches ? 'rotate(180deg)' : 'none' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
           </div>
-          {showSwitches && switches.map(node => renderCard(node))}
+          {showSwitches && fcSwitches.map(node => renderCard(node))}
+
+          {/* Ethernet Switches sub-section */}
+          <div
+            onClick={() => setShowEthSwitches(!showEthSwitches)}
+            style={{ marginTop: fcSwitches.length > 0 ? 16 : 0, marginBottom: 8, display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderBottom: '1px solid rgba(210,153,34,0.3)', paddingBottom: 8, fontSize: 14, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#d29922', cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg style={{ width: 16, height: 16 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" /></svg>
+              Ethernet Switches
+              <span style={{ fontSize: 10, background: 'rgba(210,153,34,0.12)', color: '#d29922', border: '1px solid rgba(210,153,34,0.25)', borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>{ethSwitches.length}</span>
+            </div>
+            <svg style={{ width: 16, height: 16, transition: 'transform 0.3s', transform: showEthSwitches ? 'rotate(180deg)' : 'none' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+          </div>
+          {showEthSwitches && ethSwitches.length > 0 && ethSwitches.map(node => renderCard(node))}
+          {showEthSwitches && ethSwitches.length === 0 && (
+            <div style={{ width: '100%', padding: '12px 16px', textAlign: 'center', fontSize: 12, color: 'var(--muted)', border: '1px dashed rgba(210,153,34,0.2)', borderRadius: 8 }}>
+              No Ethernet switches detected
+            </div>
+          )}
         </div>
 
         {/* Visual Line Connectors Helper - Now a drag handle */}
