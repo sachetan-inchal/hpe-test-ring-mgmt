@@ -1,0 +1,614 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Curated HPE Color Palette
+\definecolor{hpegreen}{RGB}{0,150,94}
+\definecolor{darkslate}{HTML}{0D1117}
+\definecolor{lightgray}{RGB}{245,245,245}
+\definecolor{bordergray}{HTML}{E1E4E8}
+\definecolor{hpeblue}{HTML}{0073E7}
+\definecolor{hpepurple}{HTML}{7630F3}
+\definecolor{hpemedium}{HTML}{425563}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=hpegreen,
+    urlcolor=blue
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\color{hpemedium}HPE SAN Unified Platform --- Complete User Manual}
+\fancyhead[R]{\color{hpemedium}\nouppercase{\leftmark}}
+\fancyfoot[C]{\thepage}
+\fancyfoot[L]{\color{hpemedium}v2.0}
+
+\titleformat{\section}
+{\large\bfseries\color{hpegreen}}
+{\thesection}{1em}{}
+
+\titleformat{\subsection}
+{\normalsize\bfseries}
+{\thesubsection}{1em}{}
+
+\lstset{
+    backgroundcolor=\color{lightgray},
+    basicstyle=\ttfamily\small,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    commentstyle=\color{hpemedium}\itshape,
+    keepspaces=true,
+    keywordstyle=\color{hpegreen}\bfseries,
+    numbers=left,
+    numbersep=5pt,
+    numberstyle=\tiny\color{hpemedium},
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    stringstyle=\color{hpepurple},
+    tabsize=2,
+    frame=single,
+    rulecolor=\color{bordergray}
+}
+
+\begin{document}
+
+% --- Cover Page ---
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+
+{\Huge \bfseries \color{hpegreen} Hewlett Packard Enterprise} \\[0.5cm]
+{\Huge \bfseries \color{darkslate} SAN Unified Platform} \\[0.8cm]
+{\Large \bfseries Integrated Simulator, BFS Discovery Engine, Graph/Search Database, AI Assistant (RAG \& Agent), and Multi-Tenant RBAC Dashboard} \\[1.5cm]
+
+\begin{tcolorbox}[colback=lightgray,colframe=hpegreen,arc=4mm,title=\textbf{Complete User Manual \& Operations Directory},fonttitle=\large\bfseries]
+    An exhaustive, step-by-step systems reference guide mapping every single button, dropdown, input box, canvas interaction, backend API request, and database pipeline across the entire HPE SAN management monorepo.
+\end{tcolorbox}
+
+\vfill
+
+\begin{tabular}{ll}
+\textbf{Prepared For:} & HPE SAN Operations \& DevOps Engineering Teams \\
+\textbf{Version:} & 2.0.0 \\
+\textbf{Document Type:} & End-to-End Technical User Manual \\
+\textbf{Date:} & \today \\
+\end{tabular}
+
+\vspace*{1cm}
+\includegraphics[width=4cm]{c:/Users/unmes/OneDrive/Desktop/hpe-test-ring-mgmt/dashboard/public/images/image.png} % Fallback logo path
+\end{titlepage}
+
+\newpage
+\tableofcontents
+\newpage
+
+% --- Section 1: Monorepo Architecture ---
+\section{Monorepo Architecture \& Services}
+The HPE SAN Unified Platform unifies a virtualized storage network, an automated crawler engine, a graph-based topology viewer, and cutting-edge artificial intelligence agents to streamline SAN system operations.
+
+\subsection{Core Services \& Directory Structure}
+The system comprises five core services operating in unison:
+\begin{enumerate}
+    \item \textbf{React Vite Frontend Dashboard} (Port \texttt{3000}): Interactive UI using React Flow, Cytoscape visualizations, resizable column grids, live-typing terminal shells, and WebSocket/SSE log streaming.
+    \item \textbf{Flask Master REST API} (Port \texttt{5005}): Orchestration layer serving Neo4j data transformations, synthetic database models, Elasticsearch routing, and RAG agent logic.
+    \item \textbf{Python Network Simulator} (Port \texttt{5001}): Replays production CLI commands, models multipath arrays, and manages an in-process socket routing table.
+    \item \textbf{Node.js + Express Chatbot Service} (Port \texttt{5010}): Manages user authentication, multi-tenant RBAC permissions, and persistent MongoDB chat history.
+    \item \textbf{Database Cluster}:
+    \begin{itemize}
+        \item \textbf{Neo4j} (Port \texttt{7474}): Maps physical/logical relationships (e.g., switches connected to storage node ports).
+        \item \textbf{Elasticsearch} (Port \texttt{9200}): Drives the indexer engine for high-speed cross-component string searches.
+        \item \textbf{MongoDB} (Port \texttt{27017}): Retains application schemas, user credentials, and historical LLM chat records.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Ontological Data Schema}
+The SAN is modeled as a directed graph representing real-world SAN physical dependencies. The relationships are illustrated in the following structural chain:
+\begin{equation*}
+\text{ArraySystem} \xrightarrow{\text{HAS\_NODE}} \text{Node/Controller} \xrightarrow{\text{HAS\_PORT}} \text{Port} \xrightarrow{\text{CONNECTS\_TO}} \text{Host HBA} \xrightarrow{\text{CONNECTS\_TO}} \text{ArraySystem}
+\end{equation*}
+Additionally, array enclosures are modeled hierarchically:
+\begin{equation*}
+\text{ArraySystem} \xrightarrow{\text{HAS\_CAGE}} \text{Cage} \xrightarrow{\text{CONTAINS}} \text{PhysicalDisk}
+\end{equation*}
+
+\newpage
+
+% --- Section 2: Complete Button-by-Button & Interaction Directory ---
+\section{Exhaustive Page-by-Page Button \& Interaction Directory}
+This section provides an absolute, granular mapping of every single button, dropdown selector, check-box, drag divider, terminal shell, and text entry box across all pages in the platform.
+
+\subsection{Authentication \& Tenant Scoped Login Page}
+The portal handles user authentication and sets dynamic privilege overrides:
+\begin{enumerate}
+    \item \textbf{Form Toggle Option (``Sign up'' / ``Sign in'' Link)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the blue toggle link.
+        \item \textbf{Under the Hood}: Updates local React state \texttt{isSignUp} between \texttt{true} and \texttt{false}.
+        \item \textbf{UI Transition}: Switches the form fields dynamically, revealing or hiding additional setup fields (e.g., Team, Managed Teams, Managed Clusters) depending on signup mode.
+    \end{itemize}
+    
+    \item \textbf{Username/Email Input Field}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User types their identifier string.
+        \item \textbf{Under the Hood}: Triggers keyboard listener binding updates to local \texttt{email} state.
+        \item \textbf{UI Transition}: Displays entered text inside the email entry frame.
+    \end{itemize}
+    
+    \item \textbf{Password Input Field}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User types their password securely.
+        \item \textbf{Under the Hood}: Updates local \texttt{password} state securely.
+        \item \textbf{UI Transition}: Characters are masked as black dots.
+    \end{itemize}
+    
+    \item \textbf{Role Selector Dropdown}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks and selects a role from: \texttt{Team Member}, \texttt{Manager}, \texttt{Senior Manager}, or \texttt{Admin}.
+        \item \textbf{Under the Hood}: Updates the local \texttt{role} state.
+        \item \textbf{UI Transition}: Selection is displayed in the input field.
+    \end{itemize}
+    
+    \item \textbf{Team Input Box}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User enters their organizational team name (e.g. \texttt{team-alpha}).
+        \item \textbf{Under the Hood}: Updates local \texttt{team} state.
+        \item \textbf{UI Transition}: Shows text in place. Used to restrict visibility under RBAC scope configurations.
+    \end{itemize}
+    
+    \item \textbf{Cluster Input Box}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User enters their target cluster namespace (e.g. \texttt{cluster-1}).
+        \item \textbf{Under the Hood}: Updates local \texttt{cluster} state.
+        \item \textbf{UI Transition}: Shows text in place. Used to lock structural boundaries.
+    \end{itemize}
+    
+    \item \textbf{Action Submit Button (``Sign In'' / ``Create Account'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the green button.
+        \item \textbf{Under the Hood}: Executes a POST request to \texttt{/chatbot/auth/login} or \texttt{/chatbot/auth/register} on Port \texttt{5010}. The backend returns a signed JWT, storing the user payload in \texttt{AuthContext} and updating local storage context.
+        \item \textbf{UI Transition}: Navigates the browser to the main dashboard.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Network Discovery Control Page}
+Tracks, starts, or completely wipes crawling iterations:
+\begin{enumerate}
+    \item \textbf{View Mode Switcher (Graph View Button)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the ``Graph'' tab.
+        \item \textbf{Under the Hood}: Sets local state \texttt{viewMode} to \texttt{"graph"}.
+        \item \textbf{UI Transition}: Renders the React Flow canvas (\texttt{TopologyCanvas.jsx}) mapping discovered nodes and edges.
+    \end{itemize}
+    
+    \item \textbf{View Mode Switcher (Neural View Button)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the ``Neural'' tab.
+        \item \textbf{Under the Hood}: Sets local state \texttt{viewMode} to \texttt{"neural"}.
+        \item \textbf{UI Transition}: Renders a custom force-directed spring diagram (\texttt{NeuralGraph.jsx}) using vector mathematics to cluster devices.
+    \end{itemize}
+    
+    \item \textbf{View Mode Switcher (Grid View Button)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the ``Grid'' tab.
+        \item \textbf{Under the Hood}: Sets local state \texttt{viewMode} to \texttt{"grid"}.
+        \item \textbf{UI Transition}: Swaps the display layout into structured card tiles detailing device properties.
+    \end{itemize}
+    
+    \item \textbf{Wipe Database Button (``Wipe'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the red wipe button.
+        \item \textbf{Under the Hood}: Issues a POST request to \texttt{/api/graph/wipe} on Port \texttt{5005}, which triggers the Cypher query \texttt{MATCH (n) DETACH DELETE n} to completely clear the Neo4j database, and updates the local state.
+        \item \textbf{UI Transition}: Clears the visual map, returning the interface to an empty state.
+    \end{itemize}
+    
+    \item \textbf{Upload Log Button (``Log'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the upload log button.
+        \item \textbf{Under the Hood}: Launches the native browser file explorer modal. Upon choosing a terminal log (\texttt{.txt}), the client submits it via a POST request to \texttt{/api/discover/ingest} on Port \texttt{5005}.
+        \item \textbf{UI Transition}: Initiates automatic parser processing, registering a new discovered device dynamically on the dashboard.
+    \end{itemize}
+    
+    \item \textbf{Start Discovery Button (``Start Discovery'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the start discovery button.
+        \item \textbf{Under the Hood}: Sends a POST request to \texttt{/api/discover} with seed IP \texttt{10.20.10.5}, spawning a background thread in the Flask server. It then initializes a live \texttt{EventSource} connection to \texttt{/api/discover/stream} for Server-Sent Events (SSE).
+        \item \textbf{UI Transition}: Spawns a running indicator badge and slides open the live terminal logs stream panel.
+    \end{itemize}
+    
+    \item \textbf{Cancel Discovery Button (``Cancel Discovery'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the cancel discovery button.
+        \item \textbf{Under the Hood}: Sends a POST request to \texttt{/api/discover/cancel} to safely halt the background BFS crawler thread.
+        \item \textbf{UI Transition}: Cancel button vanishes and the running spinner halts.
+    \end{itemize}
+    
+    \item \textbf{Log Panel Toggle Button (``Log'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the log toggle pill.
+        \item \textbf{Under the Hood}: Swaps the local \texttt{showLogs} state.
+        \item \textbf{UI Transition}: Collapses or expands the right-side JSON logging console panel.
+    \end{itemize}
+    
+    \item \textbf{Refresh Button (``Refresh'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the refresh button.
+        \item \textbf{Under the Hood}: Sends a GET request to \texttt{/api/graph/neo4j} to fetch the latest nodes and edges.
+        \item \textbf{UI Transition}: Canvas flashes briefly and updates with the latest topological status.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Interactive Testing \& Topology Page}
+The primary interface for testing node status, zoning, and decommission scopes:
+\begin{enumerate}
+    \item \textbf{Secondary Sub-Tab Switcher (``SAN Diagram'' Button)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the tab labeled ``SAN Diagram''.
+        \item \textbf{Under the Hood}: Updates the local \texttt{activeTab} React state to \texttt{"diagram"}.
+        \item \textbf{UI Transition}: Displays the resizable 3-column SAN grid.
+    \end{itemize}
+    
+    \item \textbf{Secondary Sub-Tab Switcher (``Visual Map'' Button)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the tab labeled ``Visual Map''.
+        \item \textbf{Under the Hood}: Updates the local \texttt{activeTab} React state to \texttt{"visual"}.
+        \item \textbf{UI Transition}: Renders the dynamic SVG React Flow mapping canvas.
+    \end{itemize}
+    
+    \item \textbf{Secondary Sub-Tab Switcher (``Decommissioned'' Button)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the tab labeled ``Decommissioned''.
+        \item \textbf{Under the Hood}: Updates the local \texttt{activeTab} React state to \texttt{"decommissioned"}.
+        \item \textbf{UI Transition}: Lists all greyed-out components that have been decommissioned.
+    \end{itemize}
+    
+    \item \textbf{Search Bar Input Box}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User types text (e.g. \texttt{Brocade} or \texttt{10.20.10.1}).
+        \item \textbf{Under the Hood}: Triggers keyboard listener binding updates to local \texttt{searchQuery} state.
+        \item \textbf{UI Transition}: Instantly filters the visible card grid. Walks up parent ID paths so parent cages remain visible if children match.
+    \end{itemize}
+    
+    \item \textbf{Column Resizing Dividers (Drag Handles)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks and drags the vertical boundary lines between columns in the SAN Diagram layout.
+        \item \textbf{Under the Hood}: Captures mouse move drag events, updating the \texttt{colWidths} array state (e.g., \texttt{[350, 350, 350]}) based on drag displacement.
+        \item \textbf{UI Transition}: Instantly resizes the column widths for Arrays, Switches, and Hosts.
+    \end{itemize}
+    
+    \item \textbf{Node Checkboxes}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the checkbox located inside any node card.
+        \item \textbf{Under the Hood}: Appends or removes the clicked node ID from the local \texttt{selectedIds} Set state.
+        \item \textbf{UI Transition}: Highlights all active connected data paths associated with the checked nodes on the canvas.
+    \end{itemize}
+    
+    \item \textbf{Clear Selection Button}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the ``Clear Selection'' button (appears only when selections exist).
+        \item \textbf{Under the Hood}: Resets the active \texttt{selectedIds} state to a clean set.
+        \item \textbf{UI Transition}: Clears all selection highlights and resets the checkboxes.
+    \end{itemize}
+    
+    \item \textbf{Export Excel Button (``Export Excel'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the download icon button.
+        \item \textbf{Under the Hood}: Aggregates discovered nodes and edges. Runs the client-side sheetjs workbook compilation utility, generating a formatted multi-sheet Excel spreadsheet (\texttt{.xlsx}).
+        \item \textbf{UI Transition}: Downloads the generated file to the user's local system.
+    \end{itemize}
+    
+    \item \textbf{Import Config Button}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the ``Import Config'' button.
+        \item \textbf{Under the Hood}: Sets \texttt{showImport} state to \texttt{true}, launching the file picker overlay.
+        \item \textbf{UI Transition}: Opens the modal backdrop.
+    \end{itemize}
+    
+    \item \textbf{Simulate Role Dropdown (Admin-Only)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks and selects a simulated role (Admin, Manager, Team Member).
+        \item \textbf{Under the Hood}: Dynamically overrides local state variables inside \texttt{AuthContext}.
+        \item \textbf{UI Transition}: Instantly updates the visible layout, showing how manager or team member privilege tiers restrict data access.
+    \end{itemize}
+    
+    \item \textbf{Team Selector Dropdown (Admin \& Manager Only)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks and selects an active organizational team.
+        \item \textbf{Under the Hood}: Updates the local \texttt{selectedTeamId} state.
+        \item \textbf{UI Transition}: Automatically restricts the visible canvas to only show devices mapped to the selected team's cluster.
+    \end{itemize}
+    
+    \item \textbf{Decommission Toggle Switch (inside NodeCard sidebar)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User toggles the decommission switch inside the selected node's card details.
+        \item \textbf{Under the Hood}: Triggers a PATCH request to \texttt{/api/ontology/nodes/<id>} on Port \texttt{5005}, updating the node's decommissioned status.
+        \item \textbf{UI Transition}: Node immediately turns grey, vanishes from the standard canvas, and is moved to the decommissioned tab.
+    \end{itemize}
+    
+    \item \textbf{Property Input Editors (inside NodeCard sidebar)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User types inside property input boxes (e.g. Rack Location, Notes) and presses enter or loses focus.
+        \item \textbf{Under the Hood}: Sends a PATCH request to \texttt{/api/ontology/nodes/<id>} on Port \texttt{5005} to update Neo4j attributes.
+        \item \textbf{UI Transition}: Persists updates to the node details, updating the node properties panel.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Resource Inventory Explorer Page}
+Provides nested tree audits of active device categories:
+\begin{enumerate}
+    \item \textbf{HierarchyTree Collapsible Folders}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the folder triangle icons next to parent devices.
+        \item \textbf{Under the Hood}: Updates local state arrays tracking expanded node keys.
+        \item \textbf{UI Transition}: Smoothly unfolds child arrays, cages, switches, and disks.
+    \end{itemize}
+    
+    \item \textbf{Search Query Box}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User types inside the inventory search box.
+        \item \textbf{Under the Hood}: Updates local filtering state.
+        \item \textbf{UI Transition}: Dynamically filters the tree, showing matching devices while keeping their parent hierarchies visible.
+    \end{itemize}
+    
+    \item \textbf{RBAC Scope override Panel (Admin/Manager)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks simulate buttons in the inventory header.
+        \item \textbf{Under the Hood}: Sets simulation scope variables.
+        \item \textbf{UI Transition}: Instantly expands or shrinks visible nodes in the tree based on the selected tenant role's permissions.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Interactive Console Emulator Page}
+Mimics a real jump-host server and interactive terminal logins:
+\begin{enumerate}
+    \item \textbf{Device IP Sidebar Selection}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks a virtual IP in the sidebar list.
+        \item \textbf{Under the Hood}: Initiates the SSH connection sequence for that host.
+        \item \textbf{UI Transition}: Opens the terminal console, displays the initial login prompt, and requests confirmation for the simulated host key.
+    \end{itemize}
+    
+    \item \textbf{Double-Click Node Terminal Modal}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User double-clicks any node card on the Discovery or Topology canvasses.
+        \item \textbf{Under the Hood}: Launches a Cisco Packet Tracer-style terminal modal overlay.
+        \item \textbf{UI Transition}: Opens the modal terminal overlay directly on the canvas, initiating the SSH login handshake.
+    \end{itemize}
+    
+    \item \textbf{SSH key Validation Confirm Input (``yes/no'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User types \texttt{yes} and presses Enter.
+        \item \textbf{Under the Hood}: Confirms simulated host key validation.
+        \item \textbf{UI Transition}: Moves the terminal sequence forward to the password prompt.
+    \end{itemize}
+    
+    \item \textbf{SSH Password Field Typing}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User types password strings and presses Enter.
+        \item \textbf{Under the Hood}: Captures keyboard focus via a hidden input element. Masking prevents any password characters from being written to the terminal buffer.
+        \item \textbf{UI Transition}: No characters or stars are rendered on screen (silent password masking), mimicking authentic Unix SSH terminals. Completing login opens the command prompt (e.g. \texttt{cli\%} or \texttt{\$}).
+    \end{itemize}
+    
+    \item \textbf{Contextual Command Quick Pills}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks any pill button (e.g. \texttt{showsys}, \texttt{fabricshow}, \texttt{multipath -ll}).
+        \item \textbf{Under the Hood}: Sends a POST request to \texttt{/api/sim/exec} on Port \texttt{5005} containing the target command.
+        \item \textbf{UI Transition}: Automatically inputs the selected command into the prompt, executes it immediately, and appends the simulated device output to the terminal window.
+    \end{itemize}
+    
+    \item \textbf{Clear Output Button}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the ``Clear'' button.
+        \item \textbf{Under the Hood}: Resets the local terminal buffer array.
+        \item \textbf{UI Transition}: Clears the console output screen, resetting the cursor to the top line.
+    \end{itemize}
+    
+    \item \textbf{Ask AI Pill (``Ask AI about...'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the Ask AI pill.
+        \item \textbf{Under the Hood}: Saves the active host's IP and terminal state to session storage as a diagnostic context hint.
+        \item \textbf{UI Transition}: Navigates the browser to the RAG Chat Page, prepopulating the AI text box with the diagnostic query.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{HPE SAN AI Assistant Diagnostic Workspace}
+An LLM diagnostic dashboard for RAG and GraphRAG:
+\begin{enumerate}
+    \item \textbf{New Chat Button (``New Chat'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the green New Chat button.
+        \item \textbf{Under the Hood}: Resets chat variables and clears active thread states.
+        \item \textbf{UI Transition}: Clears the chat window, ready to start a new diagnostic session.
+    \end{itemize}
+    
+    \item \textbf{Chat History List Sidebar Items}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks a past chat thread title in the sidebar list.
+        \item \textbf{Under the Hood}: Sends a GET request to \texttt{/chatbot/chat/<id>} on Port \texttt{5010} to fetch historical messages.
+        \item \textbf{UI Transition}: Loads the historical messages and updates the chat layout.
+    \end{itemize}
+    
+    \item \textbf{Delete Chat Button (Trash Can Icon)}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the trash can button next to a thread title.
+        \item \textbf{Under the Hood}: Sends a DELETE request to \texttt{/chatbot/chat/<id>} on Port \texttt{5010} to remove the thread from MongoDB.
+        \item \textbf{UI Transition}: Thread is removed from the sidebar history list.
+    \end{itemize}
+    
+    \item \textbf{Categorized Query Radial Button (``Queries'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the circular queries radial button.
+        \item \textbf{Under the Hood}: Updates the local popover state to \texttt{true}.
+        \item \textbf{UI Transition}: Opens a popover menu showing query presets categorized under \textbf{Arrays}, \textbf{Hosts}, and \textbf{Network}. Clicking any query template auto-fills the message text box.
+    \end{itemize}
+    
+    \item \textbf{AI Engine Mode Tabs (``SAN Agent'' / ``Standard RAG'' / ``GraphRAG'')}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks one of the three engine tabs.
+        \item \textbf{Under the Hood}: Updates the local \texttt{aiEngine} state.
+        \item \textbf{UI Transition}: Switches active LLM routing on submit (SAN Agent runs multithreaded CLI loop; Standard RAG uses standard system prompts; GraphRAG translates questions into Cypher queries).
+    \end{itemize}
+    
+    \item \textbf{Show/Hide Analysis Toggle Switch}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User toggles the analysis switch.
+        \item \textbf{Under the Hood}: Updates the local \texttt{showSidebar} state.
+        \item \textbf{UI Transition}: Expands or collapses the right-side reasoning panel showing raw CLI execution traces.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{System Health Dashboard Page}
+A high-level health overview mapping active alerts:
+\begin{enumerate}
+    \item \textbf{Refresh Button}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks the refresh icon.
+        \item \textbf{Under the Hood}: Sends GET requests to both Port \texttt{5005} and Port \texttt{5010} to pull the latest hardware metrics and service statuses.
+        \item \textbf{UI Transition}: Updates metric cards, service online/offline indicators, and active alert lists.
+    \end{itemize}
+    
+    \item \textbf{Failed Nodes Alert Item}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks a failed node alert list item.
+        \item \textbf{Under the Hood}: Saves target device variables in session storage context.
+        \item \textbf{UI Transition}: Navigates the browser to the Topology tab, auto-focusing the degraded device in the sidebar.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Admin Control Panel Page}
+Provides database CRUD and fake data generators:
+\begin{enumerate}
+    \item \textbf{Generate Topology Button}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User enters parameters (Arrays, Switches, Hosts) and clicks ``Generate Topology''.
+        \item \textbf{Under the Hood}: Sends a POST request to \texttt{/api/faker/san} on Port \texttt{5005} to generate synthetic SAN topology objects.
+        \item \textbf{UI Transition}: Displays the generated JSON preview, updating download links.
+    \end{itemize}
+    
+    \item \textbf{Download JSON Button}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks ``Download JSON''.
+        \item \textbf{Under the Hood}: Assembles a client-side Blob containing the generated topology schema.
+        \item \textbf{UI Transition}: Downloads the generated configuration file to the user's system.
+    \end{itemize}
+    
+    \item \textbf{Import to Neo4j Button}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User clicks ``Import to Neo4j''.
+        \item \textbf{Under the Hood}: Sends a POST request containing the synthetic JSON payload to Port \texttt{5005}, writing nodes and edge relationships directly into the live graph database.
+        \item \textbf{UI Transition}: Refreshes the database state indicator.
+    \end{itemize}
+    
+    \item \textbf{Add Node Button}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User completes the Node Creation form and clicks ``Add Node''.
+        \item \textbf{Under the Hood}: Sends a POST request containing properties to \texttt{/api/graph/nodes} on Port \texttt{5005}.
+        \item \textbf{UI Transition}: Clears input fields, returning a successful creation notification.
+    \end{itemize}
+    
+    \item \textbf{CSV Ingest Upload}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User uploads a CSV spreadsheet.
+        \item \textbf{Under the Hood}: Submits spreadsheet data to \texttt{/api/ingest/spreadsheet} to batch-import nodes.
+        \item \textbf{UI Transition}: Displays progress bar and success count.
+    \end{itemize}
+    
+    \item \textbf{Save Schema Button}:
+    \begin{itemize}
+        \item \textbf{Interaction}: User updates whitelisted properties in the Field Schema editor and clicks ``Save Schema''.
+        \item \textbf{Under the Hood}: Sends a PUT request to update \texttt{field\_definitions.json} on Port \texttt{5005}.
+        \item \textbf{UI Transition}: Updates validation checks, saving changes in the Master API.
+    \end{itemize}
+\end{enumerate}
+
+\newpage
+
+% --- Section 3: In-Depth Operational Mechanics ---
+\section{Under-the-Hood Mechanics \& Processing Pipelines}
+
+\subsection{Lightweight OS Device Fingerprinting}
+During discovery crawl runs, the system classification script identifies the vendor hardware before executing queries:
+\begin{lstlisting}[language=Python, caption=Fingerprint Classification Pipeline]
+def fingerprint_device(ip: str, virtual_network) -> DeviceType:
+    meta = virtual_network.get_metadata(ip)
+    if meta.get("type") == "array":
+        return DeviceType.HPE_ARRAY
+    if meta.get("type") == "switch":
+        return DeviceType.HPE_ARRAY
+    if meta.get("type") == "host":
+        if meta.get("os_type") == "windows":
+            return DeviceType.WINDOWS
+        return DeviceType.LINUX
+
+    # Active Shell Probing Fallback
+    probe = virtual_network.execute(ip, "showsys")
+    if probe and "Connection refused" not in probe:
+        if "TotalCap" in probe or "AllocCap" in probe:
+            return DeviceType.HPE_ARRAY
+            
+    probe = virtual_network.execute(ip, "uname -a")
+    if probe and "Linux" in probe:
+        return DeviceType.LINUX
+        
+    return DeviceType.UNKNOWN
+\end{lstlisting}
+
+\subsection{The Iterative BFS Network Discovery Crawler}
+When a user launches the discovery engine, the crawler utilizes an iterative BFS traversal pattern:
+\begin{lstlisting}[language=Python, caption=Discovery BFS Core Pipeline]
+class DiscoveryCrawler:
+    def discover(self, seed_ips: List[str]):
+        self.running = True
+        self.visited = set()
+        self.queue = deque(seed_ips)
+        
+        while self.queue:
+            ip = self.queue.popleft()
+            if ip in self.visited:
+                continue
+            self.visited.add(ip)
+            
+            # Fingerprint and execute commands
+            dev_type = fingerprint_device(ip)
+            if dev_type == "hpe_array":
+                outputs = self._run_commands(ip, HPE_COMMANDS)
+                parsed = parse_sim_array_output(outputs)
+                # Store in databases
+                self.neo4j.store(parsed)
+                self.es.index(parsed)
+                self.mongo.store(parsed)
+                # Extract and enqueue newly found IPs
+                new_ips = self._extract_linked_ips(parsed)
+                for new_ip in new_ips:
+                    if new_ip not in self.visited:
+                        self.queue.append(new_ip)
+\end{lstlisting}
+
+\subsection{LLM Diagnostic Logic \& The Stateful SAN Agent}
+When executing the \textbf{SAN Agent} mode in the AI Assistant, the platform deploys a stateful reasoning loop:
+\begin{enumerate}
+    \item \textbf{Plan Formulation}: The LLM evaluates the user's natural language query and determines which CLI commands (e.g., \texttt{showsys}, \texttt{showhost}) need to run on the target IP array.
+    \item \textbf{Tool Execution}: The agent connects to the Simulator's CLI engine and executes the planned commands.
+    \item \textbf{Real-Time Parsing}: Outputs are run through specialized regex parsers to extract active entities (e.g., degraded disks, host WWNs).
+    \item \textbf{Graph Enrichment}: The parsed entities are upserted into Neo4j to ensure the topology graph is in sync with the live device state.
+    \item \textbf{Answer Formulation}: The LLM synthesizes the diagnostic timeline and the final answer, streaming the entire trace back to the user.
+\end{enumerate}
+
+\end{document}

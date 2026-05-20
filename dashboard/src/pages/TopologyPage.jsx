@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useContext } from 'react'
 import { Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import TopologyCanvas from '../components/TopologyCanvas'
 import SANDiagram from '../components/SANDiagram'
 import NodeCard from '../components/NodeCard'
@@ -289,11 +290,31 @@ export default function TopologyPage({ apiBase }) {
   }, [data, nodesById, selectedIds])
 
   const handleExportConfig = () => {
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `san_topology_${selectedIds.size > 0 ? 'selected_' : ''}${new Date().toISOString().slice(0, 10)}.json`; a.click()
-    URL.revokeObjectURL(url)
+    const workbook = XLSX.utils.book_new()
+    const nodesSheet = XLSX.utils.json_to_sheet(exportData.nodes.map(node => ({
+      id: node.id,
+      name: node.name || '',
+      type: node.type || '',
+      status: node.status || '',
+      category: node.category || '',
+      parentId: node.parentId || '',
+      isDecommissioned: !!node.isDecommissioned,
+      model: node.model || '',
+      protocol: node.protocol || '',
+    })))
+    const edgesSheet = XLSX.utils.json_to_sheet(exportData.edges.map(edge => ({
+      from: edge.from || '',
+      to: edge.to || '',
+      label: edge.label || '',
+    })))
+
+    XLSX.utils.book_append_sheet(workbook, nodesSheet, 'Nodes')
+    XLSX.utils.book_append_sheet(workbook, edgesSheet, 'Edges')
+
+    XLSX.writeFile(
+      workbook,
+      `san_topology_${selectedIds.size > 0 ? 'selected_' : ''}${new Date().toISOString().slice(0, 10)}.xlsx`
+    )
   }
 
   const healthStats = useMemo(() => {
@@ -314,7 +335,7 @@ export default function TopologyPage({ apiBase }) {
       <div className="page-header">
         <div>
           <h2 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            SAN Topology
+            Testing Dashboard
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, background: 'var(--surface-1)', padding: '3px 10px', borderRadius: 20, border: '1px solid var(--line)' }}>
               <span className="pulse-dot green" /> Live DB
             </span>
@@ -338,7 +359,7 @@ export default function TopologyPage({ apiBase }) {
           {selectedIds.size > 0 && (
             <button className="btn" onClick={handleClearSelection}>Clear Selection</button>
           )}
-          <button className="btn" onClick={handleExportConfig}><Download size={14} />Export</button>
+          <button className="btn" onClick={handleExportConfig}><Download size={14} />Export Excel</button>
           <button className="btn" onClick={() => setShowImport(true)}>Import Config</button>
         </div>
       </div>

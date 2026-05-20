@@ -58,7 +58,7 @@ export default function App() {
             <aside className={`app-sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'mobile-open' : ''}`}>
               <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
                 <img 
-                  src="/images/hpe-logo-dark.avif" 
+                  src="/images/image.png" 
                   alt="HPE Logo" 
                   style={{ width: sidebarCollapsed ? '0' : '140px', opacity: sidebarCollapsed ? 0 : 1, transition: 'all 0.3s ease', objectFit: 'contain' }} 
                 />
