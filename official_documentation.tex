@@ -1,0 +1,646 @@
+\documentclass[11pt,a4paper]{article}
+
+% =========================================================
+% COMPILER: USE XeLaTeX IN OVERLEAF
+% =========================================================
+
+\usepackage[
+top=0.85in,
+bottom=0.9in,
+left=0.9in,
+right=0.9in
+]{geometry}
+
+\usepackage[table]{xcolor}
+\usepackage{graphicx}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{tcolorbox}
+\usepackage{tocloft}
+\usepackage{fontspec}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{colortbl}
+\usepackage{float}
+
+% =========================================================
+% FIGURES (images/ — filename encodes the capture subject)
+% =========================================================
+
+\newcommand{\screenshot}[3]{%
+  \begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth,keepaspectratio]{images/#1}%
+  \caption{#2}
+  \label{fig:#3}
+  \end{figure}%
+}
+
+\newcommand{\featurerow}[2]{%
+  \textbf{#1} & #2 \\%
+}
+
+\setmainfont{TeX Gyre Termes}
+\setsansfont{TeX Gyre Heros}
+\setmonofont{Latin Modern Mono}
+
+\definecolor{primary}{HTML}{0B1F3A}
+\definecolor{secondary}{HTML}{F5F7FA}
+\definecolor{textgray}{HTML}{444444}
+\definecolor{codebg}{HTML}{F7F9FC}
+\definecolor{tablegray}{HTML}{FAFAFA}
+\definecolor{linegray}{HTML}{D9DDE3}
+\definecolor{headerbg}{HTML}{E9EEF5}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primary,
+    urlcolor=blue
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\sffamily\textcolor{primary}{HPE Test Ring Management Tool}}
+\fancyhead[R]{\small\sffamily\textcolor{primary}{Enterprise Architecture Guide}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\setstretch{1.15}
+\setlength{\parskip}{0.55em}
+\setlength{\parindent}{0pt}
+
+\titleformat{\section}
+{\fontsize{20}{24}\selectfont\bfseries\sffamily\color{primary}}
+{\thesection}{1em}{}
+
+\titleformat{\subsection}
+{\fontsize{15}{18}\selectfont\bfseries\sffamily\color{primary}}
+{\thesubsection}{1em}{}
+
+\titleformat{\subsubsection}
+{\fontsize{12}{15}\selectfont\bfseries\sffamily\color{primary}}
+{\thesubsubsection}{1em}{}
+
+\titlespacing*{\section}{0pt}{18pt}{8pt}
+\titlespacing*{\subsection}{0pt}{14pt}{6pt}
+\titlespacing*{\subsubsection}{0pt}{10pt}{5pt}
+
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small,
+    frame=single,
+    breaklines=true,
+    columns=fullflexible,
+    showstringspaces=false,
+    rulecolor=\color{linegray},
+    xleftmargin=8pt,
+    xrightmargin=8pt,
+    aboveskip=10pt,
+    belowskip=10pt,
+    framesep=8pt
+}
+
+\renewcommand{\arraystretch}{1.45}
+
+\begin{document}
+
+% =========================================================
+% TITLE PAGE
+% =========================================================
+
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+\vspace*{1cm}
+
+\IfFileExists{images/hpe_logo.png}{%
+  \includegraphics[width=0.45\textwidth]{images/hpe_logo.png}%
+}{%
+  {\fontsize{28}{32}\selectfont\bfseries\sffamily\color{primary}HPE}%
+}
+
+\vspace{1.7cm}
+
+{\fontsize{30}{36}\selectfont\bfseries\sffamily\color{primary}
+HPE Ring Test Management
+}
+
+\vspace{0.5cm}
+
+{\Large Enterprise Architecture, Features \& Setup Guide}
+
+\vspace{1.6cm}
+
+\begin{tcolorbox}[
+colback=secondary,
+colframe=linegray,
+width=0.92\textwidth,
+boxrule=0.7pt,
+arc=2mm
+]
+\centering
+\vspace{0.3cm}
+{\Large\bfseries\sffamily Enterprise SAN Discovery \& AI Platform}
+\vspace{0.7cm}
+
+\large
+This document describes the platform architecture, operational dashboard modules, backend services, deployment workflow, and illustrated user workflows for the HPE Ring Test Management system.
+
+\vspace{0.3cm}
+\end{tcolorbox}
+
+\vfill
+{\Large\bfseries\sffamily Authors}
+\vspace{0.8cm}
+\begin{tabular}{c}
+\Large Preetham M R \\
+\vspace{0.3cm}
+\Large Unmesh Raj \\
+\vspace{0.3cm}
+\Large Sachethan I \\
+\vspace{0.3cm}
+\Large Samarth K N \\
+\end{tabular}
+\vspace{1.3cm}
+{\Large May 2026}
+\end{center}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% =========================================================
+% EXECUTIVE SUMMARY
+% =========================================================
+
+\section{Executive Summary}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+The HPE Ring Test Management platform is a full-stack enterprise SAN discovery and infrastructure intelligence system. It combines virtual SAN simulation, breadth-first topology discovery, Neo4j graph persistence, Elasticsearch indexing, and AI-assisted operational workflows in a single monorepo.
+
+Core capabilities include:
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Virtual HPE array, switch, and host emulation without physical hardware
+    \item Live discovery with streaming events into graph and search indexes
+    \item React operational dashboards for topology, inventory, health, and administration
+    \item Node.js chatbot service with SAN agent, GraphRAG, and dual LLM engines (Groq/Gemini)
+    \item Flask REST orchestration across simulator, discovery, graph, and AI proxy layers
+    \item Docker Compose for Neo4j, Elasticsearch, and MongoDB
+\end{itemize}
+
+% =========================================================
+% PLATFORM OVERVIEW
+% =========================================================
+
+\section{Platform Overview}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+The monorepo unifies \texttt{simulator/}, \texttt{discovery/}, \texttt{api/}, \texttt{chatbot-service/}, and \texttt{dashboard/} into one deployable environment. Operators interact primarily through the React dashboard (\texttt{http://localhost:5173}); all business logic routes through the Flask API on port \textbf{5005}, with the chatbot on \textbf{5010} and the simulator on \textbf{5001}.
+
+\subsection{End-to-End Data Flow}
+
+\begin{enumerate}[leftmargin=1.5cm]
+    \item The \textbf{simulator} exposes virtual devices and CLI responses over REST.
+    \item \textbf{Discovery} crawls the virtual network (BFS), fingerprints devices, parses metadata, and streams progress.
+    \item The \textbf{Flask API} persists relationships to \textbf{Neo4j} and documents to \textbf{Elasticsearch}.
+    \item The \textbf{dashboard} visualizes graphs, runs terminals, and surfaces health and admin tools.
+    \item The \textbf{chatbot} retrieves graph and index context for SAN-aware answers and agent plans.
+\end{enumerate}
+
+% =========================================================
+% TECHNOLOGY STACK
+% =========================================================
+
+\section{Technology Stack}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+\rowcolors{2}{tablegray}{white}
+\begin{longtable}{p{4cm} p{4cm} p{5cm}}
+\toprule
+\rowcolor{headerbg}
+\textbf{Layer} & \textbf{Technology} & \textbf{Purpose} \\
+\midrule
+Frontend & React 18 + Vite & Dashboard UI, routing, visualization \\
+Backend API & Flask + Python 3.10 & Discovery, graph, simulator, search \\
+Chatbot & Node.js Express & Auth, chat history, SAN agent, RAG \\
+Graph DB & Neo4j 5.18 & Topology relationships \\
+Search & Elasticsearch 8.13 & Full-text index for RAG \\
+Documents & MongoDB & Users, sessions, chat metrics \\
+Simulator & Python & Virtual SAN and CLI replay \\
+LLM & Groq + Gemini & Natural language and agent reasoning \\
+Infra & Docker Compose & Database orchestration \\
+\bottomrule
+\end{longtable}
+
+% =========================================================
+% DASHBOARD USER GUIDE (illustrated)
+% =========================================================
+
+\section{Dashboard User Guide}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+The React dashboard (\texttt{dashboard/src/}) is the primary operator interface. It authenticates against the chatbot service, proxies API calls to Flask, and exposes seven functional areas: \textbf{Discovery}, \textbf{Test Ring Viewer}, \textbf{Inventory}, \textbf{Emulator}, \textbf{AI Assistant}, \textbf{Admin} (admin role only), and \textbf{Health}.
+
+Navigation is defined in \texttt{App.jsx}; the status bar polls \texttt{/api/health} to show Flask, simulator, and chatbot availability.
+
+% ----- AUTH -----
+\subsection{Authentication and Sign-Up}
+
+\textbf{Frontend.} \texttt{LoginPage.jsx} provides login and registration with role selection (team member, team lead, senior manager, admin), team/cluster assignment, and password validation.
+
+\textbf{Backend.} The chatbot service (\texttt{chatbot-service/}) exposes \texttt{POST /api/auth/login} and \texttt{POST /api/auth/register}; credentials and roles are stored in MongoDB. JWT tokens gate protected dashboard routes.
+
+\screenshot{Sign-up.png}{Sign-up screen: new user registration with role, team, and cluster assignment before entering the operational dashboard.}{signup}
+
+% ----- DISCOVERY -----
+\subsection{Discovery Tab}
+
+\textbf{Route:} \texttt{/discovery} \quad \textbf{Component:} \texttt{DiscoveryPage.jsx}
+
+The Discovery tab is the default landing view after login. It orchestrates live infrastructure scanning and visualization.
+
+\subsubsection{Frontend Features}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \textbf{Discovery panel} --- seed IP entry, start/stop controls, and SSE-powered live event log (\texttt{DiscoveryPanel.jsx})
+    \item \textbf{Topology canvas} --- interactive graph with node selection, pulsing highlights for new devices (\texttt{TopologyCanvas.jsx})
+    \item \textbf{Neural graph view} --- alternate visualization mode for scan progress (\texttt{NeuralGraph.jsx})
+    \item \textbf{Result grid} --- tabular list of discovered entities (\texttt{DiscoveryResultGrid.jsx})
+    \item \textbf{Aggregate sidebar} --- counts by device type (\texttt{AggregateSidebar.jsx})
+    \item \textbf{Embedded terminal} --- open CLI on any discovered node (\texttt{NodeTerminal.jsx})
+    \item \textbf{Session persistence} --- graph and events restored via \texttt{sessionStorage} across refreshes
+\end{itemize}
+
+\subsubsection{Backend Integration}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \texttt{POST /api/discovery/start} --- initiates BFS crawl from seed IP (default \texttt{10.20.10.5})
+    \item \texttt{GET /api/discovery/stream} --- Server-Sent Events: connecting, command output, parsed entities, \texttt{neo4j\_stored}, \texttt{es\_indexed}
+    \item \texttt{GET /api/graph/neo4j} --- loads persisted graph for canvas rendering
+    \item Simulator on port 5001 --- emulates device CLI responses during crawl
+\end{itemize}
+
+\screenshot{discovery-tab-fullscreen.png}{Discovery tab (fullscreen): live BFS network scan with interactive topology graph, discovery controls, and real-time event stream.}{discovery-tab}
+
+% ----- TOPOLOGY -----
+\subsection{Test Ring Viewer Tab}
+
+\textbf{Route:} \texttt{/topology} \quad \textbf{Component:} \texttt{TopologyPage.jsx}
+
+The Test Ring Viewer presents the SAN test ring from both diagrammatic and graph perspectives, with role-based visibility (admin, manager, user teams from \texttt{teamconfig.json}).
+
+\subsubsection{Frontend Features}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \textbf{SAN diagram} --- hierarchical layout of arrays, FC switches, Ethernet switches, and hosts (\texttt{SANDiagram.jsx})
+    \item \textbf{Graph canvas} --- React Flow topology with focus, expand, and multi-select (\texttt{TopologyCanvas.jsx})
+    \item \textbf{Node card} --- firmware, ports, team/cluster metadata on selection (\texttt{NodeCard.jsx})
+    \item \textbf{Decommission workflow} --- mark devices offline and manage ring membership
+    \item \textbf{Topology import/export} --- JSON import and download for offline analysis
+    \item \textbf{Role/team filters} --- managers see assigned teams; admins see all clusters
+\end{itemize}
+
+\subsubsection{Backend Integration}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \texttt{GET /api/ontology/topology} and \texttt{GET /api/graph/neo4j} --- primary data sources
+    \item Fallback to remote ontology service if local graph is empty
+    \item Graph mutations via admin/decommission APIs where applicable
+\end{itemize}
+
+\screenshot{test-ring-viewer-tab.png}{Test Ring Viewer tab: SAN diagram and test ring topology visualization for arrays, switches, and hosts.}{test-ring-viewer}
+
+% ----- INVENTORY -----
+\subsection{Inventory Tab}
+
+\textbf{Route:} \texttt{/inventory} \quad \textbf{Component:} \texttt{InventoryPage.jsx}
+
+Inventory provides a hierarchical, path-oriented view of storage resources---suited for drilling from array down to physical disks.
+
+\subsubsection{Frontend Features}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \textbf{Hierarchy tree} --- curved-edge tree with expand/collapse and path highlighting (\texttt{HierarchyTree.jsx})
+    \item \textbf{Search bar} --- filter nodes by name, ID, or type (\texttt{SearchBar.jsx})
+    \item \textbf{Node detail card} --- selected resource properties and relationships
+    \item \textbf{Team/cluster context} --- same role-based filtering as Test Ring Viewer
+\end{itemize}
+
+\subsubsection{Backend Integration}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Loads topology from \texttt{/api/graph/neo4j} or ontology endpoints
+    \item Read-only consumption of Neo4j graph structure (ArraySystem $\rightarrow$ Node $\rightarrow$ Cage $\rightarrow$ PhysicalDisk)
+\end{itemize}
+
+\screenshot{inventory-tab.png}{Inventory tab: hierarchical resource tree across storage arrays, nodes, cages, and physical disks.}{inventory-tab}
+
+% ----- EMULATOR -----
+\subsection{Emulator Tab}
+
+\textbf{Route:} \texttt{/emulator} \quad \textbf{Component:} \texttt{EmulatorPage.jsx}
+
+The Emulator (labeled ``Emulator'' in navigation) is the device terminal workspace for executing CLI commands against simulated infrastructure without running a full discovery scan.
+
+\subsubsection{Frontend Features}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \textbf{Device selector} --- pick array, switch, or host from simulator inventory
+    \item \textbf{Context-aware quick commands} --- HPE (\texttt{showsys}, \texttt{showport}), FC switch (\texttt{fabricshow}), Linux host (\texttt{multipath -ll}), Windows PowerShell snippets
+    \item \textbf{Live terminal} --- xterm-style session with command history
+    \item \textbf{Agent hand-off} --- route to AI Assistant for automated investigation
+\end{itemize}
+
+\subsubsection{Backend Integration}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \texttt{POST /api/simulator/exec} --- executes commands on virtual devices (port 5001)
+    \item Optional SSH mode for real hardware when configured
+    \item Standalone browser terminal also available at \texttt{http://localhost:5005/terminal}
+\end{itemize}
+
+\screenshot{terminal-simulator-tab.png}{Terminal simulator tab: CLI session against a simulated HPE array, switch, or host with quick-command shortcuts.}{terminal-simulator}
+
+% ----- CHAT -----
+\subsection{AI Assistant Tab}
+
+\textbf{Route:} \texttt{/chat} \quad \textbf{Component:} \texttt{ChatPage.jsx}
+
+The AI Assistant is a full-page conversational interface backed by the Node.js chatbot and Flask RAG proxy. It supports operational questioning across the SAN test ring.
+
+\subsubsection{Frontend Features}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \textbf{SAN agent mode} --- multi-step plans with \texttt{AgentStepTimeline} and \texttt{AgentReasoningSidebar}
+    \item \textbf{Standard and GraphRAG modes} --- direct LLM or graph-enhanced retrieval
+    \item \textbf{Dual engines} --- Groq and Gemini selection per query
+    \item \textbf{Radial quick-query menu} --- pre-built prompts (zoning, failed PDs, TPD version, capacity) (\texttt{RadialMenu.jsx})
+    \item \textbf{Persistent chat history} --- MongoDB-backed sessions per user
+    \item \textbf{Embedded terminal} --- agent can propose and run simulator commands (\texttt{EmbeddedTerminal.jsx})
+    \item \textbf{Health integration} --- ``Investigate'' from Health tab pre-fills agent queries via \texttt{sessionStorage}
+\end{itemize}
+
+\subsubsection{Backend Integration}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Chatbot \texttt{/api/chat} (and streaming variants) --- orchestrates LLM calls
+    \item Flask \texttt{/api/chat} --- hybrid RAG: Elasticsearch context + Neo4j graph traversal
+    \item Neo4j --- graph-aware answers (zones, peers, array relationships)
+    \item Elasticsearch --- indexed device and discovery metadata for retrieval
+\end{itemize}
+
+\screenshot{radial-quick-query-menu.png}{Radial quick-query menu: curated SAN operational prompts for common array and zoning questions.}{radial-menu}
+
+\screenshot{chatbot-san-agent-demo-query.png}{Chatbot SAN agent demo query: agent mode executing a multi-step infrastructure investigation with streamed reasoning.}{chatbot-demo}
+
+\screenshot{neo4j-powered-chatbot.png}{Neo4j-powered chatbot: response enriched with graph context from the topology store.}{neo4j-chatbot}
+
+% ----- HEALTH -----
+\subsection{Health Tab}
+
+\textbf{Route:} \texttt{/health} \quad \textbf{Component:} \texttt{HealthPage.jsx}
+
+Health aggregates platform and infrastructure status for at-a-glance operations monitoring.
+
+\subsubsection{Frontend Features}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \textbf{Stat cards} --- total nodes, arrays, switches, hosts, disks, and issue counts
+    \item \textbf{Service status panel} --- connectivity badges per dependency (see Figure~\ref{fig:health-services})
+    \item \textbf{Capacity bars} --- per-array and pool utilization from chatbot SAN metrics
+    \item \textbf{Recommendations} --- rule-based alerts (failed components, high utilization)
+    \item \textbf{Active issues} --- degraded/failed nodes with one-click \textbf{Investigate} $\rightarrow$ AI Assistant
+\end{itemize}
+
+\subsubsection{Backend Integration}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \texttt{GET /api/health} (Flask) --- Neo4j, Elasticsearch, simulator status
+    \item \texttt{GET /health} (chatbot) --- chatbot and SAN data availability
+    \item \texttt{GET /api/graph/neo4j} --- topology for issue detection
+\end{itemize}
+
+\screenshot{list-of-services-from-health-tab.png}{List of services from Health tab: connectivity status for Flask API, Neo4j, Elasticsearch, chatbot, and simulator.}{health-services}
+
+% ----- ADMIN -----
+\subsection{Admin Tab}
+
+\textbf{Route:} \texttt{/admin} \quad \textbf{Component:} \texttt{AdminPage.jsx} \quad (\textbf{admin role only})
+
+Administration is restricted to users with the \texttt{admin} role. No screenshot is included in this revision; the following capabilities remain available in the product.
+
+\subsubsection{Frontend Features}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \textbf{SAN fake data generator} --- synthetic topology with Neo4j import (\texttt{/api/faker/san})
+    \item \textbf{Add node} --- create Host, Switch, ArraySystem, Cage, Node, PhysicalDisk in graph
+    \item \textbf{CSV/spreadsheet ingest} --- bulk data pipeline
+    \item \textbf{Field schema manager} --- customize node properties
+    \item \textbf{Delete node} --- remove by element ID
+\end{itemize}
+
+\subsubsection{Backend Integration}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Graph CRUD via \texttt{/api/graph/nodes}
+    \item Faker and import routes under \texttt{/api/faker/*}
+    \item Integrations in \texttt{api/integrations/} for spreadsheet and data generation
+\end{itemize}
+
+% =========================================================
+% BACKEND SERVICES
+% =========================================================
+
+\section{Backend Services}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+\subsection{Simulator Subsystem}
+
+Python modules under \texttt{simulator/} emulate HPE arrays, FC switches, Linux/Windows hosts, and virtual IP routing. \texttt{simulator\_manager.py} boots the fleet; \texttt{device\_terminal.py} and \texttt{proxy\_engine.py} handle CLI sessions. REST on port \textbf{5001} serves the discovery crawler and dashboard emulator.
+
+\subsection{Discovery Engine}
+
+The \texttt{discovery/} package runs BFS crawling, multi-vendor fingerprinting, command execution, parsing, Neo4j persistence, and Elasticsearch indexing. Events streamed to the dashboard match the color-coded types in \texttt{DiscoveryPanel.jsx} (\texttt{neo4j\_stored}, \texttt{es\_indexed}, etc.).
+
+\subsection{Flask REST API}
+
+\texttt{api/app.py} is the integration hub. Representative endpoints:
+
+\rowcolors{2}{tablegray}{white}
+\begin{longtable}{p{5.2cm} p{8.8cm}}
+\toprule
+\rowcolor{headerbg}
+\textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+\texttt{/api/discovery/start} & Start BFS discovery \\
+\texttt{/api/discovery/stream} & SSE discovery events \\
+\texttt{/api/simulator/exec} & Remote CLI on virtual device \\
+\texttt{/api/graph/neo4j} & Topology graph JSON \\
+\texttt{/api/chat} & RAG proxy to LLM \\
+\texttt{/api/search} & Elasticsearch queries \\
+\texttt{/tester} & Interactive API explorer (browser) \\
+\bottomrule
+\end{longtable}
+
+\subsection{AI and RAG Pipeline}
+
+\begin{enumerate}[leftmargin=1.5cm]
+    \item User query enters chatbot or Flask \texttt{/api/chat}
+    \item Query classification selects agent, standard, or GraphRAG path
+    \item Elasticsearch returns relevant device/index chunks
+    \item Neo4j supplies relationship context (peers, zones, containment)
+    \item Groq or Gemini synthesizes the answer; agent mode may loop with simulator exec
+    \item Response streams to \texttt{ChatPage.jsx} with optional step timeline
+\end{enumerate}
+
+% =========================================================
+% GRAPH AND SEARCH
+% =========================================================
+
+\section{Graph and Search Persistence}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+\subsection{Neo4j}
+
+Node labels include \texttt{ArraySystem}, \texttt{Node}, \texttt{Host}, \texttt{Switch}, \texttt{Cage}, and \texttt{PhysicalDisk}. Relationships include \texttt{HAS\_NODE}, \texttt{HAS\_CAGE}, \texttt{CONNECTS\_TO}, \texttt{CONTAINS}, \texttt{REMOTE\_COPY\_PEER}, and \texttt{PEER}. The AI Assistant and Test Ring Viewer depend on this graph for accurate SAN reasoning.
+
+\subsection{Elasticsearch}
+
+Discovery indexes device identifiers, firmware, capacity, topology summaries, and timestamps. RAG queries use this index before graph enrichment.
+
+\subsection{MongoDB}
+
+Stores authentication records, chat sessions, and operational metrics for the chatbot service.
+
+% =========================================================
+% INFRASTRUCTURE
+% =========================================================
+
+\section{Infrastructure and Deployment}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+\rowcolors{2}{tablegray}{white}
+\begin{longtable}{p{4.5cm} p{4.5cm} p{3cm}}
+\toprule
+\rowcolor{headerbg}
+\textbf{Service} & \textbf{Purpose} & \textbf{Port} \\
+\midrule
+Neo4j & Graph store & 7474 / 7687 \\
+Elasticsearch & Search index & 9200 \\
+MongoDB & Documents & 27017 \\
+Flask API & REST & 5005 \\
+Dashboard (Vite) & UI & 5173 \\
+Chatbot & AI + auth & 5010 \\
+Simulator & Virtual SAN & 5001 \\
+\bottomrule
+\end{longtable}
+
+Docker Compose starts databases only (\textbf{recommended} for local dev):
+
+\begin{lstlisting}
+docker-compose up -d neo4j elasticsearch mongo
+\end{lstlisting}
+
+Application services are started via \texttt{npm start} at the monorepo root (runs simulator, API, chatbot, and dashboard concurrently).
+
+% =========================================================
+% SETUP GUIDE
+% =========================================================
+
+\section{Setup Guide}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+\subsection{Prerequisites}
+
+Python 3.10+, Node.js/npm, Docker Desktop, and Git.
+
+\subsection{Environment}
+
+Copy \texttt{.env.example} to \texttt{.env} and set \texttt{GROQ\_API\_KEY}, \texttt{GEMINI\_API\_KEY}, \texttt{JWT\_SECRET}, and \texttt{MONGO\_URI}.
+
+\subsection{Quick Start}
+
+\begin{lstlisting}
+pip install -r requirements.txt
+npm install
+docker-compose up -d neo4j elasticsearch mongo
+npm start
+\end{lstlisting}
+
+\subsection{Access URLs}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Dashboard: \url{http://localhost:5173}
+    \item Flask API: \url{http://localhost:5005}
+    \item API Explorer: \url{http://localhost:5005/tester}
+    \item Chatbot: \url{http://localhost:5010}
+    \item Neo4j Browser: \url{http://localhost:7474}
+\end{itemize}
+
+% =========================================================
+% TROUBLESHOOTING
+% =========================================================
+
+\section{Troubleshooting}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+Use the \textbf{Health} tab (Figure~\ref{fig:health-services}) to identify which dependency is down. Common fixes:
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item \textbf{Red Flask API} --- ensure \texttt{py api/app.py} is running and port 5005 is free; stop Docker \texttt{hpe\_san\_api} if present
+    \item \textbf{Red Simulator} --- run \texttt{py simulator/simulator\_manager.py} or \texttt{npm start}
+    \item \textbf{Red Neo4j/ES} --- \texttt{docker-compose up -d neo4j elasticsearch}; check \texttt{docker logs}
+    \item \textbf{Discovery seed fails} --- simulator must be on 5001; default seed \texttt{10.20.10.5}
+    \item \textbf{Chatbot errors} --- verify \texttt{GROQ\_API\_KEY} in root \texttt{.env}
+\end{itemize}
+
+% =========================================================
+% BENEFITS / FUTURE / CONCLUSION
+% =========================================================
+
+\section{Enterprise Benefits}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item SAN testing without physical arrays
+    \item Unified discovery, graph, search, and AI in one toolchain
+    \item Role-based test ring views for multi-team labs
+    \item Repeatable synthetic data and faker workflows for demos
+\end{itemize}
+
+\section{Future Scalability}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+Kubernetes deployment, multi-cluster discovery, advanced graph analytics, and expanded agentic automation are natural extensions of the current modular layout.
+
+\section{Conclusion}
+
+\vspace{0.3cm}\hrule\vspace{0.6cm}
+
+The HPE Ring Test Management platform delivers an integrated environment for virtual SAN operations, live discovery, graph-backed visualization, and AI-assisted troubleshooting. The dashboard modules documented in Section~4 map directly to backend services in Sections~5--7, enabling teams to run full test-ring workflows on a laptop with Docker and a single \texttt{npm start}.
+
+\vspace{1cm}
+\begin{center}
+\Large\bfseries End of Document
+\end{center}
+
+\end{document}

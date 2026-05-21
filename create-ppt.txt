@@ -1,0 +1,398 @@
+FIRST PPT (PROBLEM STATEMENT GIVEN TO US BY MENTOR):
+Hardware Test Ring Management 
+Tool
+Susanta Dutta
+Farhana Khanum
+Kavichakkravarthy K
+05-Mar-26
+●1
+Project Details
+Hardware Test Ring Management Tool:
+To develop Tool/Infrastructure Analytics Engine to view all equipment connectivity details, 
+along with components health. 
+•
+Objective/Abstract:
+To solve the complex & challenging management (Refer next slide for sample Hardware 
+Test Ring) of HPE Alletra Storage MP B10000 System Test Hardware rings. Ensuring all 
+equipment's and components health state, Easy maintaining of connectivity details.
+  It should also provide Infrastructure Analytics Engine to query supported Hardware 
+details such as FC, iSCSI, NVMeoTCP and test cases that are applicable based on 
+reference/input details.
+• 2
+Project Details
+• 3
+•4
+Architecture
+•Need to develop 
+tool/chatbot that possess 
+below detail.
+Captures all Hardware 
+(Array/Host/Infrastructure
+) & Test ring details.
+Store those captured 
+details in some 
+repository/database.
+Query from the stored 
+details to get required 
+HW supported/specific 
+info details.
+Infrastructure Analytics 
+Engine
+•5
+Outcome: Example Chatbot queries
+Project Deliverables/Outcome
+Host:
+Given a host, list all arrays that are zoned with
+Given a host, list HBA detail, driver and firmware version
+Given a host, list to which switch it is connected
+Array:
+Given an array, list all hosts along with type of OS that are zoned 
+with
+For an array, list all protocols that are supported
+Given an array list whether it is switched/switchless
+List all arrays that are switchless
+List all arrays that are switched
+List all arrays that support NVMe/TCP protocol related tests
+List arrays that have more than 200TB usable space
+List arrays that have 4 nodes and more than 3 Linux hosts
+List arrays and hosts that are in CXO_L2, Row # 24
+List hosts and arrays that are connected to a switch c3-hp5930-03
+Given an array, list all it's hosts along with their hop count 
+Given an array list how many nodes
+Given an array list how many cages, cage health, how many 
+internal cage and external cage
+Given an array list how many pd's, pd  model, capacity, which 
+model is compatible with arrays, how many degraded, failed, pd 
+2X capacity is supported
+Given an array list the switch state
+Given an array TPD version
+Given an array mention speed of SFP and count
+Given an array cage health
+Given an array is online upgrade supported
+List arrays that are running 10.x.x TPD version
+List arrays that are capable to performing online upgrade
+List arrays that have one or more failed PDs
+Technology
+Below mentioned technologies might get used in developing this tool/chatbot.
+Data collection protocols/agents (to pull facts like FW/driver versions, port counts, HBA 
+models, switch neighbors, Array & hosts details).
+A source‑of‑truth database (DCIM/asset inventory) to store normalized records.
+Discovery/topology tooling (to know what’s connected to what) Indexing/analytics layers (so 
+you can filter/ad‑hoc query quickly) APIs & dashboards for self‑service queries and 
+automation using python.
+• 6
+Project – Implementation Breakdown Details
+   Implementation Breakdown details of this project:
+a) Extract key information from the provided Arrays, Hosts, Switches based on 
+sample/standard queries. Run through set of commands to above devices with 
+periodic/need bases intervals and collect the required details & store it in DB.
+b) Design Data Base schema for the problem statement we have defined. Schema should 
+also support future addition/removal of fields/parameters. Additionally, Every DB details 
+provides export option into spreadsheet.
+c)   Create framework that translates English statements into DB query.
+d)   Show up the stored details/queries result on Web based User Interface.
+• 7
+Project Details and References
+Arcus Systems and hosts mapping details can be reference in below attached sheet
+• 8
+
+SECOND PPT (CREATED BY US AFTER PARTIAL COMPLETION):
+HPE CPP-3 PROJECT
+Topology Intelligence & 
+Health Chatbot for Storage 
+Test Ring Environments
+Infrastructure Analytics Engine for SAN Topology Management
+Team: Preetham M R · Sachetan I · Samarth K N · Unmesh Raj  
+Mentor: Dr. Mohana
+The Problem: Managing Complexity Without Intelligence
+Enterprise storage test rings span hundreds of 
+interconnected components — hosts, switches, 
+HBAs, controllers, and arrays — yet infrastructure 
+knowledge remains fragmented across 
+spreadsheets, disconnected diagrams, and tribal 
+expertise. • No centralized topology intelligence or 
+single source of truth
+• Connectivity tracing is manual, slow, and 
+error-prone
+• Health visibility is reactive rather than 
+proactive
+• Unstructured logs and multiple data 
+sources impede rapid troubleshooting
+• Zoning relationships are opaque and 
+undocumented
+SOLUTION OVERVIEW
+Proposed Solution: Topology Intelligence & Health 
+Chatbot
+A graph-based infrastructure intelligence platform that transforms raw SAN telemetry into a queryable, visualized, and health-aware topology model — 
+eliminating manual tracking and enabling deterministic, intent-driven operations.
+Graph-Based Topology
+Neo4j infrastructure model with nodes, edges, and properties
+Automated Discovery
+SNMP, SSH CLI parsing, and REST API ingestion
+Health Monitoring
+Real-time status, degradation detection, and alerting
+Intent-Based Chatbot
+GraphRAG-powered natural language topology queries
+Digital Twin
+Simulation-based environment mirroring live test ring behavior
+Visualization Dashboard
+Interactive topology explorer with radial quick-query interface
+ARCHITECTURE
+System Architecture
+Data flows deterministically from physical devices through collectors and normalizers into the Neo4j graph, where the query and health engines power both 
+the chatbot interface and the interactive dashboard — with no live hardware dependency.
+Graph Database & Digital Twin
+Infrastructure Graph Model
+All SAN components are modeled as typed nodes 
+and labeled edges, enabling deterministic 
+Cypher traversal across the full topology.
+• Nodes: Host, Switch, Array, Controller, Port, 
+Disk
+• Edges: CONNECTED_TO, ZONED_WITH, 
+HAS_PORT, HOSTS
+• Layers: Physical, SAN, Protocol, Location
+Digital Twin simulation mirrors live test 
+ring behavior using synthetic telemetry 
+— enabling safe topology exploration 
+without hardware access.
+CORE TECHNOLOGY
+QUERY ENGINE
+Intent-Based Query & Analytics
+Engine Example Enterprise Queries
+"Which arrays are 
+zoned with Host H1?"
+"Show path from Host 
+H2 to Array A4"
+"Which switches are 
+currently degraded?"
+"List arrays supporting 
+NVMe/TCP"
+How It Works
+Natural language intents are parsed via GraphRAG, translated to 
+deterministic Cypher queries, and executed against the Neo4j graph — 
+delivering precise, reproducible results without generic LLM hallucination.
+• Intent classification and entity extraction
+• Cypher query generation with schema validation
+• Graph traversal with path resolution
+• Health analytics layered on topology results
+USER INTERFACE
+Chatbot & Dashboard UI
+ Interactive Topology 
+Graph PyVis / D3.js-powered SAN explorer with zoom, pan, and node
+ inspection
+ Query Assistant
+Intent-based chatbot accepting natural language infrastructure queries
+ Health 
+Indicators Real-time status badges, degradation alerts, and port-level health
+ scores
+Radial Quick-Query
+Contextual radial menu for rapid topology insights and common queries
+IMPLEMENTATION
+Development Workflow
+01
+Data Understanding
+Log analysis, schema mapping, and 
+infrastructure ontology definition
+02
+Tokenization & Ontology Building
+Entity extraction and relationship modeling for 
+graph schema
+03
+Graph Schema Design
+Neo4j node/edge types, properties, and 
+constraints
+04
+Simulation Model
+Digital twin with synthetic telemetry and fault 
+injection
+05
+Query Engine
+Cypher generation, GraphRAG integration, and 
+intent parsing
+06
+Dashboard Integration
+PyVis topology rendering and D3.js interactive 
+views
+07
+Testing & Refinement
+Validation, edge-case handling, and performance tuning
+Parallel workstreams enable concurrent progress across data modeling, simulation, query engine, and UI layers — accelerating delivery while 
+maintaining architectural coherence.
+CAPABILITIES
+Core Capabildities
+What the System Delivers
+Eight integrated capabilities form a unified infrastructure intelligence 
+platform — replacing fragmented spreadsheets and tribal knowledge with 
+a single, queryable source of truth for SAN topology management.
+• Deterministic graph traversal over generic LLM reasoning
+• Simulation-based digital twin for safe environment modeling
+• Intent-based chatbot for natural language infrastructure queries
+• Interactive dashboard with health indicators and topology explorer
+Generated 
+Simulation 
+Of SAN Network
+OUTLOOK
+Expected Outcomes & Future Scope
+Single Source of Truth
+Centralized topology intelligence replacing spreadsheets and tribal knowledge
+Faster Troubleshooting
+Instant connectivity tracing and path resolution across the SAN fabric
+Proactive Health Visibility
+Real-time monitoring and degradation detection before issues escalate
+Scalable Architecture
+Extensible to live hardware integration, predictive analytics, and automated 
+remediation
+This system transforms how HPE engineers interact with storage test ring infrastructure — from 
+reactive, manual processes to intelligent, query-driven operations.
+Thank You
+
+THIRD INFORMATION SOURCE: USER GUIDE.PDF
+HPE CPP-3 PROJECT
+Topology Intelligence & 
+Health Chatbot for Storage 
+Test Ring Environments
+Infrastructure Analytics Engine for SAN Topology Management
+Team: Preetham M R · Sachetan I · Samarth K N · Unmesh Raj  
+Mentor: Dr. Mohana
+The Problem: Managing Complexity Without Intelligence
+Enterprise storage test rings span hundreds of 
+interconnected components — hosts, switches, 
+HBAs, controllers, and arrays — yet infrastructure 
+knowledge remains fragmented across 
+spreadsheets, disconnected diagrams, and tribal 
+expertise. • No centralized topology intelligence or 
+single source of truth
+• Connectivity tracing is manual, slow, and 
+error-prone
+• Health visibility is reactive rather than 
+proactive
+• Unstructured logs and multiple data 
+sources impede rapid troubleshooting
+• Zoning relationships are opaque and 
+undocumented
+SOLUTION OVERVIEW
+Proposed Solution: Topology Intelligence & Health 
+Chatbot
+A graph-based infrastructure intelligence platform that transforms raw SAN telemetry into a queryable, visualized, and health-aware topology model — 
+eliminating manual tracking and enabling deterministic, intent-driven operations.
+Graph-Based Topology
+Neo4j infrastructure model with nodes, edges, and properties
+Automated Discovery
+SNMP, SSH CLI parsing, and REST API ingestion
+Health Monitoring
+Real-time status, degradation detection, and alerting
+Intent-Based Chatbot
+GraphRAG-powered natural language topology queries
+Digital Twin
+Simulation-based environment mirroring live test ring behavior
+Visualization Dashboard
+Interactive topology explorer with radial quick-query interface
+ARCHITECTURE
+System Architecture
+Data flows deterministically from physical devices through collectors and normalizers into the Neo4j graph, where the query and health engines power both 
+the chatbot interface and the interactive dashboard — with no live hardware dependency.
+Graph Database & Digital Twin
+Infrastructure Graph Model
+All SAN components are modeled as typed nodes 
+and labeled edges, enabling deterministic 
+Cypher traversal across the full topology.
+• Nodes: Host, Switch, Array, Controller, Port, 
+Disk
+• Edges: CONNECTED_TO, ZONED_WITH, 
+HAS_PORT, HOSTS
+• Layers: Physical, SAN, Protocol, Location
+Digital Twin simulation mirrors live test 
+ring behavior using synthetic telemetry 
+— enabling safe topology exploration 
+without hardware access.
+CORE TECHNOLOGY
+QUERY ENGINE
+Intent-Based Query & Analytics
+Engine Example Enterprise Queries
+"Which arrays are 
+zoned with Host H1?"
+"Show path from Host 
+H2 to Array A4"
+"Which switches are 
+currently degraded?"
+"List arrays supporting 
+NVMe/TCP"
+How It Works
+Natural language intents are parsed via GraphRAG, translated to 
+deterministic Cypher queries, and executed against the Neo4j graph — 
+delivering precise, reproducible results without generic LLM hallucination.
+• Intent classification and entity extraction
+• Cypher query generation with schema validation
+• Graph traversal with path resolution
+• Health analytics layered on topology results
+USER INTERFACE
+Chatbot & Dashboard UI
+ Interactive Topology 
+Graph PyVis / D3.js-powered SAN explorer with zoom, pan, and node
+ inspection
+ Query Assistant
+Intent-based chatbot accepting natural language infrastructure queries
+ Health 
+Indicators Real-time status badges, degradation alerts, and port-level health
+ scores
+Radial Quick-Query
+Contextual radial menu for rapid topology insights and common queries
+IMPLEMENTATION
+Development Workflow
+01
+Data Understanding
+Log analysis, schema mapping, and 
+infrastructure ontology definition
+02
+Tokenization & Ontology Building
+Entity extraction and relationship modeling for 
+graph schema
+03
+Graph Schema Design
+Neo4j node/edge types, properties, and 
+constraints
+04
+Simulation Model
+Digital twin with synthetic telemetry and fault 
+injection
+05
+Query Engine
+Cypher generation, GraphRAG integration, and 
+intent parsing
+06
+Dashboard Integration
+PyVis topology rendering and D3.js interactive 
+views
+07
+Testing & Refinement
+Validation, edge-case handling, and performance tuning
+Parallel workstreams enable concurrent progress across data modeling, simulation, query engine, and UI layers — accelerating delivery while 
+maintaining architectural coherence.
+CAPABILITIES
+Core Capabildities
+What the System Delivers
+Eight integrated capabilities form a unified infrastructure intelligence 
+platform — replacing fragmented spreadsheets and tribal knowledge with 
+a single, queryable source of truth for SAN topology management.
+• Deterministic graph traversal over generic LLM reasoning
+• Simulation-based digital twin for safe environment modeling
+• Intent-based chatbot for natural language infrastructure queries
+• Interactive dashboard with health indicators and topology explorer
+Generated 
+Simulation 
+Of SAN Network
+OUTLOOK
+Expected Outcomes & Future Scope
+Single Source of Truth
+Centralized topology intelligence replacing spreadsheets and tribal knowledge
+Faster Troubleshooting
+Instant connectivity tracing and path resolution across the SAN fabric
+Proactive Health Visibility
+Real-time monitoring and degradation detection before issues escalate
+Scalable Architecture
+Extensible to live hardware integration, predictive analytics, and automated 
+remediation
+This system transforms how HPE engineers interact with storage test ring infrastructure — from 
+reactive, manual processes to intelligent, query-driven operations.
+Thank You
+

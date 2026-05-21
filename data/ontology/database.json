@@ -1487,60 +1487,114 @@
       "switchType": "FC"
     },
     {
-      "id": "SW-ETH-01",
-      "name": "Eth-Switch-Prod-01",
-      "type": "Ethernet Switch",
+      "id": "ARR-TEST-INGEST",
+      "name": "TEST-INGEST-ARRAY",
+      "type": "Array",
       "status": "normal",
       "category": "main",
       "parentId": null,
       "isDecommissioned": false,
-      "model": "Aruba CX 6300",
-      "serialNumber": "ARU-ETH-110",
-      "firmware": "10.09.1020",
-      "temperature": 39,
-      "switchType": "Ethernet"
+      "model": "HPE Alletra 9000",
+      "serialNumber": "SN-TEST-INGEST-123",
+      "firmware": "10.6.0.40",
+      "protocol": "FC / NVMe",
+      "totalCapacityTb": 1.0,
+      "usedCapacityTb": 0.2,
+      "freeCapacityTb": 0.8,
+      "nodeCount": 2,
+      "jbofCount": 1,
+      "diskCount": 1,
+      "sourceId": "src_test_ingest_id"
     },
     {
-      "id": "SW-SAS-01",
-      "name": "SAS-Switch-Storage-01",
-      "type": "SAS Switch",
+      "id": "ARR-TEST-INGEST-N0",
+      "name": "Controller-0",
+      "type": "Node",
       "status": "normal",
-      "category": "main",
-      "parentId": null,
+      "category": "sub",
+      "parentId": "ARR-TEST-INGEST",
       "isDecommissioned": false,
-      "model": "HPE 12Gb SAS LTO Switch",
-      "serialNumber": "HPE-SAS-224",
-      "firmware": "v2.5.1a",
-      "temperature": 41,
-      "switchType": "SAS"
+      "sourceId": "src_test_ingest_id"
     },
     {
-      "id": "SW-IB-01",
-      "name": "IB-Switch-HPC-01",
-      "type": "InfiniBand Switch",
+      "id": "ARR-TEST-INGEST-N1",
+      "name": "Controller-1",
+      "type": "Node",
       "status": "normal",
-      "category": "main",
-      "parentId": null,
+      "category": "sub",
+      "parentId": "ARR-TEST-INGEST",
       "isDecommissioned": false,
-      "model": "HPE InfiniBand HDR100 Switch",
-      "serialNumber": "Mellanox-IB-301",
-      "firmware": "v15.24.1000",
-      "temperature": 44,
-      "switchType": "InfiniBand"
+      "sourceId": "src_test_ingest_id"
     },
     {
-      "id": "SW-FCOE-01",
-      "name": "FCoE-Switch-Transit-01",
-      "type": "FCoE Switch",
+      "id": "ARR-TEST-INGEST-P-500110A000000001",
+      "name": "0:1:1",
+      "type": "Port",
+      "status": "normal",
+      "category": "sub",
+      "parentId": "ARR-TEST-INGEST",
+      "isDecommissioned": false,
+      "protocol": "FC",
+      "mode": "target",
+      "state": "ready",
+      "wwn": "500110A000000001",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "id": "ARR-TEST-INGEST-P-500110A000000002",
+      "name": "0:1:2",
+      "type": "Port",
+      "status": "normal",
+      "category": "sub",
+      "parentId": "ARR-TEST-INGEST",
+      "isDecommissioned": false,
+      "protocol": "FC",
+      "mode": "target",
+      "state": "ready",
+      "wwn": "500110A000000002",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "id": "SW-SW-SN-1111",
+      "name": "SW-INGEST-01",
+      "type": "Switch",
       "status": "normal",
       "category": "main",
       "parentId": null,
       "isDecommissioned": false,
-      "model": "HPE StoreFabric FCoE Switch",
-      "serialNumber": "HPE-FCOE-412",
-      "firmware": "v7.3.2",
-      "temperature": 43,
-      "switchType": "FCoE"
+      "serialNumber": "SW-SN-1111",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "id": "HOST-HOST-INGEST-01",
+      "name": "HOST-INGEST-01",
+      "type": "Host",
+      "status": "normal",
+      "category": "main",
+      "parentId": null,
+      "isDecommissioned": false,
+      "os": "RHEL 8.4",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "id": "ARR-TEST-INGEST-CAGE-0",
+      "name": "Cage-0",
+      "type": "Cage",
+      "status": "normal",
+      "category": "sub",
+      "parentId": "ARR-TEST-INGEST",
+      "isDecommissioned": false,
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "id": "ARR-TEST-INGEST-D-0",
+      "name": "Disk-0",
+      "type": "Disk",
+      "status": "normal",
+      "category": "sub",
+      "parentId": "ARR-TEST-INGEST",
+      "isDecommissioned": false,
+      "sourceId": "src_test_ingest_id"
     }
   ],
   "edges": [
@@ -2093,6 +2147,77 @@
       "from": "HOST-B04",
       "to": "HB04-HP1",
       "label": "has_port"
+    },
+    {
+      "from": "ARR-TEST-INGEST",
+      "to": "ARR-TEST-INGEST-N0",
+      "label": "has_node",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "from": "ARR-TEST-INGEST",
+      "to": "ARR-TEST-INGEST-N1",
+      "label": "has_node",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "from": "ARR-TEST-INGEST",
+      "to": "ARR-TEST-INGEST-P-500110A000000001",
+      "label": "has_port",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "from": "ARR-TEST-INGEST",
+      "to": "ARR-TEST-INGEST-P-500110A000000002",
+      "label": "has_port",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "from": "SW-SW-SN-1111",
+      "to": "ARR-TEST-INGEST",
+      "label": "connected",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "from": "ARR-TEST-INGEST",
+      "to": "HOST-HOST-INGEST-01",
+      "label": "zoned",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "from": "ARR-TEST-INGEST",
+      "to": "ARR-TEST-INGEST-CAGE-0",
+      "label": "has_cage",
+      "sourceId": "src_test_ingest_id"
+    },
+    {
+      "from": "ARR-TEST-INGEST",
+      "to": "ARR-TEST-INGEST-D-0",
+      "label": "has_disk",
+      "sourceId": "src_test_ingest_id"
+    }
+  ],
+  "sources": [
+    {
+      "id": "src_test_ingest_id",
+      "label": "Test Ingest Label",
+      "timestamp": "2026-05-21T13:58:37.175370",
+      "nodeCount": 9,
+      "edgeCount": 8
+    },
+    {
+      "id": "src_llm_ingest_m1_array_proxy_txt_20260521_140140",
+      "label": "\u2728 LLM Ingest: m1-array_proxy.txt",
+      "timestamp": "2026-05-21T14:01:40.914047",
+      "nodeCount": 0,
+      "edgeCount": 0
+    },
+    {
+      "id": "src_llm_ingest_m1_array_proxy_txt_20260521_140158",
+      "label": "\u2728 LLM Ingest: m1-array_proxy.txt",
+      "timestamp": "2026-05-21T14:01:58.480255",
+      "nodeCount": 0,
+      "edgeCount": 0
     },
     {
       "from": "ARR-01",

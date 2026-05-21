@@ -87,6 +87,10 @@ neo4j   = Neo4jStore()
 es      = ElasticsearchIndexer()
 mongo   = MongoStore()
 
+# ── Log Ingest Manager (dual-mode TXT/JSON → backup → wipe → populate) ────────
+from api.master_logic.log_ingest import LogIngestManager
+_log_ingest = LogIngestManager(neo4j, mongo, es)
+
 @app.before_request
 def ensure_infrastructure():
     """Attempt to connect to services if they weren't ready at startup."""
@@ -1269,6 +1273,623 @@ def wipe_graph():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+# ── Log File Ingest (dual-mode TXT / JSON) ─────────────────────────────────────
+
+@app.route("/api/ingest/log", methods=["POST"])
+def ingest_log():
+    """
+    Dual-mode log file ingest.
+
+    Accepts either:
+      - multipart file upload  (field name: 'file', extension .txt or .json)
+      - JSON body              {"mode": "json", "data": [...]}
+      - plain-text body        (Content-Type: text/plain)
+
+    On success:
+      1. Creates a backup of current Neo4j + MongoDB + ES  (→ backup_id)
+      2. Wipes all 3 databases
+      3. Parses the upload and populates all 3 databases
+      4. Returns stats + backup_id so the operation can be reversed
+    """
+    try:
+        skip_backup = request.args.get("skip_backup", "false").lower() == "true"
+
+        # ── Multipart file upload ──
+        if request.files and "file" in request.files:
+            f = request.files["file"]
+            fname = (f.filename or "").lower()
+            raw = f.read().decode("utf-8", errors="replace")
+            filename_label = f"📋 Ingest: {f.filename}"
+
+            if fname.endswith(".json"):
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError as e:
+                    return jsonify({"error": f"Invalid JSON: {e}"}), 400
+                result = _log_ingest.ingest(json_data=data, skip_backup=skip_backup, snapshot_label=filename_label)
+            else:  # treat as TXT
+                result = _log_ingest.ingest(raw_text=raw, skip_backup=skip_backup, snapshot_label=filename_label)
+            return jsonify(result)
+
+        # ── JSON body  {"mode": "json", "data": [...]} ──
+        body = request.get_json(silent=True)
+        if body and "data" in body:
+            body_label = f"📋 JSON Ingest ({datetime.now().strftime('%H:%M:%S')})"
+            result = _log_ingest.ingest(json_data=body["data"], skip_backup=skip_backup, snapshot_label=body_label)
+            return jsonify(result)
+
+        # ── Plain-text body ──
+        raw = request.data.decode("utf-8", errors="replace").strip()
+        if raw:
+            ct = request.content_type or ""
+            body_label = f"📋 Plain Ingest ({datetime.now().strftime('%H:%M:%S')})"
+            if "json" in ct:
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError as e:
+                    return jsonify({"error": f"Invalid JSON: {e}"}), 400
+                result = _log_ingest.ingest(json_data=data, skip_backup=skip_backup, snapshot_label=body_label)
+            else:
+                result = _log_ingest.ingest(raw_text=raw, skip_backup=skip_backup, snapshot_label=body_label)
+            return jsonify(result)
+
+        return jsonify({"error": "No file or body provided. Send a .txt or .json file as multipart, or JSON/text body."}), 400
+
+    except Exception as ex:
+        log.exception("ingest_log failed")
+        return jsonify({"error": str(ex)}), 500
+
+
+def split_into_dynamic_chunks(raw_text, max_chunk_size=15000):
+    import re
+    cmd_pattern = re.compile(
+        r'^(?:\+\s*|[\w.-]+@[\w.-]+.*?[~#$]\s*|cli%\s*|#\s*)?'
+        r'(showversion|showsys|shownode|showswitch|showport|showhost|showcage|showpd|lscpu|showvv|showld|showvlun|showdomain|showuser|cat\s+|vi\s+|chmod\s+|\./)\b',
+        re.IGNORECASE
+    )
+    
+    lines = raw_text.splitlines()
+    blocks = []
+    current_block = []
+    
+    for line in lines:
+        if cmd_pattern.match(line) and current_block:
+            blocks.append("\n".join(current_block))
+            current_block = []
+        current_block.append(line)
+        
+    if current_block:
+        blocks.append("\n".join(current_block))
+        
+    # Dynamically scale max_chunk_size to fit the largest command block,
+    # ensuring that we never split a table/command output in half.
+    if blocks:
+        largest_block_size = max(len(b) for b in blocks)
+        if largest_block_size > max_chunk_size:
+            max_chunk_size = largest_block_size + 100
+        
+    chunks = []
+    current_chunk = []
+    current_chunk_len = 0
+    
+    for block in blocks:
+        block_len = len(block)
+        if current_chunk_len + block_len + 1 <= max_chunk_size:
+            current_chunk.append(block)
+            current_chunk_len += block_len + 1
+        else:
+            if current_chunk:
+                chunks.append("\n".join(current_chunk))
+                current_chunk = []
+                current_chunk_len = 0
+            
+            if block_len > max_chunk_size:
+                block_lines = block.splitlines()
+                sub_chunk = []
+                sub_chunk_len = 0
+                for bline in block_lines:
+                    bline_len = len(bline)
+                    if sub_chunk_len + bline_len + 1 <= max_chunk_size:
+                        sub_chunk.append(bline)
+                        sub_chunk_len += bline_len + 1
+                    else:
+                        if sub_chunk:
+                            chunks.append("\n".join(sub_chunk))
+                        sub_chunk = [bline]
+                        sub_chunk_len = bline_len + 1
+                if sub_chunk:
+                    chunks.append("\n".join(sub_chunk))
+            else:
+                current_chunk.append(block)
+                current_chunk_len = block_len
+                
+    if current_chunk:
+        chunks.append("\n".join(current_chunk))
+        
+    return chunks
+
+
+def _update_ontology_db(all_arrays, source_label=None, source_id=None):
+    try:
+        from integrations.topology_db import TopologyDB
+        from datetime import datetime as _dt
+        tdb = TopologyDB()
+
+        # ── Generate source metadata ─────────────────────────────────────
+        ts = _dt.now().strftime('%Y%m%d_%H%M%S')
+        if not source_id:
+            slug = re.sub(r'[^a-z0-9]+', '_', (source_label or 'ingest').lower())[:30].strip('_')
+            source_id = f"src_{slug}_{ts}"
+        if not source_label:
+            source_label = f"Ingest {ts}"
+
+        # ── Read existing database (APPEND mode) ──────────────────────────
+        existing = tdb._read()
+        existing_nodes = existing.get("nodes", [])
+        existing_edges = existing.get("edges", [])
+        existing_sources = existing.get("sources", [])
+        existing_node_ids = {str(n.get("id")) for n in existing_nodes}
+
+        new_nodes = []
+        new_edges = []
+        added_new_ids = set()
+
+        def add_node_safe(node):
+            nid = node.get("id")
+            sid = str(nid)
+            if nid not in added_new_ids and sid not in existing_node_ids:
+                node["sourceId"] = source_id
+                new_nodes.append(node)
+                added_new_ids.add(nid)
+                existing_node_ids.add(sid)
+                
+        for idx, arr in enumerate(all_arrays):
+            if not isinstance(arr, dict):
+                continue
+                
+            arr_serial = arr.get("serial") or arr.get("array_id") or f"SN_{idx+1}"
+            arr_name = arr.get("name") or f"SAN-ARRAY-{idx+1}"
+            arr_id = arr.get("array_id") or f"ARR-{arr_serial}"
+            
+            total_cap = arr.get("total_cap_mib", 0) or arr.get("total_cap", 0) or 0
+            alloc_cap = arr.get("alloc_cap_mib", 0) or arr.get("alloc_cap", 0) or 0
+            free_cap = arr.get("free_cap_mib", 0) or arr.get("free_cap", 0) or 0
+            
+            total_tb = round(total_cap / 1024 / 1024, 2) if total_cap else 500.0
+            used_tb = round(alloc_cap / 1024 / 1024, 2) if alloc_cap else 120.0
+            free_tb = round(free_cap / 1024 / 1024, 2) if free_cap else 380.0
+            
+            arr_node = {
+                "id": arr_id,
+                "name": arr_name,
+                "type": "Array",
+                "status": "normal",
+                "category": "main",
+                "parentId": None,
+                "isDecommissioned": False,
+                "model": arr.get("model") or "HPE Alletra",
+                "serialNumber": arr_serial,
+                "firmware": arr.get("release_version") or "10.6.0.40",
+                "protocol": arr.get("config_type") or "FC / NVMe",
+                "totalCapacityTb": total_tb,
+                "usedCapacityTb": used_tb,
+                "freeCapacityTb": free_tb,
+                "nodeCount": arr.get("node_count") or len(arr.get("nodes", []) or []),
+                "jbofCount": len(arr.get("cages", []) or []),
+                "diskCount": len(arr.get("drives", []) or [])
+            }
+            add_node_safe(arr_node)
+            
+            # Nodes (Controllers)
+            arr_nodes_list = arr.get("nodes") or []
+            for n_idx, ctrl in enumerate(arr_nodes_list):
+                ctrl_name = f"Controller-{n_idx}"
+                if isinstance(ctrl, dict):
+                    ctrl_name = ctrl.get("name") or ctrl_name
+                elif isinstance(ctrl, str):
+                    ctrl_name = ctrl
+                    
+                ctrl_id = f"{arr_id}-N{n_idx}"
+                ctrl_node = {
+                    "id": ctrl_id,
+                    "name": ctrl_name,
+                    "type": "Node",
+                    "status": "normal",
+                    "category": "sub",
+                    "parentId": arr_id,
+                    "isDecommissioned": False
+                }
+                add_node_safe(ctrl_node)
+                new_edges.append({
+                    "from": arr_id,
+                    "to": ctrl_id,
+                    "label": "has_node",
+                    "sourceId": source_id
+                })
+                
+            # Ports
+            arr_ports_list = arr.get("ports") or []
+            for p_idx, port in enumerate(arr_ports_list):
+                port_name = f"Port {p_idx}"
+                port_wwn = ""
+                port_proto = "FC"
+                port_mode = "target"
+                port_state = "ready"
+                
+                if isinstance(port, dict):
+                    port_name = port.get("name") or port.get("nsp") or port_name
+                    port_wwn = port.get("wwn") or port.get("port_wwn") or ""
+                    port_proto = port.get("protocol") or port_proto
+                    port_mode = port.get("mode") or port_mode
+                    port_state = port.get("state") or port_state
+                elif isinstance(port, str):
+                    port_name = port
+                    
+                port_id = f"{arr_id}-P-{port_wwn or p_idx}"
+                port_node = {
+                    "id": port_id,
+                    "name": port_name,
+                    "type": "Port",
+                    "status": "normal",
+                    "category": "sub",
+                    "parentId": arr_id,
+                    "isDecommissioned": False,
+                    "protocol": port_proto,
+                    "mode": port_mode,
+                    "state": port_state,
+                    "wwn": port_wwn
+                }
+                add_node_safe(port_node)
+                new_edges.append({
+                    "from": arr_id,
+                    "to": port_id,
+                    "label": "has_port",
+                    "sourceId": source_id
+                })
+                
+            # Switches
+            arr_switches_list = arr.get("switches") or []
+            for s_idx, sw in enumerate(arr_switches_list):
+                sw_name = f"Switch-{s_idx}"
+                sw_serial = ""
+                if isinstance(sw, dict):
+                    sw_name = sw.get("name") or sw_name
+                    sw_serial = sw.get("serial") or ""
+                elif isinstance(sw, str):
+                    sw_name = sw
+                    
+                sw_id = f"SW-{sw_serial or sw_name}"
+                sw_node = {
+                    "id": sw_id,
+                    "name": sw_name,
+                    "type": "Switch",
+                    "status": "normal",
+                    "category": "main",
+                    "parentId": None,
+                    "isDecommissioned": False,
+                    "serialNumber": sw_serial
+                }
+                add_node_safe(sw_node)
+                new_edges.append({
+                    "from": sw_id,
+                    "to": arr_id,
+                    "label": "connected",
+                    "sourceId": source_id
+                })
+                
+            # Hosts
+            arr_hosts_list = arr.get("hosts") or []
+            for h_idx, host in enumerate(arr_hosts_list):
+                host_name = f"Host-{h_idx}"
+                host_os = ""
+                if isinstance(host, dict):
+                    host_name = host.get("name") or host_name
+                    host_os = host.get("os") or ""
+                elif isinstance(host, str):
+                    host_name = host
+                    
+                host_id = f"HOST-{host_name}"
+                host_node = {
+                    "id": host_id,
+                    "name": host_name,
+                    "type": "Host",
+                    "status": "normal",
+                    "category": "main",
+                    "parentId": None,
+                    "isDecommissioned": False,
+                    "os": host_os
+                }
+                add_node_safe(host_node)
+                new_edges.append({
+                    "from": arr_id,
+                    "to": host_id,
+                    "label": "zoned",
+                    "sourceId": source_id
+                })
+                
+            # Cages
+            arr_cages_list = arr.get("cages") or []
+            for c_idx, cage in enumerate(arr_cages_list):
+                cage_name = f"Cage-{c_idx}"
+                if isinstance(cage, dict):
+                    cage_name = cage.get("name") or cage_name
+                elif isinstance(cage, str):
+                    cage_name = cage
+                    
+                cage_id = f"{arr_id}-CAGE-{c_idx}"
+                cage_node = {
+                    "id": cage_id,
+                    "name": cage_name,
+                    "type": "Cage",
+                    "status": "normal",
+                    "category": "sub",
+                    "parentId": arr_id,
+                    "isDecommissioned": False
+                }
+                add_node_safe(cage_node)
+                new_edges.append({
+                    "from": arr_id,
+                    "to": cage_id,
+                    "label": "has_cage",
+                    "sourceId": source_id
+                })
+                
+            # Drives
+            arr_drives_list = arr.get("drives") or []
+            for d_idx, drv in enumerate(arr_drives_list):
+                drv_name = f"Disk-{d_idx}"
+                if isinstance(drv, dict):
+                    drv_name = drv.get("name") or drv_name
+                elif isinstance(drv, str):
+                    drv_name = drv
+                    
+                drv_id = f"{arr_id}-D-{d_idx}"
+                drv_node = {
+                    "id": drv_id,
+                    "name": drv_name,
+                    "type": "Disk",
+                    "status": "normal",
+                    "category": "sub",
+                    "parentId": arr_id,
+                    "isDecommissioned": False
+                }
+                add_node_safe(drv_node)
+                new_edges.append({
+                    "from": arr_id,
+                    "to": drv_id,
+                    "label": "has_disk",
+                    "sourceId": source_id
+                })
+
+        # ── Register source ────────────────────────────────────────────────
+        # Remove previous entry with same ID so re-ingest updates counts
+        existing_sources = [s for s in existing_sources if s.get("id") != source_id]
+        existing_sources.append({
+            "id": source_id,
+            "label": source_label,
+            "timestamp": _dt.now().isoformat(),
+            "nodeCount": len(new_nodes),
+            "edgeCount": len(new_edges)
+        })
+
+        # ── Write merged database (baseline + new) ─────────────────────────
+        merged = {
+            "nodes": existing_nodes + new_nodes,
+            "edges": existing_edges + new_edges,
+            "sources": existing_sources
+        }
+        tdb._write(merged)
+        log.info(f"[ontology_sync] Appended {len(new_nodes)} nodes, {len(new_edges)} edges (source: {source_id})")
+
+        # Trigger reload of ontology engine globally
+        global _ontology_graph, _ontology_traversal, _ontology_source, _ontology_engine
+        from integrations.ontology_engine import populate_graph, OntologyLLMEngine
+        _ontology_graph, _ontology_traversal, _ontology_source = populate_graph()
+        _ontology_engine = OntologyLLMEngine(_ontology_traversal)
+        log.info("[ontology_sync] In-memory ontology traversal and graph reloaded.")
+    except Exception as ex:
+        log.exception("Failed to update ontology database.json")
+
+
+@app.route("/api/ingest/log/ai", methods=["POST"])
+def ingest_log_ai():
+    """
+    LLM-powered fallback ingest.
+
+    When standard parsing fails or yields incomplete results, this endpoint
+    uses the SAN Agent's LLM to recursively extract array data from a raw
+    text dump, then loads the result into all 3 databases.
+
+    Accepts:  multipart file or raw text body
+    Returns:  SSE stream with progress events, ending with a 'final' event
+    """
+    import collections
+
+    # Read raw text
+    raw = ""
+    file_name = ""
+    if request.files and "file" in request.files:
+        f = request.files["file"]
+        raw = f.read().decode("utf-8", errors="replace")
+        file_name = f.filename
+    elif request.data:
+        raw = request.data.decode("utf-8", errors="replace").strip()
+    elif (request.get_json(silent=True) or {}).get("text"):
+        raw = request.get_json()["text"]
+
+    if not raw:
+        return jsonify({"error": "No text provided"}), 400
+
+    skip_backup = request.args.get("skip_backup", "false").lower() == "true"
+    
+    # Snapshot name configuration
+    snapshot_name = request.args.get("label") or request.args.get("snapshot_name")
+    if not snapshot_name:
+        if file_name:
+            snapshot_name = f"✨ LLM Ingest: {file_name}"
+        else:
+            snapshot_name = f"✨ LLM Ingest ({datetime.now().strftime('%H:%M:%S')})"
+
+    def generate():
+        steps = collections.deque()
+
+        def on_step(step):
+            steps.append(step)
+
+        # Step 0 – backup
+        yield f'data: {json.dumps({"type": "progress", "msg": "Creating backup of current data..."})}\n\n'
+        backup_id = None
+        if not skip_backup:
+            try:
+                backup_id = _log_ingest.create_backup()
+                yield f'data: {json.dumps({"type": "progress", "msg": f"Backup created: {backup_id}"})}\n\n'
+            except Exception as ex:
+                yield f'data: {json.dumps({"type": "warning", "msg": f"Backup failed (continuing): {ex}"})}\n\n'
+
+        # Step 1 – wipe
+        yield f'data: {json.dumps({"type": "progress", "msg": "Wiping existing database data..."})}\n\n'
+        _log_ingest.wipe_all()
+
+        # Step 2 – LLM parse via SAN Agent
+        yield f'data: {json.dumps({"type": "progress", "msg": "Sending log to SAN Agent for LLM parsing..."})}\n\n'
+
+        system_prompt = (
+            "You are an HPE 3PAR / Primera / Alletra SAN data extraction expert. "
+            "The user will give you a raw CLI terminal dump. "
+            "Extract ALL array information and return ONLY a valid JSON array where each element "
+            "represents one HPE storage array. Each element must follow this schema exactly: "
+            '{"name": str, "array_id": str, "model": str, "serial": str, '
+            '"release_version": str, "node_count": int, "total_cap_mib": int, '
+            '"free_cap_mib": int, "alloc_cap_mib": int, "config_type": str, '
+            '"nodes": [], "ports": [], "switches": [], "hosts": [], '
+            '"cages": [], "drives": []}. '
+            "Ignore SSH banners, shell prompts, human comments. Return ONLY the JSON array."
+        )
+
+        # Chunk the raw text dynamically (avoid token overflow and keep commands whole)
+        chunks = split_into_dynamic_chunks(raw, max_chunk_size=15000)
+        all_arrays = []
+        errors = []
+
+        for idx, chunk in enumerate(chunks):
+            yield f'data: {json.dumps({"type": "progress", "msg": f"LLM parsing chunk {idx+1}/{len(chunks)}..."})}\n\n'
+            try:
+                llm_out = _san_agent_llm(system_prompt, f"Terminal dump (chunk {idx+1}/{len(chunks)}):\n\n{chunk}")
+                # Strip markdown code fences if present
+                cleaned = re.sub(r"^```(?:json)?\s*", "", llm_out.strip(), flags=re.IGNORECASE)
+                cleaned = re.sub(r"```\s*$", "", cleaned.strip())
+                # Find JSON array in response
+                m = re.search(r"(\[.*\])", cleaned, re.DOTALL)
+                if m:
+                    parsed = json.loads(m.group(1))
+                    if isinstance(parsed, list):
+                        all_arrays.extend(parsed)
+                    elif isinstance(parsed, dict):
+                        all_arrays.append(parsed)
+                    yield f'data: {json.dumps({"type": "progress", "msg": f"Chunk {idx+1}: extracted {len(parsed) if isinstance(parsed, list) else 1} arrays"})}\n\n'
+                else:
+                    errors.append(f"Chunk {idx+1}: LLM output had no JSON array")
+            except Exception as ex:
+                errors.append(f"Chunk {idx+1}: {str(ex)}")
+                yield f'data: {json.dumps({"type": "warning", "msg": f"Chunk {idx+1} failed: {ex}"})}\n\n'
+
+        # Step 3 – populate databases
+        yield f'data: {json.dumps({"type": "progress", "msg": f"Populating databases with {len(all_arrays)} arrays..."})}\n\n'
+        for arr in all_arrays:
+            if isinstance(arr, dict):
+                _log_ingest._store_parsed(arr)
+
+        # Synchronize ontology database.json
+        yield f'data: {json.dumps({"type": "progress", "msg": "Synchronizing ontology database..."})}\n\n'
+        _update_ontology_db(all_arrays, source_label=snapshot_name)
+
+        # Step 4 – Save newly populated data as a snapshot
+        yield f'data: {json.dumps({"type": "progress", "msg": f"Saving persistent snapshot \"{snapshot_name}\"..."})}\n\n'
+        snapshot_id = None
+        if all_arrays:
+            try:
+                snapshot_id = _log_ingest.create_backup(label=snapshot_name)
+                yield f'data: {json.dumps({"type": "progress", "msg": f"Snapshot created successfully: {snapshot_id}"})}\n\n'
+            except Exception as ex:
+                yield f'data: {json.dumps({"type": "warning", "msg": f"Snapshot step failed: {ex}"})}\n\n'
+
+        final = {
+            "type":          "final",
+            "backup_id":     backup_id,
+            "snapshot_id":   snapshot_id,
+            "arrays_parsed": len(all_arrays),
+            "errors":        errors,
+            "status":        "success" if all_arrays else "partial",
+            "arrays": [
+                {"name": a.get("name"), "serial": a.get("serial"), "model": a.get("model")}
+                for a in all_arrays if isinstance(a, dict)
+            ],
+        }
+        yield f'data: {json.dumps(final)}\n\n'
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/ingest/log/backup/create", methods=["POST"])
+def create_ingest_backup():
+    """Create a new named backup of the current database state on-demand."""
+    from datetime import datetime
+    try:
+        data = request.get_json(silent=True) or {}
+        label = data.get("label", "").strip()
+        if not label:
+            label = f"Snapshot ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+        backup_id = _log_ingest.create_backup(label=label)
+        return jsonify({"status": "success", "backup_id": backup_id, "label": label})
+    except Exception as ex:
+        log.exception("create_ingest_backup failed")
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ingest/log/backups", methods=["GET"])
+def list_ingest_backups():
+    """List all available ingest backups (for restore / audit)."""
+    try:
+        return jsonify({"backups": _log_ingest.list_backups()})
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ingest/log/restore", methods=["POST"])
+def restore_ingest_backup():
+    """
+    Restore a previous ingest backup.
+
+    Body: {"backup_id": "backup_20240101_120000"}
+
+    Wipes current data and replays the backed-up snapshot.
+    """
+    data = request.get_json(silent=True) or {}
+    backup_id = (data.get("backup_id") or "").strip()
+    if not backup_id:
+        return jsonify({"error": "backup_id is required"}), 400
+    try:
+        result = _log_ingest.restore(backup_id)
+        # Refresh ontology global state so the live server is immediately synchronized
+        try:
+            global _ontology_graph, _ontology_traversal, _ontology_source, _ontology_engine
+            from integrations.ontology_engine import populate_graph, OntologyLLMEngine
+            _ontology_graph, _ontology_traversal, _ontology_source = populate_graph()
+            _ontology_engine = OntologyLLMEngine(_ontology_traversal)
+        except Exception as ex:
+            log.warning(f"Failed to refresh ontology globals after restore: {ex}")
+        return jsonify(result)
+    except FileNotFoundError as ex:
+        return jsonify({"error": str(ex)}), 404
+    except Exception as ex:
+        log.exception("restore_ingest_backup failed")
+        return jsonify({"error": str(ex)}), 500
+
 # ── Topology / Graph endpoints ────────────────────────────────────────────────
 
 @app.route("/api/graph/neo4j")
@@ -1701,7 +2322,34 @@ def schema_fields():
 @app.route("/api/ontology/topology", methods=["GET"])
 def get_ontology_topology():
     try:
-        return jsonify(_topology_db.get_topology())
+        data = _topology_db.get_topology()
+        source = request.args.get("source", "all")
+        if source and source != "all":
+            # Return only nodes/edges belonging to the requested source
+            filtered_nodes = [n for n in data.get("nodes", []) if n.get("sourceId") == source]
+            node_ids = {n["id"] for n in filtered_nodes}
+            filtered_edges = [
+                e for e in data.get("edges", [])
+                if e.get("sourceId") == source
+                and e.get("from") in node_ids
+                and e.get("to") in node_ids
+            ]
+            data = {
+                "nodes": filtered_nodes,
+                "edges": filtered_edges,
+                "sources": data.get("sources", [])
+            }
+        return jsonify(data)
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ontology/sources", methods=["GET"])
+def get_ontology_sources():
+    """Return the list of ingested log sources registered in database.json."""
+    try:
+        data = _topology_db.get_topology()
+        return jsonify({"sources": data.get("sources", [])})
     except Exception as ex:
         return jsonify({"error": str(ex)}), 500
 

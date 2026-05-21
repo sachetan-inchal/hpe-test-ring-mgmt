@@ -22,14 +22,14 @@ def parse_showsys(text):
             r"^\s*(0x\w+)\s+(\S+)\s+(.+?)\s+(\S+)\s+(\d+)\s+(\d+)\s+"
             r"(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$", line
         )
-    if m:
-        return {
-            "array_id": m.group(1), "name": m.group(2),
-            "model": m.group(3).strip(), "serial": m.group(4),
-            "nodes": int(m.group(5)), "master": int(m.group(6)),
-            "total_cap_mib": int(m.group(7)), "alloc_cap_mib": int(m.group(8)),
-            "free_cap_mib": int(m.group(9)), "failed_cap_mib": int(m.group(10)),
-        }
+        if m:
+            return {
+                "array_id": m.group(1), "name": m.group(2),
+                "model": m.group(3).strip(), "serial": m.group(4),
+                "nodes": int(m.group(5)), "master": int(m.group(6)),
+                "total_cap_mib": int(m.group(7)), "alloc_cap_mib": int(m.group(8)),
+                "free_cap_mib": int(m.group(9)), "failed_cap_mib": int(m.group(10)),
+            }
     return {}
 
 def infer_array_identity(sys_info, nodes, version_info):

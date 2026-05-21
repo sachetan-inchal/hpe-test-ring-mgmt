@@ -38,6 +38,24 @@ export default function TopologyPage({ apiBase }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('diagram')
   const [showImport, setShowImport] = useState(false)
+  const [selectedSource, setSelectedSource] = useState('all')
+  const [sources, setSources] = useState([])
+
+  // Fetch ingestion sources on mount
+  useEffect(() => {
+    async function fetchSources() {
+      try {
+        const res = await fetch(`${apiBase}/api/ontology/sources`)
+        if (res.ok) {
+          const data = await res.json()
+          setSources(data.sources || [])
+        }
+      } catch (err) {
+        console.error("Failed to fetch ontology sources", err)
+      }
+    }
+    fetchSources()
+  }, [apiBase])
 
   useEffect(() => {
     async function load() {
@@ -56,14 +74,21 @@ export default function TopologyPage({ apiBase }) {
           finally { clearTimeout(timer) }
         }
 
-        const localSources = [
-          `${apiBase}/api/ontology/topology`,
-          `${apiBase}/api/graph/neo4j`,
-          `${apiBase}/api/sim/mock-topology`,
-        ]
-        const localResults = await Promise.all(localSources.map(url => fetchWithData(url)))
-        let json = localResults.find(Boolean)
-        if (!json) json = await fetchWithData(`https://hpe-ontology-and-graph.onrender.com/topology`)
+        let json = null
+        if (selectedSource === 'all') {
+          const localSources = [
+            `${apiBase}/api/ontology/topology?source=all`,
+            `${apiBase}/api/graph/neo4j`,
+            `${apiBase}/api/sim/mock-topology`,
+          ]
+          const localResults = await Promise.all(localSources.map(url => fetchWithData(url)))
+          json = localResults.find(Boolean)
+          if (!json) json = await fetchWithData(`https://hpe-ontology-and-graph.onrender.com/topology`)
+        } else {
+          // Fetch only the selected ingestion source's data
+          json = await fetchWithData(`${apiBase}/api/ontology/topology?source=${selectedSource}`)
+        }
+
         if (!json) throw new Error('Failed to load topology from any source or databases are empty')
 
         if (json.nodes?.[0]?.data) {
@@ -83,7 +108,7 @@ export default function TopologyPage({ apiBase }) {
       finally { setLoading(false) }
     }
     load()
-  }, [apiBase])
+  }, [apiBase, selectedSource])
 
   const { user } = useContext(AuthContext)
 
@@ -422,6 +447,53 @@ export default function TopologyPage({ apiBase }) {
           )}
           <button className="btn" onClick={handleExportConfig}><Download size={14} />Export Excel</button>
           <button className="btn" onClick={() => setShowImport(true)}>Import Config</button>
+        </div>
+      </div>
+
+      {/* Source Selector Bar */}
+      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 16px', border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: '8px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ingestion Source:</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button 
+              className={`btn ${selectedSource === 'all' ? 'active' : ''}`}
+              style={{
+                fontSize: 11,
+                padding: '4px 10px',
+                borderRadius: '20px',
+                border: '1px solid ' + (selectedSource === 'all' ? 'var(--accent-blue)' : 'var(--line)'),
+                background: selectedSource === 'all' ? 'rgba(88, 166, 255, 0.15)' : 'var(--background)',
+                color: selectedSource === 'all' ? 'var(--accent-blue)' : 'var(--foreground)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                fontWeight: selectedSource === 'all' ? 600 : 400
+              }}
+              onClick={() => setSelectedSource('all')}
+            >
+              🌐 All Sources (incl. Baseline)
+            </button>
+            {sources.map(src => (
+              <button
+                key={src.id}
+                className={`btn ${selectedSource === src.id ? 'active' : ''}`}
+                style={{
+                  fontSize: 11,
+                  padding: '4px 10px',
+                  borderRadius: '20px',
+                  border: '1px solid ' + (selectedSource === src.id ? 'var(--accent-blue)' : 'var(--line)'),
+                  background: selectedSource === src.id ? 'rgba(88, 166, 255, 0.15)' : 'var(--background)',
+                  color: selectedSource === src.id ? 'var(--accent-blue)' : 'var(--foreground)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontWeight: selectedSource === src.id ? 600 : 400
+                }}
+                onClick={() => setSelectedSource(src.id)}
+                title={`Ingested at: ${new Date(src.timestamp).toLocaleString()}`}
+              >
+                📄 {src.label || src.id} ({src.nodeCount || 0} nodes)
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
