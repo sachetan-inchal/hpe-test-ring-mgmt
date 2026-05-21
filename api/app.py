@@ -1679,50 +1679,18 @@ def _update_ontology_db(all_arrays, source_label=None, source_id=None):
             "edges": existing_edges + new_edges,
             "sources": existing_sources
         }
-        tdb._write(merged)
-        log.info(f"[ontology_sync] Appended {len(new_nodes)} nodes, {len(new_edges)} edges (source: {source_id})")
-
-        # Trigger reload of ontology engine globally
-        global _ontology_graph, _ontology_traversal, _ontology_source, _ontology_engine
-        from integrations.ontology_engine import populate_graph, OntologyLLMEngine
-        _ontology_graph, _ontology_traversal, _ontology_source = populate_graph()
-        _ontology_engine = OntologyLLMEngine(_ontology_traversal)
-        log.info("[ontology_sync] In-memory ontology traversal and graph reloaded.")
-    except Exception as ex:
-        log.exception("Failed to update ontology database.json")
-
-
-@app.route("/api/ingest/log/ai", methods=["POST"])
-def ingest_log_ai():
-    """
-    LLM-powered fallback ingest.
-
-    When standard parsing fails or yields incomplete results, this endpoint
-    uses the SAN Agent's LLM to recursively extract array data from a raw
-    text dump, then loads the result into all 3 databases.
-
-    Accepts:  multipart file or raw text body
-    Returns:  SSE stream with progress events, ending with a 'final' event
-    """
-    import collections
-
-    # Read raw text
-    raw = ""
-    file_name = ""
-    if request.files and "file" in request.files:
-        f = request.files["file"]
-        raw = f.read().decode("utf-8", errors="replace")
-        file_name = f.filename
-    elif request.data:
-        raw = request.data.decode("utf-8", errors="replace").strip()
-    elif (request.get_json(silent=True) or {}).get("text"):
-        raw = request.get_json()["text"]
-
-    if not raw:
-        return jsonify({"error": "No text provided"}), 400
-
     skip_backup = request.args.get("skip_backup", "false").lower() == "true"
-    
+    # Determine LLM backend: explicit param → auto-detect from env
+    _use_ollama_param = str(request.args.get("useOllama", "")).lower()
+    if _use_ollama_param == "true":
+        use_ollama_flag = True
+    elif _use_ollama_param == "false":
+        use_ollama_flag = False
+    else:
+        # Auto: use Groq when GROQ_API_KEY is set, Ollama otherwise
+        use_ollama_flag = not bool((os.environ.get("GROQ_API_KEY") or "").strip())
+    llm_backend_name = "Ollama" if use_ollama_flag else "Groq"
+
     # Snapshot name configuration
     snapshot_name = request.args.get("label") or request.args.get("snapshot_name")
     if not snapshot_name:
@@ -1732,27 +1700,22 @@ def ingest_log_ai():
             snapshot_name = f"✨ LLM Ingest ({datetime.now().strftime('%H:%M:%S')})"
 
     def generate():
-        steps = collections.deque()
-
-        def on_step(step):
-            steps.append(step)
-
         # Step 0 – backup
-        yield f'data: {json.dumps({"type": "progress", "msg": "Creating backup of current data..."})}\n\n'
+        yield f'data: {json.dumps({"type": "progress", "msg": "Creating backup of current data..."})}' + "\n\n"
         backup_id = None
         if not skip_backup:
             try:
                 backup_id = _log_ingest.create_backup()
-                yield f'data: {json.dumps({"type": "progress", "msg": f"Backup created: {backup_id}"})}\n\n'
+                yield f'data: {json.dumps({"type": "progress", "msg": f"Backup created: {backup_id}"})}' + "\n\n"
             except Exception as ex:
-                yield f'data: {json.dumps({"type": "warning", "msg": f"Backup failed (continuing): {ex}"})}\n\n'
+                yield f'data: {json.dumps({"type": "warning", "msg": f"Backup failed (continuing): {ex}"})}' + "\n\n"
 
         # Step 1 – wipe
-        yield f'data: {json.dumps({"type": "progress", "msg": "Wiping existing database data..."})}\n\n'
+        yield f'data: {json.dumps({"type": "progress", "msg": "Wiping existing database data..."})}' + "\n\n"
         _log_ingest.wipe_all()
 
         # Step 2 – LLM parse via SAN Agent
-        yield f'data: {json.dumps({"type": "progress", "msg": "Sending log to SAN Agent for LLM parsing..."})}\n\n'
+        yield f'data: {json.dumps({"type": "progress", "msg": f"Sending log to SAN Agent for LLM parsing ({llm_backend_name})..."})}' + "\n\n"
 
         system_prompt = (
             "You are an HPE 3PAR / Primera / Alletra SAN data extraction expert. "
@@ -1773,13 +1736,51 @@ def ingest_log_ai():
         errors = []
 
         for idx, chunk in enumerate(chunks):
-            yield f'data: {json.dumps({"type": "progress", "msg": f"LLM parsing chunk {idx+1}/{len(chunks)}..."})}\n\n'
+            yield f'data: {json.dumps({"type": "progress", "msg": f"LLM parsing chunk {idx+1}/{len(chunks)}..."})}' + "\n\n"
+            # Signal frontend to open a new LLM chunk panel
+            yield f'data: {json.dumps({"type": "llm_start", "chunk_idx": idx + 1, "total_chunks": len(chunks)})}' + "\n\n"
+
+            full_response = ""
             try:
-                llm_out = _san_agent_llm(system_prompt, f"Terminal dump (chunk {idx+1}/{len(chunks)}):\n\n{chunk}")
-                # Strip markdown code fences if present
-                cleaned = re.sub(r"^```(?:json)?\s*", "", llm_out.strip(), flags=re.IGNORECASE)
+                if use_ollama_flag:
+                    # Streaming Ollama call — emit think/chunk tokens live
+                    stream_gen = _rag_engine._llm_call_ollama(
+                        system_prompt,
+                        f"Terminal dump (chunk {idx+1}/{len(chunks)}):\n\n{chunk}",
+                        stream=True,
+                        disable_think=False,
+                    )
+                    for raw_line in stream_gen:
+                        try:
+                            cd = json.loads(raw_line)
+                            token = cd.get("message", {}).get("content", "")
+                            if not token:
+                                continue
+                            full_response += token
+                            # Classify token as think (inside <think>...</think>) or regular chunk
+                            has_open = "<think>" in full_response
+                            has_close = "</think>" in full_response
+                            evt_type = "think" if (has_open and not has_close) else "chunk"
+                            yield f'data: {json.dumps({"type": evt_type, "content": token})}' + "\n\n"
+                        except Exception:
+                            pass
+                else:
+                    # Non-streaming Groq: single call then emit as one chunk event
+                    full_response = _san_agent_llm(
+                        system_prompt,
+                        f"Terminal dump (chunk {idx+1}/{len(chunks)}):\n\n{chunk}",
+                        use_ollama=False,
+                    )
+                    if full_response:
+                        yield f'data: {json.dumps({"type": "chunk", "content": full_response})}' + "\n\n"
+
+                # Signal end of this LLM call
+                yield f'data: {json.dumps({"type": "llm_done", "chunk_idx": idx + 1})}' + "\n\n"
+
+                # Extract JSON — first strip <think> blocks
+                cleaned = re.sub(r"<think>.*?</think>", "", full_response, flags=re.DOTALL).strip()
+                cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
                 cleaned = re.sub(r"```\s*$", "", cleaned.strip())
-                # Find JSON array in response
                 m = re.search(r"(\[.*\])", cleaned, re.DOTALL)
                 if m:
                     parsed = json.loads(m.group(1))
@@ -1787,25 +1788,31 @@ def ingest_log_ai():
                         all_arrays.extend(parsed)
                     elif isinstance(parsed, dict):
                         all_arrays.append(parsed)
-                    yield f'data: {json.dumps({"type": "progress", "msg": f"Chunk {idx+1}: extracted {len(parsed) if isinstance(parsed, list) else 1} arrays"})}\n\n'
+                    count = len(parsed) if isinstance(parsed, list) else 1
+                    yield f'data: {json.dumps({"type": "progress", "msg": f"Chunk {idx+1}: extracted {count} array(s)"})}' + "\n\n"
                 else:
-                    errors.append(f"Chunk {idx+1}: LLM output had no JSON array")
+                    err_msg = f"Chunk {idx+1}: LLM output had no JSON array"
+                    errors.append(err_msg)
+                    yield f'data: {json.dumps({"type": "warning", "msg": err_msg})}' + "\n\n"
+
             except Exception as ex:
                 errors.append(f"Chunk {idx+1}: {str(ex)}")
-                yield f'data: {json.dumps({"type": "warning", "msg": f"Chunk {idx+1} failed: {ex}"})}\n\n'
+                yield f'data: {json.dumps({"type": "warning", "msg": f"Chunk {idx+1} failed: {ex}"})}' + "\n\n"
+                yield f'data: {json.dumps({"type": "llm_done", "chunk_idx": idx + 1})}' + "\n\n"
 
         # Step 3 – populate databases
-        yield f'data: {json.dumps({"type": "progress", "msg": f"Populating databases with {len(all_arrays)} arrays..."})}\n\n'
+        yield f'data: {json.dumps({"type": "progress", "msg": f"Populating databases with {len(all_arrays)} arrays..."})}' + "\n\n"
         for arr in all_arrays:
             if isinstance(arr, dict):
                 _log_ingest._store_parsed(arr)
 
         # Synchronize ontology database.json
-        yield f'data: {json.dumps({"type": "progress", "msg": "Synchronizing ontology database..."})}\n\n'
+        yield f'data: {json.dumps({"type": "progress", "msg": "Synchronizing ontology database..."})}' + "\n\n"
         _update_ontology_db(all_arrays, source_label=snapshot_name)
 
         # Step 4 – Save newly populated data as a snapshot
-        yield f'data: {json.dumps({"type": "progress", "msg": f"Saving persistent snapshot \"{snapshot_name}\"..."})}\n\n'
+        snap_msg = f"Saving persistent snapshot \"{snapshot_name}\"..."
+        yield f'data: {json.dumps({"type": "progress", "msg": snap_msg})}' + "\n\n"
         snapshot_id = None
         if all_arrays:
             try:

@@ -51,23 +51,26 @@ const QUICK_QUERIES = [
   { label: 'Capacity summary', text: 'List arrays that have more than 200TB usable space' },
 ]
 
-function LLMIngestCard({ file, phase, step, logs = [], result, error }) {
+function LLMIngestCard({ file, phase, step, logs = [], result, error, chunks = [] }) {
   const logsEndRef = useRef(null)
+  const [expandedThink, setExpandedThink] = useState({})
+  const [logsOpen, setLogsOpen] = useState(false)
+
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs.length])
+  }, [logs.length, chunks.length])
 
   const LLM_STEPS = [
-    { label: 'Backup', icon: '🛡️', desc: 'Saving current state' },
-    { label: 'LLM Parse', icon: '🤖', desc: 'AI extracting arrays' },
-    { label: 'Populate', icon: '🗄️', desc: 'Loading databases' },
-    { label: 'Snapshot', icon: '📸', desc: 'Creating source' },
+    { label: 'Backup', icon: '🛡️' },
+    { label: 'LLM Parse', icon: '🤖' },
+    { label: 'Populate', icon: '🗄️' },
+    { label: 'Snapshot', icon: '📸' },
   ]
 
   return (
     <div style={{
       width: '100%',
-      maxWidth: 640,
+      maxWidth: 760,
       background: 'linear-gradient(145deg, rgba(22,27,34,0.98) 0%, rgba(13,17,23,0.98) 100%)',
       border: '1px solid rgba(72,79,88,0.5)',
       borderRadius: 16,
@@ -91,11 +94,16 @@ function LLMIngestCard({ file, phase, step, logs = [], result, error }) {
           <Cpu size={16} style={{ color: 'var(--hpe-green)' }} />
         </div>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)' }}>Parse Log with LLM</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)' }}>SAN LLM Ingest Agent</div>
           <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>
-            {file?.name || 'Processing log...'}
+            {file?.name || 'Processing log...'}{phase === 'running' ? ' — Parsing...' : ''}
           </div>
         </div>
+        {phase === 'running' && (
+          <span style={{ marginLeft: 'auto', width: 8, height: 8, borderRadius: '50%', background: 'var(--hpe-green)', animation: 'pulse 1s ease infinite', display: 'inline-block' }} />
+        )}
+        {phase === 'done' && <CheckCircle2 size={16} style={{ color: 'var(--hpe-green)', marginLeft: 'auto' }} />}
+        {phase === 'error' && <AlertTriangle size={16} style={{ color: '#f85149', marginLeft: 'auto' }} />}
       </div>
 
       {/* Step Pipeline */}
@@ -110,18 +118,9 @@ function LLMIngestCard({ file, phase, step, logs = [], result, error }) {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                   <div style={{
                     width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12,
-                    background: done
-                      ? 'rgba(1,169,130,0.2)'
-                      : active
-                        ? 'rgba(88,166,255,0.15)'
-                        : 'rgba(72,79,88,0.2)',
-                    border: `2px solid ${
-                      done ? 'rgba(1,169,130,0.6)'
-                        : active ? 'rgba(88,166,255,0.6)'
-                          : 'rgba(72,79,88,0.3)'
-                    }`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12,
+                    background: done ? 'rgba(1,169,130,0.2)' : active ? 'rgba(88,166,255,0.15)' : 'rgba(72,79,88,0.2)',
+                    border: `2px solid ${done ? 'rgba(1,169,130,0.6)' : active ? 'rgba(88,166,255,0.6)' : 'rgba(72,79,88,0.3)'}`,
                     boxShadow: active ? '0 0 10px rgba(88,166,255,0.3)' : 'none',
                     animation: active ? 'pulse 1.5s ease infinite' : 'none',
                     transition: 'all 0.4s ease',
@@ -136,8 +135,7 @@ function LLMIngestCard({ file, phase, step, logs = [], result, error }) {
                   <div style={{
                     flex: 1, height: 2, margin: '0 4px', marginTop: -14,
                     background: done ? 'var(--hpe-green)' : 'rgba(72,79,88,0.3)',
-                    transition: 'background 0.4s ease',
-                    borderRadius: 1,
+                    transition: 'background 0.4s ease', borderRadius: 1,
                   }} />
                 )}
               </div>
@@ -146,63 +144,127 @@ function LLMIngestCard({ file, phase, step, logs = [], result, error }) {
         </div>
       </div>
 
-      {/* Retro Terminal Log */}
-      <div style={{
-        margin: '12px 18px 0',
-        height: 140,
-        background: '#0a0c10',
-        border: '1px solid rgba(72,79,88,0.3)',
-        borderRadius: 8,
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          padding: '4px 10px',
-          background: 'rgba(255,255,255,0.03)',
-          borderBottom: '1px solid rgba(72,79,88,0.2)',
-          display: 'flex', alignItems: 'center', gap: 6
-        }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f85149' }} />
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#d29922' }} />
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#3fb950' }} />
-          <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 4, fontFamily: 'var(--font-mono)' }}>san-llm-agent — Ingest Feed</span>
-          {phase === 'running' && (
-            <span style={{ marginLeft: 'auto', width: 5, height: 5, borderRadius: '50%', background: 'var(--hpe-green)', animation: 'pulse 1s ease infinite' }} />
-          )}
-        </div>
-        <div style={{
-          padding: '8px 12px',
-          height: 'calc(100% - 22px)',
-          overflowY: 'auto',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          lineHeight: 1.6,
-        }}>
-          {logs.length === 0 && (
-            <span style={{ color: 'rgba(139,148,158,0.5)' }}>Waiting for streams...</span>
-          )}
-          {logs.map((l, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 2 }}>
-              <span style={{ color: 'rgba(139,148,158,0.5)', flexShrink: 0 }}>{l.ts}</span>
-              <span style={{
-                color: l.type === 'error' ? '#f85149'
-                  : l.type === 'warn' ? '#d29922'
-                    : l.type === 'success' ? '#3fb950'
-                      : l.type === 'system' ? '#bc8cff'
-                        : '#58a6ff'
+      {/* LLM Chunk Panels — one per LLM call, matching normal SAN agent message style */}
+      {chunks.length > 0 && (
+        <div style={{ padding: '12px 18px 0' }}>
+          {chunks.map((chunk) => {
+            const thinkKey = chunk.idx
+            const isOpen = expandedThink[thinkKey] !== false // default expanded
+            const rawThink = chunk.thinking || ''
+            const cleanThink = rawThink.replace(/^<think>/i, '').replace(/<\/think>$/i, '').trim()
+            const hasThink = cleanThink.length > 0
+            const cleanContent = (chunk.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+            return (
+              <div key={chunk.idx} style={{
+                marginBottom: 12, borderRadius: 10,
+                border: '1px solid rgba(72,79,88,0.3)', overflow: 'hidden',
+                background: 'rgba(255,255,255,0.02)',
               }}>
-                {l.type === 'progress' ? '▶ ' : l.type === 'success' ? '✓ ' : l.type === 'warn' ? '⚠ ' : l.type === 'error' ? '✗ ' : '» '}
-                {l.msg}
-              </span>
-            </div>
-          ))}
-          <div ref={logsEndRef} />
+                {/* Chunk header */}
+                <div style={{
+                  padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'rgba(88,166,255,0.05)', borderBottom: '1px solid rgba(72,79,88,0.2)',
+                }}>
+                  <Cpu size={11} style={{ color: 'var(--accent-blue)' }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-blue)' }}>
+                    LLM Call {chunk.idx}/{chunk.total}
+                  </span>
+                  {chunk.phase === 'running' && (
+                    <span className="pulsing-dot" style={{ width: 6, height: 6, background: 'var(--hpe-green)', borderRadius: '50%', display: 'inline-block', marginLeft: 'auto' }} />
+                  )}
+                  {chunk.phase === 'done' && <CheckCircle2 size={11} style={{ color: 'var(--hpe-green)', marginLeft: 'auto' }} />}
+                </div>
+
+                {/* Think block — collapsible, same style as normal SAN agent */}
+                {hasThink && (
+                  <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderBottom: cleanContent ? '1px solid rgba(72,79,88,0.15)' : 'none' }}>
+                    <div
+                      onClick={() => setExpandedThink(prev => ({ ...prev, [thinkKey]: !isOpen }))}
+                      style={{
+                        padding: '6px 14px', fontSize: 11, color: 'var(--muted)',
+                        background: 'rgba(0,0,0,0.4)', cursor: 'pointer', borderBottom: '1px solid rgba(72,79,88,0.15)',
+                        display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none',
+                      }}
+                    >
+                      <Sparkles size={11} />
+                      <span>AI Thinking Process</span>
+                      {chunk.phase === 'running' && !rawThink.includes('</think>') && (
+                        <span className="pulsing-dot" style={{ width: 5, height: 5, background: 'var(--hpe-green)', borderRadius: '50%', display: 'inline-block', marginLeft: 4 }} />
+                      )}
+                      <span style={{ marginLeft: 'auto', fontSize: 10, opacity: 0.6 }}>{isOpen ? '▲ collapse' : '▼ expand'}</span>
+                    </div>
+                    {isOpen && (
+                      <div style={{
+                        padding: '12px 14px', fontSize: 12, color: 'var(--text-secondary)',
+                        fontStyle: 'italic', whiteSpace: 'pre-wrap',
+                        maxHeight: chunk.phase === 'running' ? 'none' : 200, overflowY: 'auto',
+                      }}>
+                        {cleanThink}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Streamed content */}
+                {cleanContent && (
+                  <div style={{
+                    padding: '10px 14px', fontSize: 12, color: 'var(--text-secondary)',
+                    whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)',
+                    maxHeight: 160, overflowY: 'auto',
+                  }}>
+                    {cleanContent}
+                  </div>
+                )}
+
+                {/* Waiting placeholder while LLM call just started */}
+                {!hasThink && !cleanContent && chunk.phase === 'running' && (
+                  <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                    Waiting for LLM response...
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
-      </div>
+      )}
+
+      {/* Progress / warning log — collapsible system log */}
+      {logs.length > 0 && (
+        <div style={{ margin: '8px 18px 0' }}>
+          <div
+            onClick={() => setLogsOpen(o => !o)}
+            style={{ fontSize: 10, color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', userSelect: 'none' }}
+          >
+            <span style={{ fontFamily: 'var(--font-mono)' }}>System Logs</span>
+            <span style={{ fontSize: 9, opacity: 0.6 }}>{logsOpen ? '▲ hide' : `▼ ${logs.length} entries`}</span>
+          </div>
+          {logsOpen && (
+            <div style={{
+              maxHeight: 120, overflowY: 'auto', background: '#0a0c10',
+              border: '1px solid rgba(72,79,88,0.3)', borderRadius: 8,
+              padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: 10, lineHeight: 1.6,
+            }}>
+              {logs.map((l, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 2 }}>
+                  <span style={{ color: 'rgba(139,148,158,0.5)', flexShrink: 0 }}>{l.ts}</span>
+                  <span style={{
+                    color: l.type === 'error' ? '#f85149' : l.type === 'warn' ? '#d29922'
+                      : l.type === 'success' ? '#3fb950' : l.type === 'system' ? '#bc8cff' : '#58a6ff'
+                  }}>
+                    {l.type === 'progress' ? '▶ ' : l.type === 'success' ? '✓ ' : l.type === 'warn' ? '⚠ ' : l.type === 'error' ? '✗ ' : '» '}
+                    {l.msg}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Success state card */}
       {phase === 'done' && result && (
         <div style={{ margin: '12px 18px', padding: '12px 16px', background: 'rgba(1,169,130,0.08)', border: '1px solid rgba(1,169,130,0.25)', borderRadius: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: result.arrays?.length > 0 ? 10 : 0 }}>
             <CheckCircle2 size={14} style={{ color: 'var(--hpe-green)' }} />
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--hpe-green)' }}>Ingest Complete</span>
             <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto' }}>
@@ -214,10 +276,8 @@ function LLMIngestCard({ file, phase, step, logs = [], result, error }) {
               {result.arrays.map((arr, i) => (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '6px 10px',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(72,79,88,0.3)',
-                  borderRadius: 6,
+                  padding: '6px 10px', background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(72,79,88,0.3)', borderRadius: 6,
                 }}>
                   <Database size={11} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -262,7 +322,7 @@ function LLMIngestCard({ file, phase, step, logs = [], result, error }) {
           <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>{error}</div>
         </div>
       )}
-      <div style={{ height: 12 }} />
+      <div ref={logsEndRef} style={{ height: 12 }} />
     </div>
   )
 }
@@ -815,6 +875,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       llmIngestFile: file,
       llmIngestPhase: 'running',
       llmIngestLogs: [],
+      llmIngestChunks: [],
       llmIngestResult: null,
       llmIngestError: null,
       llmIngestStep: 0
@@ -824,62 +885,72 @@ export default function ChatPage({ apiBase, chatbotApi }) {
 
     const addLog = (msgText, type = 'info') => {
       const ts = new Date().toLocaleTimeString('en-US', { hour12: false })
+      setMessages(prev => prev.map(m =>
+        m.id === msgId ? { ...m, llmIngestLogs: [...(m.llmIngestLogs || []), { msg: msgText, type, ts }] } : m
+      ))
+    }
+
+    const setStep = (stepVal) =>
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, llmIngestStep: stepVal } : m))
+
+    const setPhase = (phaseVal) =>
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, llmIngestPhase: phaseVal } : m))
+
+    const setResult = (resultVal) =>
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, llmIngestResult: resultVal } : m))
+
+    const setError = (errorVal) =>
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, llmIngestError: errorVal } : m))
+
+    // Add a new LLM chunk panel to the card
+    const addChunk = (idx, total) => {
       setMessages(prev => prev.map(m => {
-        if (m.id === msgId) {
-          return {
-            ...m,
-            llmIngestLogs: [...(m.llmIngestLogs || []), { msg: msgText, type, ts }]
-          }
-        }
-        return m
+        if (m.id !== msgId) return m
+        const existing = m.llmIngestChunks || []
+        if (existing.some(c => c.idx === idx)) return m
+        return { ...m, llmIngestChunks: [...existing, { idx, total, thinking: '', content: '', phase: 'running' }] }
       }))
     }
 
-    const setStep = (stepVal) => {
+    // Append a streaming token to a chunk's thinking or content field
+    const appendToChunk = (idx, field, text) => {
       setMessages(prev => prev.map(m => {
-        if (m.id === msgId) {
-          return { ...m, llmIngestStep: stepVal }
+        if (m.id !== msgId) return m
+        return {
+          ...m,
+          llmIngestChunks: (m.llmIngestChunks || []).map(c =>
+            c.idx === idx ? { ...c, [field]: (c[field] || '') + text } : c
+          )
         }
-        return m
       }))
     }
 
-    const setPhase = (phaseVal) => {
+    // Mark a chunk as done
+    const completeChunk = (idx) => {
       setMessages(prev => prev.map(m => {
-        if (m.id === msgId) {
-          return { ...m, llmIngestPhase: phaseVal }
+        if (m.id !== msgId) return m
+        return {
+          ...m,
+          llmIngestChunks: (m.llmIngestChunks || []).map(c =>
+            c.idx === idx ? { ...c, phase: 'done' } : c
+          )
         }
-        return m
-      }))
-    }
-
-    const setResult = (resultVal) => {
-      setMessages(prev => prev.map(m => {
-        if (m.id === msgId) {
-          return { ...m, llmIngestResult: resultVal }
-        }
-        return m
-      }))
-    }
-
-    const setError = (errorVal) => {
-      setMessages(prev => prev.map(m => {
-        if (m.id === msgId) {
-          return { ...m, llmIngestError: errorVal }
-        }
-        return m
       }))
     }
 
     addLog(`Starting LLM ingest for: ${file.name}`, 'system')
+
+    // Track which chunk index is currently streaming
+    let currentChunkIdx = null
 
     try {
       const formData = new FormData()
       formData.append('file', file)
 
       const snapshotLabel = encodeURIComponent(`✨ LLM Ingest: ${file.name}`)
+      const ollamaParam = useOllama ? 'true' : 'false'
       const res = await fetch(
-        `${apiBase}/api/ingest/log/ai?label=${snapshotLabel}`,
+        `${apiBase}/api/ingest/log/ai?label=${snapshotLabel}&useOllama=${ollamaParam}`,
         { method: 'POST', body: formData }
       )
 
@@ -897,7 +968,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         if (done) break
         buffer += decoder.decode(value, { stream: true })
         const parts = buffer.split('\n\n')
-        buffer = parts.pop() // keep incomplete chunk
+        buffer = parts.pop()
         for (const part of parts) {
           const line = part.trim()
           if (!line.startsWith('data: ')) continue
@@ -905,7 +976,6 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             const event = JSON.parse(line.slice(6))
             if (event.type === 'progress') {
               addLog(event.msg, 'progress')
-              // Advance step based on message content
               const msg = (event.msg || '').toLowerCase()
               if (msg.includes('backup')) setStep(0)
               else if (msg.includes('llm') || msg.includes('chunk') || msg.includes('wip')) setStep(1)
@@ -913,14 +983,25 @@ export default function ChatPage({ apiBase, chatbotApi }) {
               else if (msg.includes('snapshot')) setStep(3)
             } else if (event.type === 'warning') {
               addLog(event.msg, 'warn')
+            } else if (event.type === 'llm_start') {
+              // Open a new chunk panel on the card
+              currentChunkIdx = event.chunk_idx
+              addChunk(event.chunk_idx, event.total_chunks)
+              setStep(1)
+            } else if (event.type === 'think') {
+              // Route to the right chunk's thinking field
+              if (currentChunkIdx !== null) appendToChunk(currentChunkIdx, 'thinking', event.content)
+            } else if (event.type === 'chunk') {
+              // Route to the right chunk's content field
+              if (currentChunkIdx !== null) appendToChunk(currentChunkIdx, 'content', event.content)
+            } else if (event.type === 'llm_done') {
+              if (event.chunk_idx !== null) completeChunk(event.chunk_idx)
             } else if (event.type === 'final') {
               setStep(4)
               setResult(event)
               setPhase('done')
               addLog(`Done! Parsed ${event.arrays_parsed ?? 0} array(s).`, 'success')
-              if (event.snapshot_id) {
-                addLog(`Snapshot saved: ${event.snapshot_id}`, 'success')
-              }
+              if (event.snapshot_id) addLog(`Snapshot saved: ${event.snapshot_id}`, 'success')
             }
           } catch (parseErr) {
             // ignore malformed SSE line
@@ -932,7 +1013,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       setError(err.message)
       setPhase('error')
     }
-  }, [apiBase])
+  }, [apiBase, useOllama])
 
   const handleLLMFileChange = (e) => {
     const file = e.target.files?.[0]
@@ -1267,6 +1348,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                       logs={msg.llmIngestLogs}
                       result={msg.llmIngestResult}
                       error={msg.llmIngestError}
+                      chunks={msg.llmIngestChunks || []}
                     />
                   </div>
                 </div>
