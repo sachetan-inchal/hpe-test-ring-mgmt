@@ -1,5 +1,23 @@
 # Screenshot & Asset Checklist — Official Documentation
 
+## Captured (wired into `official_documentation.tex`)
+
+| File | Used in doc |
+|------|-------------|
+| `Sign-up.png` | Authentication |
+| `discovery-tab-fullscreen.png` | Discovery tab |
+| `test-ring-viewer-tab.png` | Test Ring Viewer |
+| `inventory-tab.png` | Inventory |
+| `terminal-simulator-tab.png` | Emulator |
+| `radial-quick-query-menu.png` | AI Assistant |
+| `chatbot-san-agent-demo-query.png` | AI Assistant |
+| `neo4j-powered-chatbot.png` | AI Assistant |
+| `list-of-services-from-health-tab.png` | Health |
+
+---
+
+## Still optional (not yet in PDF)
+
 Save all captures as **PNG** (recommended) or **JPEG** under `images/` using the exact filenames below. Use **1920×1080** or your monitor’s native resolution; crop to the relevant UI (no personal bookmarks/toolbars if possible).
 
 **Before you shoot:** run the full stack (`npm start` + Docker databases) so every tab shows live data.

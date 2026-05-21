@@ -87,6 +87,10 @@ neo4j   = Neo4jStore()
 es      = ElasticsearchIndexer()
 mongo   = MongoStore()
 
+# ── Log Ingest Manager (dual-mode TXT/JSON → backup → wipe → populate) ────────
+from api.master_logic.log_ingest import LogIngestManager
+_log_ingest = LogIngestManager(neo4j, mongo, es)
+
 @app.before_request
 def ensure_infrastructure():
     """Attempt to connect to services if they weren't ready at startup."""
@@ -1268,6 +1272,261 @@ def wipe_graph():
         return jsonify({"status": "cleared"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ── Log File Ingest (dual-mode TXT / JSON) ─────────────────────────────────────
+
+@app.route("/api/ingest/log", methods=["POST"])
+def ingest_log():
+    """
+    Dual-mode log file ingest.
+
+    Accepts either:
+      - multipart file upload  (field name: 'file', extension .txt or .json)
+      - JSON body              {"mode": "json", "data": [...]}
+      - plain-text body        (Content-Type: text/plain)
+
+    On success:
+      1. Creates a backup of current Neo4j + MongoDB + ES  (→ backup_id)
+      2. Wipes all 3 databases
+      3. Parses the upload and populates all 3 databases
+      4. Returns stats + backup_id so the operation can be reversed
+    """
+    try:
+        skip_backup = request.args.get("skip_backup", "false").lower() == "true"
+
+        # ── Multipart file upload ──
+        if request.files and "file" in request.files:
+            f = request.files["file"]
+            fname = (f.filename or "").lower()
+            raw = f.read().decode("utf-8", errors="replace")
+            filename_label = f"📋 Ingest: {f.filename}"
+
+            if fname.endswith(".json"):
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError as e:
+                    return jsonify({"error": f"Invalid JSON: {e}"}), 400
+                result = _log_ingest.ingest(json_data=data, skip_backup=skip_backup, snapshot_label=filename_label)
+            else:  # treat as TXT
+                result = _log_ingest.ingest(raw_text=raw, skip_backup=skip_backup, snapshot_label=filename_label)
+            return jsonify(result)
+
+        # ── JSON body  {"mode": "json", "data": [...]} ──
+        body = request.get_json(silent=True)
+        if body and "data" in body:
+            body_label = f"📋 JSON Ingest ({datetime.now().strftime('%H:%M:%S')})"
+            result = _log_ingest.ingest(json_data=body["data"], skip_backup=skip_backup, snapshot_label=body_label)
+            return jsonify(result)
+
+        # ── Plain-text body ──
+        raw = request.data.decode("utf-8", errors="replace").strip()
+        if raw:
+            ct = request.content_type or ""
+            body_label = f"📋 Plain Ingest ({datetime.now().strftime('%H:%M:%S')})"
+            if "json" in ct:
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError as e:
+                    return jsonify({"error": f"Invalid JSON: {e}"}), 400
+                result = _log_ingest.ingest(json_data=data, skip_backup=skip_backup, snapshot_label=body_label)
+            else:
+                result = _log_ingest.ingest(raw_text=raw, skip_backup=skip_backup, snapshot_label=body_label)
+            return jsonify(result)
+
+        return jsonify({"error": "No file or body provided. Send a .txt or .json file as multipart, or JSON/text body."}), 400
+
+    except Exception as ex:
+        log.exception("ingest_log failed")
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ingest/log/ai", methods=["POST"])
+def ingest_log_ai():
+    """
+    LLM-powered fallback ingest.
+
+    When standard parsing fails or yields incomplete results, this endpoint
+    uses the SAN Agent's LLM to recursively extract array data from a raw
+    text dump, then loads the result into all 3 databases.
+
+    Accepts:  multipart file or raw text body
+    Returns:  SSE stream with progress events, ending with a 'final' event
+    """
+    import collections
+
+    # Read raw text
+    raw = ""
+    file_name = ""
+    if request.files and "file" in request.files:
+        f = request.files["file"]
+        raw = f.read().decode("utf-8", errors="replace")
+        file_name = f.filename
+    elif request.data:
+        raw = request.data.decode("utf-8", errors="replace").strip()
+    elif (request.get_json(silent=True) or {}).get("text"):
+        raw = request.get_json()["text"]
+
+    if not raw:
+        return jsonify({"error": "No text provided"}), 400
+
+    skip_backup = request.args.get("skip_backup", "false").lower() == "true"
+    
+    # Snapshot name configuration
+    snapshot_name = request.args.get("label") or request.args.get("snapshot_name")
+    if not snapshot_name:
+        if file_name:
+            snapshot_name = f"✨ LLM Ingest: {file_name}"
+        else:
+            snapshot_name = f"✨ LLM Ingest ({datetime.now().strftime('%H:%M:%S')})"
+
+    def generate():
+        steps = collections.deque()
+
+        def on_step(step):
+            steps.append(step)
+
+        # Step 0 – backup
+        yield f'data: {json.dumps({"type": "progress", "msg": "Creating backup of current data..."})}\n\n'
+        backup_id = None
+        if not skip_backup:
+            try:
+                backup_id = _log_ingest.create_backup()
+                yield f'data: {json.dumps({"type": "progress", "msg": f"Backup created: {backup_id}"})}\n\n'
+            except Exception as ex:
+                yield f'data: {json.dumps({"type": "warning", "msg": f"Backup failed (continuing): {ex}"})}\n\n'
+
+        # Step 1 – wipe
+        yield f'data: {json.dumps({"type": "progress", "msg": "Wiping existing database data..."})}\n\n'
+        _log_ingest.wipe_all()
+
+        # Step 2 – LLM parse via SAN Agent
+        yield f'data: {json.dumps({"type": "progress", "msg": "Sending log to SAN Agent for LLM parsing..."})}\n\n'
+
+        system_prompt = (
+            "You are an HPE 3PAR / Primera / Alletra SAN data extraction expert. "
+            "The user will give you a raw CLI terminal dump. "
+            "Extract ALL array information and return ONLY a valid JSON array where each element "
+            "represents one HPE storage array. Each element must follow this schema exactly: "
+            '{"name": str, "array_id": str, "model": str, "serial": str, '
+            '"release_version": str, "node_count": int, "total_cap_mib": int, '
+            '"free_cap_mib": int, "alloc_cap_mib": int, "config_type": str, '
+            '"nodes": [], "ports": [], "switches": [], "hosts": [], '
+            '"cages": [], "drives": []}. '
+            "Ignore SSH banners, shell prompts, human comments. Return ONLY the JSON array."
+        )
+
+        # Chunk the raw text if it's too long (avoid token overflow)
+        MAX_CHUNK = 12000
+        chunks = [raw[i : i + MAX_CHUNK] for i in range(0, len(raw), MAX_CHUNK)]
+        all_arrays = []
+        errors = []
+
+        for idx, chunk in enumerate(chunks):
+            yield f'data: {json.dumps({"type": "progress", "msg": f"LLM parsing chunk {idx+1}/{len(chunks)}..."})}\n\n'
+            try:
+                llm_out = _san_agent_llm(system_prompt, f"Terminal dump (chunk {idx+1}/{len(chunks)}):\n\n{chunk}")
+                # Strip markdown code fences if present
+                cleaned = re.sub(r"^```(?:json)?\s*", "", llm_out.strip(), flags=re.IGNORECASE)
+                cleaned = re.sub(r"```\s*$", "", cleaned.strip())
+                # Find JSON array in response
+                m = re.search(r"(\[.*\])", cleaned, re.DOTALL)
+                if m:
+                    parsed = json.loads(m.group(1))
+                    if isinstance(parsed, list):
+                        all_arrays.extend(parsed)
+                    elif isinstance(parsed, dict):
+                        all_arrays.append(parsed)
+                    yield f'data: {json.dumps({"type": "progress", "msg": f"Chunk {idx+1}: extracted {len(parsed) if isinstance(parsed, list) else 1} arrays"})}\n\n'
+                else:
+                    errors.append(f"Chunk {idx+1}: LLM output had no JSON array")
+            except Exception as ex:
+                errors.append(f"Chunk {idx+1}: {str(ex)}")
+                yield f'data: {json.dumps({"type": "warning", "msg": f"Chunk {idx+1} failed: {ex}"})}\n\n'
+
+        # Step 3 – populate databases
+        yield f'data: {json.dumps({"type": "progress", "msg": f"Populating databases with {len(all_arrays)} arrays..."})}\n\n'
+        for arr in all_arrays:
+            if isinstance(arr, dict):
+                _log_ingest._store_parsed(arr)
+
+        # Step 4 – Save newly populated data as a snapshot
+        yield f'data: {json.dumps({"type": "progress", "msg": f"Saving persistent snapshot \"{snapshot_name}\"..."})}\n\n'
+        snapshot_id = None
+        if all_arrays:
+            try:
+                snapshot_id = _log_ingest.create_backup(label=snapshot_name)
+                yield f'data: {json.dumps({"type": "progress", "msg": f"Snapshot created successfully: {snapshot_id}"})}\n\n'
+            except Exception as ex:
+                yield f'data: {json.dumps({"type": "warning", "msg": f"Snapshot step failed: {ex}"})}\n\n'
+
+        final = {
+            "type":          "final",
+            "backup_id":     backup_id,
+            "snapshot_id":   snapshot_id,
+            "arrays_parsed": len(all_arrays),
+            "errors":        errors,
+            "status":        "success" if all_arrays else "partial",
+            "arrays": [
+                {"name": a.get("name"), "serial": a.get("serial"), "model": a.get("model")}
+                for a in all_arrays if isinstance(a, dict)
+            ],
+        }
+        yield f'data: {json.dumps(final)}\n\n'
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/ingest/log/backup/create", methods=["POST"])
+def create_ingest_backup():
+    """Create a new named backup of the current database state on-demand."""
+    from datetime import datetime
+    try:
+        data = request.get_json(silent=True) or {}
+        label = data.get("label", "").strip()
+        if not label:
+            label = f"Snapshot ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+        backup_id = _log_ingest.create_backup(label=label)
+        return jsonify({"status": "success", "backup_id": backup_id, "label": label})
+    except Exception as ex:
+        log.exception("create_ingest_backup failed")
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ingest/log/backups", methods=["GET"])
+def list_ingest_backups():
+    """List all available ingest backups (for restore / audit)."""
+    try:
+        return jsonify({"backups": _log_ingest.list_backups()})
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ingest/log/restore", methods=["POST"])
+def restore_ingest_backup():
+    """
+    Restore a previous ingest backup.
+
+    Body: {"backup_id": "backup_20240101_120000"}
+
+    Wipes current data and replays the backed-up snapshot.
+    """
+    data = request.get_json(silent=True) or {}
+    backup_id = (data.get("backup_id") or "").strip()
+    if not backup_id:
+        return jsonify({"error": "backup_id is required"}), 400
+    try:
+        result = _log_ingest.restore(backup_id)
+        return jsonify(result)
+    except FileNotFoundError as ex:
+        return jsonify({"error": str(ex)}), 404
+    except Exception as ex:
+        log.exception("restore_ingest_backup failed")
+        return jsonify({"error": str(ex)}), 500
 
 # ── Topology / Graph endpoints ────────────────────────────────────────────────
 

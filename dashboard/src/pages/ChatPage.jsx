@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useContext, useCallback } from 'react'
 import { AuthContext } from '../context/AuthContext'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Send, Sparkles, Database, MessageSquare, Plus, RotateCcw, Bot, Trash2, Copy, Check } from 'lucide-react'
+import { Send, Sparkles, Database, MessageSquare, Plus, RotateCcw, Bot, Trash2, Copy, Check, Upload, FileText, CheckCircle2, AlertTriangle, X, Cpu } from 'lucide-react'
 import AgentStepTimeline from '../components/AgentStepTimeline'
 import RadialMenu from '../components/RadialMenu'
 import AgentReasoningSidebar from '../components/AgentReasoningSidebar'
@@ -89,6 +89,17 @@ export default function ChatPage({ apiBase, chatbotApi }) {
   const terminalRef = useRef(null)
   const msgEndRef = useRef(null)
   const inputRef = useRef(null)
+  const llmFileRef = useRef(null)
+
+  // ── LLM Ingest State ─────────────────────────────────────────────────────
+  const [showLLMIngest, setShowLLMIngest] = useState(false)
+  const [llmIngestPhase, setLLMIngestPhase] = useState('idle') // idle | running | done | error
+  const [llmIngestLogs, setLLMIngestLogs] = useState([])
+  const [llmIngestResult, setLLMIngestResult] = useState(null)
+  const [llmIngestError, setLLMIngestError] = useState(null)
+  const [llmIngestFile, setLLMIngestFile] = useState(null)
+  const [llmIngestStep, setLLMIngestStep] = useState(0) // 0-4 pipeline step index
+  const llmLogsEndRef = useRef(null)
 
   const isResizing = useRef(false)
 
@@ -578,6 +589,104 @@ export default function ChatPage({ apiBase, chatbotApi }) {
     } finally { setLoading(false) }
   }, [input, loading, aiMode, apiBase, chatbotApi, user, messages, activeChatId, arrayHint])
 
+  // ── LLM Log Ingest Handler ────────────────────────────────────────────────
+  const startLLMIngest = useCallback(async (file) => {
+    if (!file) return
+    setLLMIngestFile(file)
+    setShowLLMIngest(true)
+    setLLMIngestPhase('running')
+    setLLMIngestLogs([])
+    setLLMIngestResult(null)
+    setLLMIngestError(null)
+    setLLMIngestStep(0)
+
+    const addLog = (msg, type = 'info') => {
+      const ts = new Date().toLocaleTimeString('en-US', { hour12: false })
+      setLLMIngestLogs(prev => [...prev, { msg, type, ts }])
+    }
+
+    const STEP_MSGS = [
+      'Creating backup of current environment...',
+      'Sending log to SAN Agent LLM parser...',
+      'Populating databases with extracted arrays...',
+      'Generating persistent snapshot...',
+    ]
+
+    addLog(`Starting LLM ingest for: ${file.name}`, 'system')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const snapshotLabel = encodeURIComponent(`✨ LLM Ingest: ${file.name}`)
+      const res = await fetch(
+        `${apiBase}/api/ingest/log/ai?label=${snapshotLabel}`,
+        { method: 'POST', body: formData }
+      )
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() // keep incomplete chunk
+        for (const part of parts) {
+          const line = part.trim()
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6))
+            if (event.type === 'progress') {
+              addLog(event.msg, 'progress')
+              // Advance step based on message content
+              const msg = (event.msg || '').toLowerCase()
+              if (msg.includes('backup')) setLLMIngestStep(0)
+              else if (msg.includes('llm') || msg.includes('chunk') || msg.includes('wip')) setLLMIngestStep(1)
+              else if (msg.includes('popul') || msg.includes('databas')) setLLMIngestStep(2)
+              else if (msg.includes('snapshot')) setLLMIngestStep(3)
+            } else if (event.type === 'warning') {
+              addLog(event.msg, 'warn')
+            } else if (event.type === 'final') {
+              setLLMIngestStep(4)
+              setLLMIngestResult(event)
+              setLLMIngestPhase('done')
+              addLog(`Done! Parsed ${event.arrays_parsed ?? 0} array(s).`, 'success')
+              if (event.snapshot_id) {
+                addLog(`Snapshot saved: ${event.snapshot_id}`, 'success')
+              }
+            }
+          } catch (parseErr) {
+            // ignore malformed SSE line
+          }
+        }
+      }
+    } catch (err) {
+      addLog(`Error: ${err.message}`, 'error')
+      setLLMIngestError(err.message)
+      setLLMIngestPhase('error')
+    }
+  }, [apiBase])
+
+  const handleLLMFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) startLLMIngest(file)
+    // reset input so same file can be re-selected
+    e.target.value = ''
+  }
+
+  // Auto-scroll terminal logs
+  useEffect(() => {
+    llmLogsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [llmIngestLogs])
+
   const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }
 
   const handleInputChange = (e) => {
@@ -606,11 +715,255 @@ export default function ChatPage({ apiBase, chatbotApi }) {
     }
   }
 
+  const LLM_STEPS = [
+    { label: 'Backup', icon: '🛡️', desc: 'Saving current state' },
+    { label: 'LLM Parse', icon: '🤖', desc: 'AI extracting arrays' },
+    { label: 'Populate', icon: '🗄️', desc: 'Loading databases' },
+    { label: 'Snapshot', icon: '📸', desc: 'Creating source' },
+  ]
+
   return (
     <div 
       style={{ display: 'flex', height: '100%', overflow: 'hidden', position: 'relative' }}
       onMouseDown={handleRootMouseDown}
     >
+      {/* Hidden file input for LLM ingest */}
+      <input
+        ref={llmFileRef}
+        type="file"
+        accept=".txt,.log,.json"
+        style={{ display: 'none' }}
+        onChange={handleLLMFileChange}
+      />
+
+      {/* ── LLM Ingest Overlay ────────────────────────────────────────────── */}
+      {showLLMIngest && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9998,
+          background: 'rgba(0,0,0,0.88)',
+          backdropFilter: 'blur(16px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'fadeIn 0.25s ease',
+        }}>
+          <div style={{
+            width: '100%', maxWidth: 680,
+            margin: '0 20px',
+            background: 'linear-gradient(145deg, rgba(22,27,34,0.98) 0%, rgba(13,17,23,0.98) 100%)',
+            border: '1px solid rgba(72,79,88,0.5)',
+            borderRadius: 20,
+            boxShadow: '0 40px 120px rgba(0,0,0,0.7), 0 0 60px rgba(1,169,130,0.08)',
+            overflow: 'hidden',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '20px 24px 16px',
+              borderBottom: '1px solid rgba(72,79,88,0.3)',
+              background: 'linear-gradient(90deg, rgba(1,169,130,0.08) 0%, transparent 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10,
+                  background: 'linear-gradient(135deg, rgba(1,169,130,0.3) 0%, rgba(88,166,255,0.2) 100%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '1px solid rgba(1,169,130,0.3)',
+                }}>
+                  <Cpu size={20} style={{ color: 'var(--hpe-green)' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--foreground)' }}>Parse Log with LLM</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                    {llmIngestFile?.name || 'Processing file...'}
+                  </div>
+                </div>
+              </div>
+              {(llmIngestPhase === 'done' || llmIngestPhase === 'error' || llmIngestPhase === 'idle') && (
+                <button
+                  onClick={() => { setShowLLMIngest(false); setLLMIngestPhase('idle') }}
+                  style={{
+                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(72,79,88,0.4)',
+                    borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
+                    color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12
+                  }}
+                >
+                  <X size={13} /> Close
+                </button>
+              )}
+            </div>
+
+            {/* Step Pipeline */}
+            <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid rgba(72,79,88,0.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                {LLM_STEPS.map((step, i) => {
+                  const done = llmIngestStep > i || llmIngestPhase === 'done'
+                  const active = llmIngestStep === i && llmIngestPhase === 'running'
+                  const isLast = i === LLM_STEPS.length - 1
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', flex: isLast ? 0 : 1 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                        <div style={{
+                          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 15,
+                          background: done
+                            ? 'rgba(1,169,130,0.2)'
+                            : active
+                              ? 'rgba(88,166,255,0.15)'
+                              : 'rgba(72,79,88,0.2)',
+                          border: `2px solid ${
+                            done ? 'rgba(1,169,130,0.6)'
+                              : active ? 'rgba(88,166,255,0.6)'
+                                : 'rgba(72,79,88,0.3)'
+                          }`,
+                          boxShadow: active ? '0 0 12px rgba(88,166,255,0.3)' : 'none',
+                          animation: active ? 'pulse 1.5s ease infinite' : 'none',
+                          transition: 'all 0.4s ease',
+                        }}>
+                          {done ? <CheckCircle2 size={16} style={{ color: 'var(--hpe-green)' }} /> : step.icon}
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: done ? 'var(--hpe-green)' : active ? 'var(--accent-blue)' : 'var(--muted)' }}>
+                            {step.label}
+                          </div>
+                        </div>
+                      </div>
+                      {!isLast && (
+                        <div style={{
+                          flex: 1, height: 2, margin: '0 6px', marginTop: -18,
+                          background: done ? 'var(--hpe-green)' : 'rgba(72,79,88,0.3)',
+                          transition: 'background 0.4s ease',
+                          borderRadius: 1,
+                        }} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Retro Terminal Log */}
+            <div style={{
+              margin: '0 24px 0',
+              height: 180,
+              background: '#0a0c10',
+              border: '1px solid rgba(72,79,88,0.3)',
+              borderRadius: 10,
+              overflow: 'hidden',
+              marginTop: 16,
+            }}>
+              <div style={{
+                padding: '6px 12px',
+                background: 'rgba(255,255,255,0.03)',
+                borderBottom: '1px solid rgba(72,79,88,0.2)',
+                display: 'flex', alignItems: 'center', gap: 6
+              }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f85149' }} />
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#d29922' }} />
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3fb950' }} />
+                <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 6, fontFamily: 'var(--font-mono)' }}>san-llm-agent — ingest stream</span>
+                {llmIngestPhase === 'running' && (
+                  <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'var(--hpe-green)', animation: 'pulse 1s ease infinite' }} />
+                )}
+              </div>
+              <div style={{
+                padding: '10px 14px',
+                height: 'calc(100% - 33px)',
+                overflowY: 'auto',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                lineHeight: 1.7,
+              }}>
+                {llmIngestLogs.length === 0 && (
+                  <span style={{ color: 'rgba(139,148,158,0.5)' }}>Waiting for stream...</span>
+                )}
+                {llmIngestLogs.map((log, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 2 }}>
+                    <span style={{ color: 'rgba(139,148,158,0.5)', flexShrink: 0 }}>{log.ts}</span>
+                    <span style={{
+                      color: log.type === 'error' ? '#f85149'
+                        : log.type === 'warn' ? '#d29922'
+                          : log.type === 'success' ? '#3fb950'
+                            : log.type === 'system' ? '#bc8cff'
+                              : '#58a6ff'
+                    }}>
+                      {log.type === 'progress' ? '▶ ' : log.type === 'success' ? '✓ ' : log.type === 'warn' ? '⚠ ' : log.type === 'error' ? '✗ ' : '» '}
+                      {log.msg}
+                    </span>
+                  </div>
+                ))}
+                <div ref={llmLogsEndRef} />
+              </div>
+            </div>
+
+            {/* Success card */}
+            {llmIngestPhase === 'done' && llmIngestResult && (
+              <div style={{ margin: '16px 24px 0', padding: '16px 20px', background: 'rgba(1,169,130,0.08)', border: '1px solid rgba(1,169,130,0.25)', borderRadius: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <CheckCircle2 size={16} style={{ color: 'var(--hpe-green)' }} />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--hpe-green)' }}>Ingest Complete</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>
+                    {llmIngestResult.arrays_parsed ?? 0} array{(llmIngestResult.arrays_parsed ?? 0) !== 1 ? 's' : ''} loaded
+                  </span>
+                </div>
+                {llmIngestResult.arrays && llmIngestResult.arrays.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {llmIngestResult.arrays.map((arr, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 12px',
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(72,79,88,0.3)',
+                        borderRadius: 8,
+                      }}>
+                        <Database size={13} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>{arr.name || 'Unnamed Array'}</div>
+                          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>
+                            {arr.model || ''}{arr.serial ? ` · S/N: ${arr.serial}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {llmIngestResult.snapshot_id && (
+                  <div style={{ marginTop: 10, fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ color: 'var(--accent-purple)' }}>📸</span>
+                    Snapshot saved: <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-blue)' }}>{llmIngestResult.snapshot_id}</code>
+                  </div>
+                )}
+                <button
+                  onClick={() => window.location.reload()}
+                  style={{
+                    marginTop: 14, width: '100%', padding: '9px 0',
+                    background: 'var(--hpe-green)', border: 'none', borderRadius: 8,
+                    color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    transition: 'opacity 0.2s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                >
+                  🔄 Reload Dashboard to Apply
+                </button>
+              </div>
+            )}
+
+            {/* Error state */}
+            {llmIngestPhase === 'error' && (
+              <div style={{ margin: '16px 24px 0', padding: '14px 16px', background: 'rgba(248,81,73,0.08)', border: '1px solid rgba(248,81,73,0.3)', borderRadius: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <AlertTriangle size={14} style={{ color: '#f85149' }} />
+                  <span style={{ fontSize: 12, color: '#f85149', fontWeight: 600 }}>Ingest Failed</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>{llmIngestError}</div>
+              </div>
+            )}
+
+            <div style={{ height: 20 }} />
+          </div>
+        </div>
+      )}
+
       {/* Radial Menu Popup */}
       {radialPos && (
         <div 
@@ -815,6 +1168,27 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             </span>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* ✨ Parse Log with LLM button */}
+            <button
+              id="llm-ingest-btn"
+              className="btn btn-sm"
+              onClick={() => llmFileRef.current?.click()}
+              style={{
+                background: 'linear-gradient(135deg, rgba(1,169,130,0.15) 0%, rgba(88,166,255,0.1) 100%)',
+                border: '1px solid rgba(1,169,130,0.35)',
+                color: 'var(--hpe-green)',
+                fontSize: 11,
+                fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 5,
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(1,169,130,0.25) 0%, rgba(88,166,255,0.18) 100%)'; e.currentTarget.style.boxShadow = '0 0 14px rgba(1,169,130,0.2)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(1,169,130,0.15) 0%, rgba(88,166,255,0.1) 100%)'; e.currentTarget.style.boxShadow = 'none' }}
+              title="Parse a raw log file using the SAN LLM agent"
+            >
+              <Sparkles size={11} />
+              Parse Log with LLM
+            </button>
             <button 
               className="btn btn-sm"
               onClick={() => setShowConnectModal(true)}

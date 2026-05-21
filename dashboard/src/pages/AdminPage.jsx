@@ -94,6 +94,292 @@ function FakerSection({ apiBase }) {
   )
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Log File Ingest Section
+// ══════════════════════════════════════════════════════════════════════════════
+function LogFileIngestSection({ apiBase }) {
+  const fileRef = useRef(null)
+  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState([])
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+  const [fileName, setFileName] = useState('')
+  const [backups, setBackups] = useState([])
+  const [backupsOpen, setBackupsOpen] = useState(false)
+  const [restoring, setRestoring] = useState(null)
+  const progressRef = useRef(null)
+
+  // Load backup list whenever the accordion opens
+  useEffect(() => {
+    if (!backupsOpen) return
+    fetch(`${apiBase}/api/ingest/log/backups`)
+      .then(r => r.json())
+      .then(d => setBackups(d.backups || []))
+      .catch(() => {})
+  }, [backupsOpen, apiBase, result])
+
+  const handleFile = async (file) => {
+    if (!file) return
+    setFileName(file.name)
+    setError(null)
+    setResult(null)
+    setProgress(['⏳ Reading file…'])
+    setBusy(true)
+
+    const form = new FormData()
+    form.append('file', file)
+
+    try {
+      setProgress(prev => [...prev, '📡 Sending to ingest API…'])
+      const res = await fetch(`${apiBase}/api/ingest/log`, { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Ingest failed')
+      setProgress(prev => [...prev, `✓ Ingest complete — ${data.arrays_parsed} array(s) loaded in ${data.elapsed_sec}s`])
+      setResult(data)
+    } catch (e) {
+      setError(e.message)
+      setProgress(prev => [...prev, `✗ Error: ${e.message}`])
+    } finally {
+      setBusy(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  const handleRestore = async (backup_id) => {
+    if (!window.confirm(`Restore backup "${backup_id}"?\n\nThis will WIPE current data and replace it with the backup snapshot.`)) return
+    setRestoring(backup_id)
+    try {
+      const res = await fetch(`${apiBase}/api/ingest/log/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backup_id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      alert(`✓ Restored:\n  Neo4j: ${data.restored?.neo4j_nodes ?? 0} nodes, ${data.restored?.neo4j_edges ?? 0} edges\n  MongoDB: ${data.restored?.mongo_nodes ?? 0} nodes\n  Elasticsearch: ${data.restored?.es_docs ?? 0} docs`)
+      setResult(null)
+      setProgress([])
+    } catch (e) {
+      alert(`✗ Restore failed: ${e.message}`)
+    } finally {
+      setRestoring(null)
+    }
+  }
+
+  return (
+    <div className="glass-card" style={{ padding: 24, gridColumn: '1 / -1' }}>
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 12,
+          background: 'linear-gradient(135deg, var(--hpe-green) 0%, var(--accent-cyan) 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          boxShadow: '0 4px 14px rgba(1,169,130,0.35)',
+        }}>
+          <Upload size={20} color="#fff" />
+        </div>
+        <div>
+          <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 2 }}>Ingest Log File</h3>
+          <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+            Upload a terminal snapshot <code style={{ fontSize: 10, background: 'var(--surface-2)', padding: '1px 5px', borderRadius: 4 }}>.txt</code> or
+            parsed array dump <code style={{ fontSize: 10, background: 'var(--surface-2)', padding: '1px 5px', borderRadius: 4 }}>.json</code>.
+            Replaces all graph data — previous data is backed up automatically (reversible).
+          </p>
+        </div>
+      </div>
+
+      {/* ── Drop zone ── */}
+      <div
+        id="ingest-dropzone"
+        onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('drag-over') }}
+        onDragLeave={e => e.currentTarget.classList.remove('drag-over')}
+        onDrop={e => {
+          e.preventDefault()
+          e.currentTarget.classList.remove('drag-over')
+          const f = e.dataTransfer.files?.[0]
+          if (f) handleFile(f)
+        }}
+        onClick={() => !busy && fileRef.current?.click()}
+        style={{
+          marginTop: 16, marginBottom: 14,
+          border: '2px dashed var(--line)',
+          borderRadius: 14,
+          padding: busy ? '20px' : '32px 20px',
+          textAlign: 'center',
+          cursor: busy ? 'not-allowed' : 'pointer',
+          transition: 'all 0.2s',
+          background: 'transparent',
+        }}
+      >
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".txt,.json,text/plain,application/json"
+          style={{ display: 'none' }}
+          onChange={e => handleFile(e.target.files?.[0])}
+        />
+        {busy ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <div className="loading-spinner" style={{ width: 26, height: 26 }} />
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>Ingesting <b>{fileName}</b>…</span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <Upload size={30} style={{ color: 'var(--hpe-green)', opacity: 0.75 }} />
+            <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 0 }}>Drop .txt or .json here, or <span style={{ color: 'var(--hpe-green)', textDecoration: 'underline' }}>click to browse</span></p>
+            <p style={{ fontSize: 11, color: 'var(--muted)' }}>
+              TXT = raw terminal snapshot &nbsp;·&nbsp; JSON = pre-parsed array array
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Progress log ── */}
+      {progress.length > 0 && (
+        <div
+          ref={progressRef}
+          style={{
+            marginBottom: 14, padding: '10px 14px',
+            background: 'var(--surface-2)', borderRadius: 8,
+            fontSize: 11, fontFamily: 'var(--font-mono)',
+            maxHeight: 100, overflowY: 'auto',
+            color: 'var(--foreground)', lineHeight: 1.8,
+          }}
+        >
+          {progress.map((line, i) => <div key={i}>{line}</div>)}
+        </div>
+      )}
+
+      {/* ── Error ── */}
+      {error && (
+        <div style={{
+          marginBottom: 14, padding: '10px 14px', borderRadius: 8,
+          background: 'rgba(248, 81, 73, 0.08)', border: '1px solid rgba(248,81,73,0.25)',
+          fontSize: 12, color: 'var(--accent-rose)',
+        }}>
+          ✗ {error}
+        </div>
+      )}
+
+      {/* ── Success summary ── */}
+      {result && !error && (
+        <div style={{
+          marginBottom: 14, padding: '14px 18px', borderRadius: 12,
+          background: 'linear-gradient(135deg, rgba(1,169,130,0.07) 0%, rgba(57,197,207,0.05) 100%)',
+          border: '1px solid rgba(1,169,130,0.22)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontSize: 20 }}>✓</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--hpe-green)' }}>
+              {result.arrays_parsed} array{result.arrays_parsed !== 1 ? 's' : ''} ingested successfully
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>
+              {result.elapsed_sec}s · {result.mode?.toUpperCase() ?? ''}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {(result.arrays || []).map((arr, i) => (
+              <div key={i} style={{
+                padding: '7px 12px', borderRadius: 8,
+                background: 'var(--surface-1)',
+                border: '1px solid var(--line)',
+                fontSize: 11,
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 2 }}>{arr.name || '(unnamed)'}</div>
+                <div style={{ color: 'var(--muted)' }}>
+                  {arr.model && <>{arr.model} · </>}
+                  💽 {arr.drives ?? 0} drives · 🖥 {arr.hosts ?? 0} hosts · 🔌 {arr.ports ?? 0} ports
+                </div>
+              </div>
+            ))}
+          </div>
+          {result.errors?.length > 0 && (
+            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--accent-amber)' }}>
+              ⚠ {result.errors.length} warning(s): {result.errors.slice(0, 2).join(' · ')}
+              {result.errors.length > 2 ? ` +${result.errors.length - 2} more` : ''}
+            </div>
+          )}
+          {result.backup_id && (
+            <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
+              🗂 Backup: <code style={{ color: 'var(--accent-cyan)', fontSize: 10 }}>{result.backup_id}</code>
+              &nbsp;— click "Backup History &amp; Restore" below to roll back
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Backup / Restore accordion ── */}
+      <div style={{ border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>
+        <button
+          onClick={() => setBackupsOpen(o => !o)}
+          style={{
+            width: '100%', background: 'var(--surface-2)', border: 'none',
+            padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10,
+            cursor: 'pointer', color: 'var(--foreground)', fontSize: 13, fontWeight: 600,
+            borderBottom: backupsOpen ? '1px solid var(--line)' : 'none',
+          }}
+        >
+          <Database size={15} style={{ color: 'var(--accent-purple)' }} />
+          Backup History &amp; Restore
+          <span style={{
+            marginLeft: 'auto', fontSize: 11, color: 'var(--muted)',
+            transform: backupsOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s', display: 'inline-block',
+          }}>▼</span>
+        </button>
+
+        {backupsOpen && (
+          <div style={{ padding: '12px 16px' }}>
+            {backups.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: '12px 0' }}>
+                No backups yet — one is automatically created before every ingest operation.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {backups.map(b => (
+                  <div key={b.backup_id} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '8px 12px', borderRadius: 8,
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--line)',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>
+                        {b.backup_id}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                        {new Date(b.created_at).toLocaleString()} &nbsp;·&nbsp;
+                        {b.neo4j_nodes} neo4j nodes, {b.neo4j_edges} edges &nbsp;·&nbsp;
+                        {b.mongo_nodes} mongo nodes
+                      </div>
+                    </div>
+                    <button
+                      className="btn"
+                      disabled={!!restoring}
+                      onClick={() => handleRestore(b.backup_id)}
+                      style={{ fontSize: 11, padding: '5px 12px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                    >
+                      {restoring === b.backup_id ? '↻ Restoring…' : '↺ Restore'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        #ingest-dropzone.drag-over {
+          border-color: var(--hpe-green) !important;
+          background: rgba(1,169,130,0.06) !important;
+          transform: scale(1.01);
+        }
+      `}</style>
+    </div>
+  )
+}
+
 // Add Node Section (from AdminPanel, inline)
 function AddNodeSection({ apiBase, onRefresh }) {
   const [label, setLabel] = useState('Host')
@@ -251,6 +537,8 @@ export default function AdminPage({ apiBase }) {
         <button className="btn" onClick={refresh}><RefreshCw size={14} /> Refresh</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
+        {/* Full-width log ingest section always first */}
+        <LogFileIngestSection apiBase={apiBase} />
         <FakerSection apiBase={apiBase} />
         <AddNodeSection apiBase={apiBase} onRefresh={refresh} />
         <CsvIngestSection apiBase={apiBase} />
