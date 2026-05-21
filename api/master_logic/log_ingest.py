@@ -180,6 +180,15 @@ class LogIngestManager:
         neo4j_data = self._backup_neo4j()
         mongo_data = self._backup_mongo()
         es_data    = self._backup_es()
+        # Backup the ontology database.json
+        ontology_data = {"nodes": [], "edges": []}
+        try:
+            from integrations.topology_db import TopologyDB
+            tdb = TopologyDB()
+            ontology_data = tdb.get_topology()
+        except Exception as ex:
+            log.warning(f"[log_ingest] Failed to backup ontology: {ex}")
+
         backup = {
             "backup_id":  backup_id,
             "label":      label or backup_id,
@@ -187,6 +196,7 @@ class LogIngestManager:
             "neo4j":  neo4j_data,
             "mongo":  mongo_data,
             "es":     es_data,
+            "ontology": ontology_data,
         }
         path = os.path.join(BACKUP_DIR, f"{backup_id}.json")
         with open(path, "w", encoding="utf-8") as f:
@@ -358,6 +368,17 @@ class LogIngestManager:
                         stats["es_docs"] += 1
                     except Exception:
                         pass
+
+        # ── Ontology restore ──
+        ontology_data = backup.get("ontology")
+        if ontology_data:
+            try:
+                from integrations.topology_db import TopologyDB
+                tdb = TopologyDB()
+                tdb._write(ontology_data)
+                log.info(f"[restore] Ontology database.json restored successfully ({len(ontology_data.get('nodes', []))} nodes).")
+            except Exception as ex:
+                log.warning(f"[restore] Failed to restore ontology database.json: {ex}")
 
         log.info(f"[restore] Restored {backup_id}: {stats}")
         return {"backup_id": backup_id, "restored": stats}
