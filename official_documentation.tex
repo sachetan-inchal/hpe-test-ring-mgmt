@@ -1,0 +1,986 @@
+\documentclass[11pt,a4paper]{article}
+
+% =========================================================
+% COMPILER:
+% USE XeLaTeX IN OVERLEAF
+% =========================================================
+
+% =========================================================
+% PAGE SETUP
+% =========================================================
+
+\usepackage[
+top=0.85in,
+bottom=0.9in,
+left=0.9in,
+right=0.9in
+]{geometry}
+
+% =========================================================
+% PACKAGES
+% =========================================================
+
+\usepackage[table]{xcolor}
+\usepackage{graphicx}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{tcolorbox}
+\usepackage{tocloft}
+\usepackage{fontspec}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{colortbl}
+\usepackage{float}
+
+% =========================================================
+% FIGURE PLACEHOLDERS (drop PNGs into images/)
+% =========================================================
+
+% Usage: \screenshot{filename}{caption}{label}
+% Example file: images/setup_npm_start.png
+\newcommand{\screenshot}[3]{%
+  \begin{figure}[H]
+  \centering
+  \IfFileExists{images/#1}{%
+    \includegraphics[width=0.92\textwidth,keepaspectratio]{images/#1}%
+  }{%
+    \begin{tcolorbox}[
+      colback=secondary,
+      colframe=linegray,
+      boxrule=0.8pt,
+      arc=2mm,
+      width=0.92\textwidth,
+      height=5.8cm,
+      halign=center,
+      valign=center
+    ]
+    \centering
+    {\sffamily\bfseries\color{primary}Screenshot placeholder}\\[0.6em]
+    {\ttfamily\small images/#1}\\[0.8em]
+    {\small\color{textgray}#2}
+    \end{tcolorbox}%
+  }%
+  \caption{#2}
+  \label{fig:#3}
+  \end{figure}%
+}
+
+% =========================================================
+% PROFESSIONAL FONTS
+% =========================================================
+
+\setmainfont{TeX Gyre Termes}
+\setsansfont{TeX Gyre Heros}
+\setmonofont{Latin Modern Mono}
+
+% =========================================================
+% COLORS
+% =========================================================
+
+\definecolor{primary}{HTML}{0B1F3A}
+\definecolor{secondary}{HTML}{F5F7FA}
+\definecolor{textgray}{HTML}{444444}
+\definecolor{codebg}{HTML}{F7F9FC}
+\definecolor{tablegray}{HTML}{FAFAFA}
+\definecolor{linegray}{HTML}{D9DDE3}
+\definecolor{headerbg}{HTML}{E9EEF5}
+
+% =========================================================
+% LINKS
+% =========================================================
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primary,
+    urlcolor=blue
+}
+
+% =========================================================
+% HEADER FOOTER
+% =========================================================
+
+\pagestyle{fancy}
+
+\fancyhf{}
+
+\fancyhead[L]{\small\sffamily\textcolor{primary}{HPE Test Ring Management Tool}}
+\fancyhead[R]{\small\sffamily\textcolor{primary}{Enterprise Architecture Guide}}
+
+\fancyfoot[C]{\thepage}
+
+\renewcommand{\headrulewidth}{0.4pt}
+
+% =========================================================
+% SPACING
+% =========================================================
+
+\setstretch{1.15}
+
+\setlength{\parskip}{0.55em}
+\setlength{\parindent}{0pt}
+
+% =========================================================
+% SECTION STYLE
+% =========================================================
+
+\titleformat{\section}
+{\fontsize{20}{24}\selectfont\bfseries\sffamily\color{primary}}
+{\thesection}{1em}{}
+
+\titleformat{\subsection}
+{\fontsize{15}{18}\selectfont\bfseries\sffamily\color{primary}}
+{\thesubsection}{1em}{}
+
+\titleformat{\subsubsection}
+{\fontsize{12}{15}\selectfont\bfseries\sffamily\color{primary}}
+{\thesubsubsection}{1em}{}
+
+\titlespacing*{\section}{0pt}{18pt}{8pt}
+\titlespacing*{\subsection}{0pt}{14pt}{6pt}
+\titlespacing*{\subsubsection}{0pt}{10pt}{5pt}
+
+% =========================================================
+% CODE BLOCKS
+% =========================================================
+
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small,
+    frame=single,
+    breaklines=true,
+    columns=fullflexible,
+    showstringspaces=false,
+    rulecolor=\color{linegray},
+    xleftmargin=8pt,
+    xrightmargin=8pt,
+    aboveskip=10pt,
+    belowskip=10pt,
+    framesep=8pt
+}
+
+% =========================================================
+% TABLE STYLE
+% =========================================================
+
+\renewcommand{\arraystretch}{1.45}
+
+% =========================================================
+% DOCUMENT START
+% =========================================================
+
+\begin{document}
+
+% =========================================================
+% TITLE PAGE
+% =========================================================
+
+\begin{titlepage}
+
+\thispagestyle{empty}
+
+\begin{center}
+
+\vspace*{1cm}
+
+\includegraphics[width=0.45\textwidth]{images/hpe_logo.png}
+
+\vspace{1.7cm}
+
+{\fontsize{30}{36}\selectfont\bfseries\sffamily\color{primary}
+HPE Ring Test Management
+}
+
+\vspace{0.5cm}
+
+{\Large
+Enterprise Architecture, Features \& Setup Guide
+}
+
+\vspace{1.6cm}
+
+\begin{tcolorbox}[
+colback=secondary,
+colframe=linegray,
+width=0.92\textwidth,
+boxrule=0.7pt,
+arc=2mm
+]
+
+\centering
+
+\vspace{0.3cm}
+
+{\Large\bfseries\sffamily Enterprise SAN Discovery \& AI Platform}
+
+\vspace{0.7cm}
+
+\large
+
+This document presents the enterprise architecture, discovery workflows, AI-assisted topology management, infrastructure orchestration, graph persistence systems, operational workflows, deployment procedures, and setup guidelines for the HPE Ring Test Management platform.
+
+\vspace{0.3cm}
+
+\end{tcolorbox}
+
+\vfill
+
+{\Large\bfseries\sffamily Authors}
+
+\vspace{0.8cm}
+
+\begin{tabular}{c}
+\Large Preetham M R \\
+\vspace{0.3cm}
+\Large Unmesh Raj \\
+\vspace{0.3cm}
+\Large Sachethan I \\
+\vspace{0.3cm}
+\Large Samarth K N \\
+\end{tabular}
+
+\vspace{1.3cm}
+
+{\Large May 2026}
+
+\end{center}
+
+\end{titlepage}
+
+% =========================================================
+% TOC
+% =========================================================
+
+\tableofcontents
+
+\newpage
+
+% =========================================================
+% EXECUTIVE SUMMARY
+% =========================================================
+
+\section{Executive Summary}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+The HPE Ring Test Management platform is a full-stack enterprise SAN discovery and infrastructure intelligence platform designed for topology management, graph-based storage analysis, AI-assisted workflows, infrastructure simulation, and operational experimentation.
+
+The platform integrates multiple enterprise technologies into a unified architecture including:
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item SAN simulation and device emulation
+    \item BFS-based topology discovery
+    \item Neo4j graph persistence
+    \item Elasticsearch indexing
+    \item AI-powered RAG workflows
+    \item React operational dashboards
+    \item Node.js chatbot services
+    \item Infrastructure orchestration via Docker Compose
+\end{itemize}
+
+The architecture is modular, scalable, and designed to support enterprise infrastructure experimentation without requiring physical SAN hardware.
+
+\screenshot{arch_high_level.png}{High-level platform architecture: React dashboard, Flask API, simulator, Neo4j, Elasticsearch, MongoDB, and Node.js chatbot services.}{arch-high-level}
+
+% =========================================================
+% PLATFORM OVERVIEW
+% =========================================================
+
+\section{Platform Overview}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+The repository combines SAN simulation, topology discovery, AI-assisted workflows, graph intelligence, and operational management into a unified monorepo platform.
+
+The platform provides:
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Virtual SAN testing environments
+    \item Interactive topology visualization
+    \item AI-assisted troubleshooting
+    \item Infrastructure discovery pipelines
+    \item Device-level CLI simulation
+    \item Graph-based relationship persistence
+    \item Real-time operational dashboards
+\end{itemize}
+
+\subsection{Enterprise Objectives}
+
+The system is designed to support scalable experimentation, topology management, graph analytics, operational automation, and intelligent infrastructure reasoning workflows.
+
+The platform significantly reduces dependency on physical hardware while enabling repeatable infrastructure experimentation.
+
+\screenshot{dashboard_sidebar_full.png}{Main dashboard shell with sidebar navigation across Discovery, Test Ring Viewer, Inventory, Emulator, AI Assistant, Admin, and Health modules.}{dashboard-sidebar}
+
+% =========================================================
+% TECHNOLOGY STACK
+% =========================================================
+
+\section{Technology Stack}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+\rowcolors{2}{tablegray}{white}
+
+\begin{longtable}{p{4cm} p{4cm} p{5cm}}
+
+\toprule
+\rowcolor{headerbg}
+\textbf{Layer} & \textbf{Technology} & \textbf{Purpose} \\
+\midrule
+
+Frontend &
+React 18 + Vite &
+Dashboard and operational UI \\
+
+Backend API &
+Flask + Python 3.10 &
+REST orchestration layer \\
+
+Chatbot Service &
+Node.js Express &
+AI-assisted workflows \\
+
+Graph Database &
+Neo4j 5.18 &
+Topology graph persistence \\
+
+Search Engine &
+Elasticsearch 8.13 &
+Search indexing and RAG \\
+
+Document Store &
+MongoDB &
+Users, chats, metrics \\
+
+Simulator &
+Python-based engine &
+Virtual SAN emulation \\
+
+LLM Integration &
+Groq + Gemini &
+Natural language reasoning \\
+
+Infrastructure &
+Docker Compose &
+Service orchestration \\
+
+\bottomrule
+
+\end{longtable}
+
+% =========================================================
+% SYSTEM ARCHITECTURE
+% =========================================================
+
+\section{System Architecture}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+The architecture follows a modular microservices design consisting of independent backend services, graph databases, AI orchestration layers, and infrastructure simulation workflows.
+
+\subsection{Architecture Layers}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item React Dashboard Layer
+    \item Node.js Chatbot Layer
+    \item Flask API Integration Layer
+    \item Discovery \& Simulation Layer
+    \item Database \& Persistence Layer
+\end{itemize}
+
+\subsection{Operational Workflow}
+
+The React dashboard communicates with Flask APIs and chatbot services through REST and SSE workflows. Discovery pipelines interact with simulator devices, parse topology metadata, persist graph relationships into Neo4j, and index searchable data into Elasticsearch.
+
+The AI assistant consumes graph and indexed context through hybrid Retrieval-Augmented Generation workflows.
+
+\screenshot{arch_discovery_pipeline.png}{Discovery pipeline: BFS crawl, device fingerprinting, parsing, Neo4j persistence, and Elasticsearch indexing.}{arch-discovery}
+
+% =========================================================
+% CORE COMPONENTS
+% =========================================================
+
+\section{Core Components}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+% =========================================================
+% SIMULATOR
+% =========================================================
+
+\subsection{Simulator Subsystem}
+
+The simulator subsystem provides realistic SAN device emulation and virtual topology generation.
+
+\subsubsection{Core Modules}
+
+\rowcolors{2}{tablegray}{white}
+
+\begin{longtable}{p{5cm} p{9cm}}
+
+\toprule
+\rowcolor{headerbg}
+\textbf{Module} & \textbf{Purpose} \\
+\midrule
+
+simulator\_manager.py &
+Simulator orchestration and boot management \\
+
+network\_sim.py &
+Virtual network routing and IP registry \\
+
+device\_terminal.py &
+CLI terminal emulation \\
+
+data\_generator.py &
+Synthetic topology generation \\
+
+proxy\_engine.py &
+SSH/Telnet proxy workflows \\
+
+\bottomrule
+
+\end{longtable}
+
+\subsubsection{Capabilities}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item HPE CLI emulation
+    \item Linux shell simulation
+    \item Windows host emulation
+    \item Virtual topology generation
+    \item Device-level command execution
+    \item REST-based simulator APIs
+\end{itemize}
+
+\subsubsection{Operational Benefits}
+
+The simulator enables infrastructure experimentation without requiring physical SAN hardware. This significantly reduces testing overhead and enables scalable development workflows.
+
+\screenshot{simulator_terminal_boot.png}{Simulator manager running in a terminal, booting virtual SAN devices and exposing REST endpoints on port 5001.}{simulator-boot}
+
+\screenshot{emulator_terminal_hpe.png}{Emulator tab executing HPE CLI commands against a simulated array device.}{emulator-hpe}
+
+% =========================================================
+% DISCOVERY ENGINE
+% =========================================================
+
+\subsection{Discovery Engine}
+
+The discovery subsystem performs topology crawling, device fingerprinting, parsing, indexing, and graph persistence.
+
+\subsubsection{Discovery Workflow}
+
+\begin{enumerate}[leftmargin=1.5cm]
+    \item Initialize BFS crawler
+    \item Fingerprint discovered devices
+    \item Execute device-specific commands
+    \item Parse topology metadata
+    \item Persist graph relationships
+    \item Index searchable entities
+    \item Stream live discovery events
+\end{enumerate}
+
+\subsubsection{Discovery Capabilities}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item BFS topology crawling
+    \item Multi-vendor fingerprinting
+    \item HPE array discovery
+    \item Linux host detection
+    \item Windows host discovery
+    \item Topology extraction
+    \item Port and disk discovery
+    \item Live operational streaming
+\end{itemize}
+
+\subsubsection{Enterprise Value}
+
+The discovery engine acts as the operational intelligence layer of the platform by building graph-aware topology relationships and enabling infrastructure visibility.
+
+\screenshot{discovery_overview.png}{Discovery tab showing live BFS scan results on the interactive topology graph.}{discovery-overview}
+
+\screenshot{discovery_running_events.png}{Discovery in progress with streaming events and highlighted newly discovered devices.}{discovery-running}
+
+\screenshot{discovery_embedded_terminal.png}{Device-level terminal opened from the Discovery view for command execution on a discovered node.}{discovery-terminal}
+
+% =========================================================
+% FLASK API
+% =========================================================
+
+\subsection{Flask REST API}
+
+The Flask API acts as the central orchestration layer integrating discovery workflows, graph persistence, simulator management, dashboard operations, and AI services.
+
+\subsubsection{Key Features}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Discovery orchestration
+    \item Simulator control APIs
+    \item Graph topology APIs
+    \item Elasticsearch integration
+    \item AI proxy workflows
+    \item Browser terminal access
+\end{itemize}
+
+\subsubsection{Important Endpoints}
+
+\rowcolors{2}{tablegray}{white}
+
+\begin{longtable}{p{5cm} p{9cm}}
+
+\toprule
+\rowcolor{headerbg}
+\textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+
+/api/discovery/start &
+Starts BFS topology discovery \\
+
+/api/discovery/stream &
+Streams live discovery events \\
+
+/api/simulator/exec &
+Executes remote CLI commands \\
+
+/api/graph/neo4j &
+Returns topology graph data \\
+
+/api/chat &
+RAG-assisted AI query endpoint \\
+
+/api/search &
+Search and indexing APIs \\
+
+\bottomrule
+
+\end{longtable}
+
+\screenshot{api_explorer_tester.png}{Flask API Explorer at \texttt{/tester} for trying REST endpoints interactively during development.}{api-explorer}
+
+\screenshot{api_standalone_terminal.png}{Browser-based standalone terminal at \texttt{/terminal} for remote CLI access to simulated devices.}{api-terminal}
+
+% =========================================================
+% AI & RAG
+% =========================================================
+
+\section{AI \& RAG Architecture}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+The platform integrates Retrieval-Augmented Generation workflows using Elasticsearch, Neo4j, Groq, and Gemini APIs.
+
+\subsection{RAG Workflow}
+
+\begin{enumerate}[leftmargin=1.5cm]
+    \item User submits infrastructure query
+    \item Query classification workflow executes
+    \item Elasticsearch retrieves indexed context
+    \item Neo4j graph relationships are analyzed
+    \item Context is forwarded to Groq/Gemini
+    \item AI response is synthesized
+    \item Results returned to dashboard
+\end{enumerate}
+
+\subsection{AI Features}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Hybrid RAG workflows
+    \item Graph-aware reasoning
+    \item SAN-aware conversational support
+    \item AI-assisted troubleshooting
+    \item Infrastructure query synthesis
+\end{itemize}
+
+\screenshot{arch_rag_pipeline.png}{Hybrid RAG workflow: user query, Elasticsearch retrieval, Neo4j graph context, and Groq/Gemini synthesis.}{arch-rag}
+
+\screenshot{chat_overview.png}{AI Assistant tab with chat history, engine selection, and an infrastructure troubleshooting conversation.}{chat-overview}
+
+\screenshot{chat_agent_timeline.png}{Agent reasoning timeline and step-by-step plan while the AI resolves a SAN topology question.}{chat-agent}
+
+% =========================================================
+% GRAPH DATABASE
+% =========================================================
+
+\section{Graph Database Design}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+Neo4j acts as the authoritative topology graph store for infrastructure relationships.
+
+\subsection{Core Node Types}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item ArraySystem
+    \item Node
+    \item Host
+    \item Switch
+    \item Cage
+    \item PhysicalDisk
+\end{itemize}
+
+\subsection{Relationship Types}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item HAS\_NODE
+    \item HAS\_CAGE
+    \item CONNECTS\_TO
+    \item CONTAINS
+    \item REMOTE\_COPY\_PEER
+    \item PEER
+\end{itemize}
+
+\subsection{Graph Benefits}
+
+Graph persistence enables infrastructure traversal, relationship analysis, graph-aware reasoning, and scalable topology understanding.
+
+\screenshot{infra_neo4j_browser.png}{Neo4j Browser visualizing ArraySystem, Node, Host, Switch, and relationship edges after discovery or import.}{neo4j-browser}
+
+% =========================================================
+% ELASTICSEARCH
+% =========================================================
+
+\section{Elasticsearch Architecture}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+Elasticsearch provides full-text indexing and searchable infrastructure context for AI workflows and operational queries.
+
+\subsection{Indexed Metadata}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Device identifiers
+    \item Firmware metadata
+    \item Capacity information
+    \item Topology summaries
+    \item Infrastructure tags
+    \item Discovery timestamps
+\end{itemize}
+
+\subsection{Search Benefits}
+
+The indexing layer enables rapid infrastructure retrieval, AI-assisted context enrichment, and operational search workflows.
+
+\screenshot{infra_elasticsearch.png}{Elasticsearch cluster health endpoint confirming the search index is available for discovery and RAG workflows.}{elasticsearch}
+
+% =========================================================
+% DASHBOARD
+% =========================================================
+
+\section{Dashboard Architecture}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+The React dashboard provides operational visualization, topology interaction, AI chat workflows, and infrastructure management interfaces.
+
+\subsection{Dashboard Modules}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item DiscoveryPage
+    \item TopologyPage
+    \item InventoryPage
+    \item EmulatorPage
+    \item ChatPage
+    \item AdminPage
+    \item HealthPage
+\end{itemize}
+
+\subsection{Dashboard Capabilities}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Interactive topology visualization
+    \item Device-level terminal access
+    \item Discovery monitoring
+    \item AI-assisted operational workflows
+    \item Infrastructure management
+\end{itemize}
+
+\screenshot{dashboard_login.png}{Login screen before accessing operational tabs (authentication via MongoDB-backed users).}{dashboard-login}
+
+\screenshot{topology_san_diagram.png}{Test Ring Viewer SAN diagram tab with arrays, Fibre Channel switches, Ethernet switches, and hosts.}{topology-diagram}
+
+\screenshot{topology_canvas.png}{Interactive graph canvas view with zoom, pan, and node selection for test ring analysis.}{topology-canvas}
+
+\screenshot{inventory_hierarchy_tree.png}{Inventory tab hierarchical tree of storage resources from arrays down to physical disks.}{inventory-tree}
+
+\screenshot{emulator_overview.png}{Emulator tab device selector and terminal for Linux or HPE CLI simulation.}{emulator-overview}
+
+\screenshot{health_overview.png}{Health tab with capacity metrics, service connectivity badges, and flagged infrastructure issues.}{health-overview}
+
+\screenshot{admin_faker_generate.png}{Admin tab SAN Fake Data Generator producing synthetic topology and optional Neo4j import.}{admin-faker}
+
+% =========================================================
+% INFRASTRUCTURE
+% =========================================================
+
+\section{Infrastructure \& Deployment}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+The platform uses Docker Compose for orchestration of infrastructure services including Neo4j, Elasticsearch, MongoDB, Flask APIs, and chatbot services.
+
+\subsection{Infrastructure Services}
+
+\rowcolors{2}{tablegray}{white}
+
+\begin{longtable}{p{5cm} p{5cm} p{3cm}}
+
+\toprule
+\rowcolor{headerbg}
+\textbf{Service} & \textbf{Purpose} & \textbf{Port} \\
+\midrule
+
+Neo4j &
+Graph persistence &
+7687 \\
+
+Elasticsearch &
+Search indexing &
+9200 \\
+
+MongoDB &
+Document storage &
+27017 \\
+
+Flask API &
+REST orchestration &
+5005 \\
+
+Dashboard &
+Operational UI &
+3000 \\
+
+Chatbot Service &
+AI workflows &
+5010 \\
+
+Simulator &
+Virtual SAN &
+5001 \\
+
+\bottomrule
+
+\end{longtable}
+
+\screenshot{setup_docker_desktop.png}{Docker Desktop showing Neo4j, Elasticsearch, and MongoDB containers running for local development.}{docker-desktop}
+
+\screenshot{dashboard_status_bar.png}{Dashboard status bar indicating Flask API, simulator, and chatbot service availability.}{status-bar}
+
+% =========================================================
+% SETUP GUIDE
+% =========================================================
+
+\section{Setup Guide}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+\subsection{Prerequisites}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Python 3.10 or newer
+    \item Node.js and npm
+    \item Docker Desktop
+    \item Git
+\end{itemize}
+
+\screenshot{setup_prerequisites.png}{Terminal or system info confirming Python 3.10+, Node.js, Docker, and Git are installed.}{setup-prereqs}
+
+\subsection{Environment Variables}
+
+\begin{lstlisting}
+GROQ_API_KEY=
+GEMINI_API_KEY=
+JWT_SECRET=
+MONGO_URI=
+\end{lstlisting}
+
+\screenshot{setup_env_file.png}{Monorepo \texttt{.env} file with API keys and service URLs (redact secrets before publishing).}{setup-env}
+
+\subsection{Start Infrastructure}
+
+\begin{lstlisting}
+docker-compose up -d neo4j elasticsearch mongo
+\end{lstlisting}
+
+\screenshot{setup_docker_compose.png}{PowerShell window running \texttt{docker-compose up -d neo4j elasticsearch mongo} from the monorepo root.}{setup-docker}
+
+\subsubsection{Recommended: One-Command Startup}
+
+For daily development, install dependencies once and start every application service from the monorepo root:
+
+\begin{lstlisting}
+npm install
+npm start
+\end{lstlisting}
+
+\screenshot{setup_npm_start.png}{\texttt{npm start} launching simulator, Flask API, chatbot, and dashboard via concurrently in a single terminal.}{setup-npm-start}
+
+\subsection{Start Simulator (manual)}
+
+\begin{lstlisting}
+py simulator/simulator_manager.py
+\end{lstlisting}
+
+\subsection{Start Flask API}
+
+\begin{lstlisting}
+py api/app.py
+\end{lstlisting}
+
+\subsection{Start Chatbot Service}
+
+\begin{lstlisting}
+cd chatbot-service
+npm run dev
+\end{lstlisting}
+
+\subsection{Start Dashboard}
+
+\begin{lstlisting}
+cd dashboard
+npm run dev
+\end{lstlisting}
+
+\screenshot{setup_manual_terminals.png}{Optional reference layout: separate terminals for simulator, API, chatbot, and dashboard when debugging individual services.}{setup-manual}
+
+\subsection{Access URLs}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Dashboard: \url{http://localhost:5173} (Vite dev server)
+    \item Flask API: \url{http://localhost:5005}
+    \item API Explorer: \url{http://localhost:5005/tester}
+    \item Chatbot: \url{http://localhost:5010}
+    \item Neo4j Browser: \url{http://localhost:7474}
+    \item Elasticsearch: \url{http://localhost:9200}
+\end{itemize}
+
+% =========================================================
+% TROUBLESHOOTING
+% =========================================================
+
+\section{Troubleshooting}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+\subsection{Docker Issues}
+
+\begin{lstlisting}
+docker logs hpe_neo4j
+docker logs hpe_elasticsearch
+\end{lstlisting}
+
+\screenshot{health_service_badges.png}{Health tab service badges showing which dependency is unavailable when troubleshooting Docker or port conflicts.}{health-services}
+
+\subsection{Dependency Issues}
+
+\begin{lstlisting}
+pip install -r requirements.txt
+npm install
+\end{lstlisting}
+
+\subsection{Connection Issues}
+
+\begin{lstlisting}
+CHATBOT_SERVICE_URL=http://localhost:5010
+NEO4J_URI=bolt://neo4j:7687
+ES_HOST=http://elasticsearch:9200
+\end{lstlisting}
+
+% =========================================================
+% ENTERPRISE BENEFITS
+% =========================================================
+
+\section{Enterprise Benefits}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+The platform provides significant enterprise operational advantages including:
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Reduced infrastructure testing costs
+    \item Scalable SAN experimentation
+    \item AI-assisted troubleshooting workflows
+    \item Graph-aware infrastructure visibility
+    \item Real-time operational monitoring
+    \item Unified infrastructure orchestration
+    \item Faster topology analysis
+    \item Simplified deployment workflows
+\end{itemize}
+
+% =========================================================
+% FUTURE SCALABILITY
+% =========================================================
+
+\section{Future Scalability}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+The modular architecture supports future enhancements including:
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Multi-cluster orchestration
+    \item Advanced graph analytics
+    \item Agentic AI workflows
+    \item Kubernetes deployment support
+    \item Distributed topology discovery
+    \item Predictive infrastructure analysis
+\end{itemize}
+
+% =========================================================
+% CONCLUSION
+% =========================================================
+
+\section{Conclusion}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.6cm}
+
+The HPE Ring Test Management platform provides a scalable enterprise environment for SAN simulation, topology discovery, graph intelligence, AI-assisted workflows, infrastructure experimentation, and operational visualization.
+
+The architecture integrates modern backend systems, graph databases, AI-assisted reasoning pipelines, topology visualization workflows, and scalable infrastructure orchestration into a unified operational platform.
+
+The platform enables enterprise experimentation and operational analysis while significantly reducing dependency on physical SAN hardware.
+
+\vspace{1cm}
+
+\begin{center}
+\Large\bfseries End of Document
+\end{center}
+
+\end{document}

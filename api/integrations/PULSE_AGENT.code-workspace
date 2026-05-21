@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../../.."
+		},
+		{
+			"path": "../../../../hpe-ontology-and-graph"
+		},
+		{
+			"path": "../../../../Ring-Test-Management-Tool--HPE-CPP3"
+		}
+	]
+}

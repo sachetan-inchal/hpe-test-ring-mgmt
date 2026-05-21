@@ -3,33 +3,33 @@
     "10.20.10.5": "PROD-A",
     "10.20.10.200": "swprod-a1",
     "10.20.10.201": "swprod-a2",
-    "10.20.191.226": "host-prod-a-00",
-    "10.20.137.25": "host-prod-a-01",
-    "10.20.20.22": "host-prod-a-02",
-    "10.20.61.93": "host-prod-a-03",
-    "10.20.246.143": "host-prod-a-04",
-    "10.20.48.133": "host-prod-a-05",
-    "10.20.13.21": "host-prod-a-06",
-    "10.20.175.36": "host-prod-a-07",
+    "10.20.202.103": "host-prod-a-00",
+    "10.20.125.27": "host-prod-a-01",
+    "10.20.33.235": "host-prod-a-02",
+    "10.20.202.68": "host-prod-a-03",
+    "10.20.70.2": "host-prod-a-04",
+    "10.20.63.111": "host-prod-a-05",
+    "10.20.94.149": "host-prod-a-06",
+    "10.20.179.126": "host-prod-a-07",
     "10.20.20.5": "PROD-B",
     "10.20.20.200": "swprod-b1",
     "10.20.20.201": "swprod-b2",
-    "10.20.96.70": "host-prod-b-00",
-    "10.20.109.126": "host-prod-b-01",
-    "10.20.94.248": "host-prod-b-02",
-    "10.20.252.48": "host-prod-b-03",
+    "10.20.253.108": "host-prod-b-00",
+    "10.20.48.143": "host-prod-b-01",
+    "10.20.29.188": "host-prod-b-02",
+    "10.20.218.132": "host-prod-b-03",
     "10.20.30.5": "DR-C",
     "10.20.30.200": "swdr-c1",
-    "10.20.71.47": "host-dr-c-00",
-    "10.20.254.55": "host-dr-c-01",
-    "10.20.64.202": "host-dr-c-02",
-    "10.20.153.118": "host-dr-c-03",
+    "10.20.225.171": "host-dr-c-00",
+    "10.20.205.199": "host-dr-c-01",
+    "10.20.79.199": "host-dr-c-02",
+    "10.20.9.149": "host-dr-c-03",
     "10.20.40.5": "EDGE-D",
     "10.20.40.200": "swedge-d1",
-    "10.20.35.189": "host-edge-d-00",
-    "10.20.203.97": "host-edge-d-01",
-    "10.20.38.249": "host-edge-d-02",
-    "10.20.189.200": "host-edge-d-03"
+    "10.20.111.125": "host-edge-d-00",
+    "10.20.52.181": "host-edge-d-01",
+    "10.20.145.178": "host-edge-d-02",
+    "10.20.208.112": "host-edge-d-03"
   },
   "arrays": [
     {
@@ -37,7 +37,7 @@
       "array_id": "0x1001",
       "ip_address": "10.20.10.5",
       "model": "HPE Alletra Storage MP",
-      "serial": "HPE53585308",
+      "serial": "HPE99417835",
       "node_count": 4,
       "connected_array_ips": [
         "10.20.20.5"
@@ -55,43 +55,43 @@
       "hosts": [
         {
           "name": "host-prod-a-00",
-          "ip_address": "10.20.191.226",
+          "ip_address": "10.20.202.103",
           "os_type": "windows"
         },
         {
           "name": "host-prod-a-01",
-          "ip_address": "10.20.137.25",
-          "os_type": "windows"
+          "ip_address": "10.20.125.27",
+          "os_type": "linux"
         },
         {
           "name": "host-prod-a-02",
-          "ip_address": "10.20.20.22",
+          "ip_address": "10.20.33.235",
           "os_type": "linux"
         },
         {
           "name": "host-prod-a-03",
-          "ip_address": "10.20.61.93",
-          "os_type": "linux"
+          "ip_address": "10.20.202.68",
+          "os_type": "windows"
         },
         {
           "name": "host-prod-a-04",
-          "ip_address": "10.20.246.143",
-          "os_type": "linux"
+          "ip_address": "10.20.70.2",
+          "os_type": "windows"
         },
         {
           "name": "host-prod-a-05",
-          "ip_address": "10.20.48.133",
+          "ip_address": "10.20.63.111",
           "os_type": "linux"
         },
         {
           "name": "host-prod-a-06",
-          "ip_address": "10.20.13.21",
+          "ip_address": "10.20.94.149",
           "os_type": "windows"
         },
         {
           "name": "host-prod-a-07",
-          "ip_address": "10.20.175.36",
-          "os_type": "linux"
+          "ip_address": "10.20.179.126",
+          "os_type": "windows"
         }
       ]
     },
@@ -100,7 +100,7 @@
       "array_id": "0x1002",
       "ip_address": "10.20.20.5",
       "model": "HPE Alletra 9000",
-      "serial": "HPE08228102",
+      "serial": "HPE49750351",
       "node_count": 2,
       "connected_array_ips": [
         "10.20.10.5",
@@ -119,22 +119,22 @@
       "hosts": [
         {
           "name": "host-prod-b-00",
-          "ip_address": "10.20.96.70",
-          "os_type": "windows"
+          "ip_address": "10.20.253.108",
+          "os_type": "linux"
         },
         {
           "name": "host-prod-b-01",
-          "ip_address": "10.20.109.126",
+          "ip_address": "10.20.48.143",
           "os_type": "windows"
         },
         {
           "name": "host-prod-b-02",
-          "ip_address": "10.20.94.248",
+          "ip_address": "10.20.29.188",
           "os_type": "windows"
         },
         {
           "name": "host-prod-b-03",
-          "ip_address": "10.20.252.48",
+          "ip_address": "10.20.218.132",
           "os_type": "windows"
         }
       ]
@@ -144,7 +144,7 @@
       "array_id": "0x1003",
       "ip_address": "10.20.30.5",
       "model": "HPE Primera 600",
-      "serial": "HPE17570103",
+      "serial": "HPE60791451",
       "node_count": 2,
       "connected_array_ips": [
         "10.20.20.5"
@@ -158,23 +158,23 @@
       "hosts": [
         {
           "name": "host-dr-c-00",
-          "ip_address": "10.20.71.47",
+          "ip_address": "10.20.225.171",
           "os_type": "linux"
         },
         {
           "name": "host-dr-c-01",
-          "ip_address": "10.20.254.55",
-          "os_type": "windows"
+          "ip_address": "10.20.205.199",
+          "os_type": "linux"
         },
         {
           "name": "host-dr-c-02",
-          "ip_address": "10.20.64.202",
-          "os_type": "windows"
+          "ip_address": "10.20.79.199",
+          "os_type": "linux"
         },
         {
           "name": "host-dr-c-03",
-          "ip_address": "10.20.153.118",
-          "os_type": "windows"
+          "ip_address": "10.20.9.149",
+          "os_type": "linux"
         }
       ]
     },
@@ -183,7 +183,7 @@
       "array_id": "0x1004",
       "ip_address": "10.20.40.5",
       "model": "HPE Nimble HF60",
-      "serial": "HPE88347735",
+      "serial": "HPE93000129",
       "node_count": 2,
       "connected_array_ips": [],
       "switches": [
@@ -195,22 +195,22 @@
       "hosts": [
         {
           "name": "host-edge-d-00",
-          "ip_address": "10.20.35.189",
-          "os_type": "linux"
+          "ip_address": "10.20.111.125",
+          "os_type": "windows"
         },
         {
           "name": "host-edge-d-01",
-          "ip_address": "10.20.203.97",
+          "ip_address": "10.20.52.181",
           "os_type": "linux"
         },
         {
           "name": "host-edge-d-02",
-          "ip_address": "10.20.38.249",
+          "ip_address": "10.20.145.178",
           "os_type": "linux"
         },
         {
           "name": "host-edge-d-03",
-          "ip_address": "10.20.189.200",
+          "ip_address": "10.20.208.112",
           "os_type": "linux"
         }
       ]
