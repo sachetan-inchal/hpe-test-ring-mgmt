@@ -1673,12 +1673,53 @@ def _update_ontology_db(all_arrays, source_label=None, source_id=None):
             "edgeCount": len(new_edges)
         })
 
-        # ── Write merged database (baseline + new) ─────────────────────────
         merged = {
             "nodes": existing_nodes + new_nodes,
             "edges": existing_edges + new_edges,
             "sources": existing_sources
         }
+        tdb._write(merged)
+        log.info(f"[ontology_sync] Appended {len(new_nodes)} nodes, {len(new_edges)} edges (source: {source_id})")
+
+        # Trigger reload of ontology engine globally
+        global _ontology_graph, _ontology_traversal, _ontology_source, _ontology_engine
+        from integrations.ontology_engine import populate_graph, OntologyLLMEngine
+        _ontology_graph, _ontology_traversal, _ontology_source = populate_graph()
+        _ontology_engine = OntologyLLMEngine(_ontology_traversal)
+        log.info("[ontology_sync] In-memory ontology traversal and graph reloaded.")
+    except Exception as ex:
+        log.exception("Failed to update ontology database.json")
+
+
+@app.route("/api/ingest/log/ai", methods=["POST"])
+def ingest_log_ai():
+    """
+    LLM-powered fallback ingest.
+
+    When standard parsing fails or yields incomplete results, this endpoint
+    uses the SAN Agent's LLM to recursively extract array data from a raw
+    text dump, then loads the result into all 3 databases.
+
+    Accepts:  multipart file or raw text body
+    Returns:  SSE stream with progress events, ending with a 'final' event
+    """
+    import collections
+
+    # Read raw text
+    raw = ""
+    file_name = ""
+    if request.files and "file" in request.files:
+        f = request.files["file"]
+        raw = f.read().decode("utf-8", errors="replace")
+        file_name = f.filename
+    elif request.data:
+        raw = request.data.decode("utf-8", errors="replace").strip()
+    elif (request.get_json(silent=True) or {}).get("text"):
+        raw = request.get_json()["text"]
+
+    if not raw:
+        return jsonify({"error": "No text provided"}), 400
+
     skip_backup = request.args.get("skip_backup", "false").lower() == "true"
     # Determine LLM backend: explicit param → auto-detect from env
     _use_ollama_param = str(request.args.get("useOllama", "")).lower()
