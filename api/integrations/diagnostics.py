@@ -9,6 +9,7 @@ RAGEngine/LLM to provide detailed troubleshooting recommendations.
 import os
 import sys
 import logging
+import json
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MONOREPO = os.path.dirname(os.path.dirname(BASE_DIR))
@@ -143,8 +144,14 @@ class SANDiagnostics:
         if self.llm_call:
             try:
                 ai_recommendations = self.llm_call(system_prompt, user_prompt)
+                if not ai_recommendations or "Error:" in ai_recommendations or "LLM Error:" in ai_recommendations:
+                    raise ValueError(ai_recommendations or "Empty response")
             except Exception as e:
-                ai_recommendations = f"Failed to generate AI recommendations: {e}"
+                ai_recommendations = (
+                    "AI troubleshooting guide is offline. Recommended Actions:\n"
+                    "- Check SFP physical connection on degraded Ports (cleaning fiber contacts).\n"
+                    "- Replace failed/degraded physical disks and rebuild array redundancy."
+                )
         else:
             ai_recommendations = (
                 "AI troubleshooting guide is offline. Recommended Actions:\n"

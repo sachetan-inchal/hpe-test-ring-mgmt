@@ -4,7 +4,7 @@
 - [/] Update docker-compose.yml (add MongoDB)
 - [/] Update .env / .env.example with all keys
 - [ ] Copy & adapt Node.js chatbot service (Preetham's backend → monorepo/chatbot-service/)
-- [ ] Port Unmesh's topology CRUD + ontology engine into Flask API
+- [x] Port Unmesh's topology CRUD + ontology engine into Flask API
 - [ ] Add SAN Fake Data Generator endpoint
 - [ ] Add import/export configuration endpoints
 - [ ] Enhance RAG engine with dual mode (Standard RAG + GraphRAG)

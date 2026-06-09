@@ -138,7 +138,7 @@ class RAGEngine:
         except Exception as e:
             return f"Ollama LLM Error: {str(e)}"
 
-    def _llm_call(self, system_prompt, user_prompt, history=None, temperature=0.1, use_ollama=False, disable_think=False, stream=False):
+    def _llm_call(self, system_prompt, user_prompt, history=None, temperature=0.1, use_ollama=False, disable_think=False, stream=False, json_mode=False):
         if use_ollama:
             return self._llm_call_ollama(system_prompt, user_prompt, history, temperature, disable_think, stream)
             
