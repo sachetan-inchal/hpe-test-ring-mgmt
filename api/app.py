@@ -101,6 +101,30 @@ def ensure_infrastructure():
     if not mongo.available:
         mongo._init_client()
 
+@app.before_request
+def enforce_read_only_on_external_ips():
+    """Block state-mutating calls from external IPs unless explicitly authenticated as admin."""
+    if request.method in ("GET", "OPTIONS", "HEAD"):
+        return
+    
+    # Check if request is local
+    remote_ip = request.remote_addr
+    is_local = remote_ip in ("127.0.0.1", "localhost", "::1")
+    
+    # Check if user has admin privileges
+    role = request.headers.get("X-User-Role", "").strip().lower()
+    
+    if not is_local and role != "admin":
+        # Allow AI chat/assistant routes to function normally
+        allowed_paths = ("/api/chat", "/api/ontology/chat", "/api/v1/monorepo/chat")
+        if any(p in request.path for p in allowed_paths):
+            return
+            
+        return jsonify({
+            "error": "Access Denied: This server is running in Read-Only mode for remote IP connections."
+        }), 403
+
+
 
 @app.after_request
 def apply_rbac_filter(response):
@@ -460,8 +484,8 @@ _rag_engine = RAGEngine(
 )
 
 
-def _san_agent_llm(system: str, user: str, use_ollama=False, disable_think=False) -> str:
-    return _rag_engine._llm_call(system, user, use_ollama=use_ollama, disable_think=disable_think)
+def _san_agent_llm(system: str, user: str, use_ollama=False, disable_think=False, stream=False, json_mode=False):
+    return _rag_engine._llm_call(system, user, use_ollama=use_ollama, disable_think=disable_think, stream=stream, json_mode=json_mode)
 
 
 # Per-command parsers: api REST parsers + sim_parser (simulator / discovery)
@@ -662,7 +686,60 @@ class ActiveTerminalGateway:
         self.user_decision = None  # "approve", "reject"
         self.modified_command = None
 
+import base64
+
+def _encrypt_password(password: str) -> str:
+    key = os.environ.get("SECRET_ENCRYPTION_KEY", "HPE_SECRET_KEY_2026")
+    xored = "".join(chr(ord(c) ^ ord(key[i % len(key)])) for i, c in enumerate(password))
+    return base64.b64encode(xored.encode("utf-8", errors="ignore")).decode("utf-8")
+
+def _decrypt_password(enc_password: str) -> str:
+    try:
+        key = os.environ.get("SECRET_ENCRYPTION_KEY", "HPE_SECRET_KEY_2026")
+        decoded = base64.b64decode(enc_password.encode("utf-8")).decode("utf-8", errors="ignore")
+        return "".join(chr(ord(c) ^ ord(key[i % len(key)])) for i, c in enumerate(decoded))
+    except Exception:
+        return enc_password
+
 _terminal_gateway = ActiveTerminalGateway()
+
+@app.route("/api/credentials/save", methods=["POST"])
+def save_ssh_credentials():
+    """Securely save host login credentials in MongoDB."""
+    data = request.json or {}
+    ip = data.get("ip")
+    username = data.get("username")
+    password = data.get("password")
+    
+    if not ip or not username or not password:
+        return jsonify({"error": "ip, username, and password are required"}), 400
+        
+    try:
+        encrypted = _encrypt_password(password)
+        if mongo.available:
+            db = mongo._client.hpe_san
+            db.ssh_credentials.update_one(
+                {"ip": ip},
+                {"$set": {"username": username, "password": encrypted}},
+                upsert=True
+            )
+            return jsonify({"status": "saved", "message": f"SSH credentials indexed for {ip}"})
+        return jsonify({"error": "MongoDB unavailable"}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/credentials/status/<path:ip>", methods=["GET"])
+def get_ssh_credentials_status(ip):
+    """Check if credentials exist for a target IP without leaking plaintext passwords."""
+    try:
+        if mongo.available:
+            db = mongo._client.hpe_san
+            cred = db.ssh_credentials.find_one({"ip": ip})
+            if cred:
+                return jsonify({"ip": ip, "has_credentials": True, "username": cred.get("username")})
+        return jsonify({"ip": ip, "has_credentials": False})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 def _san_agent_executor(ip, cmd):
     # Check if we are in manual approval mode
@@ -689,25 +766,50 @@ def _san_agent_executor(ip, cmd):
     else:
         cmd_to_run = cmd
 
-    # Route execution to proper connection type
+    # Route execution to proper connection type using abstract DeviceConnector layer
+    from api.integrations.device_connector import SimulatorConnector, SSHConnector
     if _terminal_gateway.connection_type == "ssh":
-        import paramiko
-        try:
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(
-                _terminal_gateway.ssh_host,
-                username=_terminal_gateway.ssh_username,
-                password=_terminal_gateway.ssh_password,
-                timeout=10
-            )
-            stdin, stdout, stderr = ssh.exec_command(cmd_to_run)
-            out = stdout.read().decode('utf-8', errors='replace')
-            err = stderr.read().decode('utf-8', errors='replace')
-            ssh.close()
-            return out + "\n" + err
-        except Exception as e:
-            return f"SSH Connection Error: {str(e)}"
+        target_ip = ip if ip else _terminal_gateway.ssh_host
+        password = _terminal_gateway.ssh_password
+        username = _terminal_gateway.ssh_username or "root"
+        
+        # 1. Automate discovery/lookup: pull password from Mongo database
+        if not password and mongo.available:
+            try:
+                db = mongo._client.hpe_san
+                cred = db.ssh_credentials.find_one({"ip": target_ip})
+                if cred:
+                    username = cred.get("username", username)
+                    password = _decrypt_password(cred.get("password"))
+            except Exception as e:
+                log.warning(f"Database lookup for credentials failed: {e}")
+                
+        if not password:
+            # Emit auth failure event if no password credentials exist
+            discovery_crawler._emit({
+                "type": "auth_failed",
+                "ip": target_ip,
+                "msg": f"Missing SSH password credentials for {target_ip} in master index."
+            })
+            return f"Error: SSH credentials not configured for {target_ip}"
+            
+        connector = SSHConnector(
+            host=target_ip,
+            username=username,
+            password=password
+        )
+        if connector.connect():
+            res = connector.execute(cmd_to_run)
+            connector.disconnect()
+            return res.get("stdout", "") + "\n" + res.get("stderr", "")
+        else:
+            # 2. Failed password fallback prompt: emit auth_failed SSE event to trigger dashboard input modal
+            discovery_crawler._emit({
+                "type": "auth_failed",
+                "ip": target_ip,
+                "msg": f"SSH connection credentials rejected for host {target_ip}."
+            })
+            return f"SSH Connection Authentication Failure to {target_ip}"
     elif _terminal_gateway.connection_type == "local":
         import subprocess
         import os
@@ -738,8 +840,11 @@ def _san_agent_executor(ip, cmd):
                 return f"Error: Failed to auto-spawn terminal shell: {e}"
         return _desktop_shell.run_command(cmd_to_run)
     else:
-        # Fall back to simulated network
-        return virtual_network.execute(ip, cmd_to_run)
+        # Fall back to SimulatorConnector
+        connector = SimulatorConnector(virtual_network, ip)
+        res = connector.execute(cmd_to_run)
+        return res.get("stdout", "")
+
 
 _san_agent = SanAgent(
     execute_fn=_san_agent_executor,
@@ -1234,6 +1339,14 @@ def discovery_stream():
 def discovery_status():
     return jsonify(discovery_crawler.get_status())
 
+@app.route("/api/diagnostics/report", methods=["GET"])
+def get_diagnostics_report():
+    """Retrieve SAN topology health diagnostics and AI troubleshooting guidelines."""
+    from integrations.diagnostics import SANDiagnostics
+    # Run diagnostics using current databases and the registered LLM caller
+    diag = SANDiagnostics(neo4j_store=neo4j, mongo_store=mongo, llm_fn=_san_agent_llm)
+    return jsonify(diag.generate_diagnostic_report())
+
 @app.route("/api/discover/ingest", methods=["POST"])
 def ingest_log_discovery():
     """Upload a .txt log file and start discovery from it."""
@@ -1673,7 +1786,6 @@ def _update_ontology_db(all_arrays, source_label=None, source_id=None):
             "edgeCount": len(new_edges)
         })
 
-        # ── Write merged database (baseline + new) ─────────────────────────
         merged = {
             "nodes": existing_nodes + new_nodes,
             "edges": existing_edges + new_edges,
@@ -1722,7 +1834,17 @@ def ingest_log_ai():
         return jsonify({"error": "No text provided"}), 400
 
     skip_backup = request.args.get("skip_backup", "false").lower() == "true"
-    
+    # Determine LLM backend: explicit param → auto-detect from env
+    _use_ollama_param = str(request.args.get("useOllama", "")).lower()
+    if _use_ollama_param == "true":
+        use_ollama_flag = True
+    elif _use_ollama_param == "false":
+        use_ollama_flag = False
+    else:
+        # Auto: use Groq when GROQ_API_KEY is set, Ollama otherwise
+        use_ollama_flag = not bool((os.environ.get("GROQ_API_KEY") or "").strip())
+    llm_backend_name = "Ollama" if use_ollama_flag else "Groq"
+
     # Snapshot name configuration
     snapshot_name = request.args.get("label") or request.args.get("snapshot_name")
     if not snapshot_name:
@@ -1732,27 +1854,22 @@ def ingest_log_ai():
             snapshot_name = f"✨ LLM Ingest ({datetime.now().strftime('%H:%M:%S')})"
 
     def generate():
-        steps = collections.deque()
-
-        def on_step(step):
-            steps.append(step)
-
         # Step 0 – backup
-        yield f'data: {json.dumps({"type": "progress", "msg": "Creating backup of current data..."})}\n\n'
+        yield f'data: {json.dumps({"type": "progress", "msg": "Creating backup of current data..."})}' + "\n\n"
         backup_id = None
         if not skip_backup:
             try:
                 backup_id = _log_ingest.create_backup()
-                yield f'data: {json.dumps({"type": "progress", "msg": f"Backup created: {backup_id}"})}\n\n'
+                yield f'data: {json.dumps({"type": "progress", "msg": f"Backup created: {backup_id}"})}' + "\n\n"
             except Exception as ex:
-                yield f'data: {json.dumps({"type": "warning", "msg": f"Backup failed (continuing): {ex}"})}\n\n'
+                yield f'data: {json.dumps({"type": "warning", "msg": f"Backup failed (continuing): {ex}"})}' + "\n\n"
 
         # Step 1 – wipe
-        yield f'data: {json.dumps({"type": "progress", "msg": "Wiping existing database data..."})}\n\n'
+        yield f'data: {json.dumps({"type": "progress", "msg": "Wiping existing database data..."})}' + "\n\n"
         _log_ingest.wipe_all()
 
         # Step 2 – LLM parse via SAN Agent
-        yield f'data: {json.dumps({"type": "progress", "msg": "Sending log to SAN Agent for LLM parsing..."})}\n\n'
+        yield f'data: {json.dumps({"type": "progress", "msg": f"Sending log to SAN Agent for LLM parsing ({llm_backend_name})..."})}' + "\n\n"
 
         system_prompt = (
             "You are an HPE 3PAR / Primera / Alletra SAN data extraction expert. "
@@ -1773,13 +1890,51 @@ def ingest_log_ai():
         errors = []
 
         for idx, chunk in enumerate(chunks):
-            yield f'data: {json.dumps({"type": "progress", "msg": f"LLM parsing chunk {idx+1}/{len(chunks)}..."})}\n\n'
+            yield f'data: {json.dumps({"type": "progress", "msg": f"LLM parsing chunk {idx+1}/{len(chunks)}..."})}' + "\n\n"
+            # Signal frontend to open a new LLM chunk panel
+            yield f'data: {json.dumps({"type": "llm_start", "chunk_idx": idx + 1, "total_chunks": len(chunks)})}' + "\n\n"
+
+            full_response = ""
             try:
-                llm_out = _san_agent_llm(system_prompt, f"Terminal dump (chunk {idx+1}/{len(chunks)}):\n\n{chunk}")
-                # Strip markdown code fences if present
-                cleaned = re.sub(r"^```(?:json)?\s*", "", llm_out.strip(), flags=re.IGNORECASE)
+                if use_ollama_flag:
+                    # Streaming Ollama call — emit think/chunk tokens live
+                    stream_gen = _rag_engine._llm_call_ollama(
+                        system_prompt,
+                        f"Terminal dump (chunk {idx+1}/{len(chunks)}):\n\n{chunk}",
+                        stream=True,
+                        disable_think=False,
+                    )
+                    for raw_line in stream_gen:
+                        try:
+                            cd = json.loads(raw_line)
+                            token = cd.get("message", {}).get("content", "")
+                            if not token:
+                                continue
+                            full_response += token
+                            # Classify token as think (inside <think>...</think>) or regular chunk
+                            has_open = "<think>" in full_response
+                            has_close = "</think>" in full_response
+                            evt_type = "think" if (has_open and not has_close) else "chunk"
+                            yield f'data: {json.dumps({"type": evt_type, "content": token})}' + "\n\n"
+                        except Exception:
+                            pass
+                else:
+                    # Non-streaming Groq: single call then emit as one chunk event
+                    full_response = _san_agent_llm(
+                        system_prompt,
+                        f"Terminal dump (chunk {idx+1}/{len(chunks)}):\n\n{chunk}",
+                        use_ollama=False,
+                    )
+                    if full_response:
+                        yield f'data: {json.dumps({"type": "chunk", "content": full_response})}' + "\n\n"
+
+                # Signal end of this LLM call
+                yield f'data: {json.dumps({"type": "llm_done", "chunk_idx": idx + 1})}' + "\n\n"
+
+                # Extract JSON — first strip <think> blocks
+                cleaned = re.sub(r"<think>.*?</think>", "", full_response, flags=re.DOTALL).strip()
+                cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
                 cleaned = re.sub(r"```\s*$", "", cleaned.strip())
-                # Find JSON array in response
                 m = re.search(r"(\[.*\])", cleaned, re.DOTALL)
                 if m:
                     parsed = json.loads(m.group(1))
@@ -1787,25 +1942,31 @@ def ingest_log_ai():
                         all_arrays.extend(parsed)
                     elif isinstance(parsed, dict):
                         all_arrays.append(parsed)
-                    yield f'data: {json.dumps({"type": "progress", "msg": f"Chunk {idx+1}: extracted {len(parsed) if isinstance(parsed, list) else 1} arrays"})}\n\n'
+                    count = len(parsed) if isinstance(parsed, list) else 1
+                    yield f'data: {json.dumps({"type": "progress", "msg": f"Chunk {idx+1}: extracted {count} array(s)"})}' + "\n\n"
                 else:
-                    errors.append(f"Chunk {idx+1}: LLM output had no JSON array")
+                    err_msg = f"Chunk {idx+1}: LLM output had no JSON array"
+                    errors.append(err_msg)
+                    yield f'data: {json.dumps({"type": "warning", "msg": err_msg})}' + "\n\n"
+
             except Exception as ex:
                 errors.append(f"Chunk {idx+1}: {str(ex)}")
-                yield f'data: {json.dumps({"type": "warning", "msg": f"Chunk {idx+1} failed: {ex}"})}\n\n'
+                yield f'data: {json.dumps({"type": "warning", "msg": f"Chunk {idx+1} failed: {ex}"})}' + "\n\n"
+                yield f'data: {json.dumps({"type": "llm_done", "chunk_idx": idx + 1})}' + "\n\n"
 
         # Step 3 – populate databases
-        yield f'data: {json.dumps({"type": "progress", "msg": f"Populating databases with {len(all_arrays)} arrays..."})}\n\n'
+        yield f'data: {json.dumps({"type": "progress", "msg": f"Populating databases with {len(all_arrays)} arrays..."})}' + "\n\n"
         for arr in all_arrays:
             if isinstance(arr, dict):
                 _log_ingest._store_parsed(arr)
 
         # Synchronize ontology database.json
-        yield f'data: {json.dumps({"type": "progress", "msg": "Synchronizing ontology database..."})}\n\n'
+        yield f'data: {json.dumps({"type": "progress", "msg": "Synchronizing ontology database..."})}' + "\n\n"
         _update_ontology_db(all_arrays, source_label=snapshot_name)
 
         # Step 4 – Save newly populated data as a snapshot
-        yield f'data: {json.dumps({"type": "progress", "msg": f"Saving persistent snapshot \"{snapshot_name}\"..."})}\n\n'
+        snap_msg = f"Saving persistent snapshot \"{snapshot_name}\"..."
+        yield f'data: {json.dumps({"type": "progress", "msg": snap_msg})}' + "\n\n"
         snapshot_id = None
         if all_arrays:
             try:
@@ -2144,18 +2305,31 @@ def agent_run_stream():
         queue = collections.deque()
         
         def on_step(step):
-            queue.append(step)
+            queue.append({"type": "step", "step": step})
+
+        def on_synthesis_chunk(chunk_text, is_think):
+            queue.append({"type": "synthesis", "content": chunk_text, "is_think": is_think})
 
         result = {}
         error_holder = []
         
         def run_thread():
             try:
-                res = _san_agent.run(query, array_hint=array_hint or None, on_step=on_step, use_ollama=use_ollama, disable_think=disable_think)
+                _san_agent.on_synthesis_chunk = on_synthesis_chunk
+                res = _san_agent.run(
+                    query, 
+                    array_hint=array_hint or None, 
+                    on_step=on_step, 
+                    use_ollama=use_ollama, 
+                    disable_think=disable_think,
+                    stream=True
+                )
                 result.update(res)
             except Exception as e:
                 log.exception("agent stream run failed")
                 error_holder.append(str(e))
+            finally:
+                _san_agent.on_synthesis_chunk = None
 
         t = threading.Thread(target=run_thread, daemon=True)
         t.start()
@@ -2166,8 +2340,8 @@ def agent_run_stream():
                 yield f"data: {json.dumps({'type': 'cancelled'})}\n\n"
                 return
             while queue:
-                step = queue.popleft()
-                yield f"data: {json.dumps({'type': 'step', 'step': step})}\n\n"
+                item = queue.popleft()
+                yield f"data: {json.dumps(item)}\n\n"
             if error_holder:
                 yield f"data: {json.dumps({'type': 'error', 'error': error_holder[0]})}\n\n"
                 return
@@ -2189,10 +2363,17 @@ def agent_run():
     """SAN AI Agent: simulator CLI → parse → Neo4j → answer with execution trace."""
     data = request.json or {}
     q = (data.get("query") or data.get("message") or "").strip()
+    use_ollama = data.get("useOllama", False)
+    disable_think = data.get("disableThink", False)
     if not q:
         return jsonify({"error": "query is required"}), 400
     try:
-        result = _san_agent.run(q, array_hint=data.get("array") or data.get("array_hint"))
+        result = _san_agent.run(
+            q, 
+            array_hint=data.get("array") or data.get("array_hint"),
+            use_ollama=use_ollama,
+            disable_think=disable_think
+        )
         return jsonify(result)
     except Exception as ex:
         log.exception("agent_run failed")
@@ -2223,22 +2404,37 @@ def chat():
         
         if stream and "stream_generator" in result:
             def generate():
-                for chunk in result["stream_generator"]:
-                    if req_id in _cancelled_requests:
-                        log.info(f"SSE chat stream aborted via cancel request: {req_id}")
-                        yield f"data: {json.dumps({'type': 'cancelled'})}\n\n"
-                        break
-                    try:
-                        chunk_data = json.loads(chunk)
-                        # Yield the chunk in SSE format
-                        c_type = 'think' if chunk_data.get('type') == 'think' else 'chunk'
-                        yield f"data: {json.dumps({'type': c_type, 'content': chunk_data.get('message', {}).get('content', ''), 'done': chunk_data.get('done', False)})}\n\n"
-                    except json.JSONDecodeError:
-                        yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                try:
+                    for chunk in result["stream_generator"]:
+                        if req_id in _cancelled_requests:
+                            log.info(f"SSE chat stream aborted via cancel request: {req_id}")
+                            yield f"data: {json.dumps({'type': 'cancelled'})}\n\n"
+                            break
+                        try:
+                            chunk_data = json.loads(chunk)
+                            # Support dynamic Ollama reasoning/thinking streams (e.g. deepseek-r1:8b)
+                            msg = chunk_data.get('message', {})
+                            content = msg.get('content', '')
+                            reasoning = msg.get('thinking') or msg.get('reasoning_content', '')
+                            
+                            if reasoning:
+                                c_type = 'think'
+                                yield f"data: {json.dumps({'type': c_type, 'content': reasoning, 'done': chunk_data.get('done', False)})}\n\n"
+                            else:
+                                c_type = 'think' if chunk_data.get('type') == 'think' else 'chunk'
+                                yield f"data: {json.dumps({'type': c_type, 'content': content, 'done': chunk_data.get('done', False)})}\n\n"
+                        except json.JSONDecodeError:
+                            yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                except Exception as stream_err:
+                    log.exception("Error during SSE stream generation")
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': f'\\n\\n[Stream Error: {str(stream_err)}]' })}\n\n"
                         
                 # After the stream finishes, yield the final result structure (cypher, table etc)
-                final_result = {k: v for k, v in result.items() if k != "stream_generator"}
-                yield f"data: {json.dumps({'type': 'final', 'result': final_result})}\n\n"
+                try:
+                    final_result = {k: v for k, v in result.items() if k != "stream_generator"}
+                    yield f"data: {json.dumps({'type': 'final', 'result': final_result})}\n\n"
+                except Exception as final_err:
+                    log.exception("Error yielding final result in SSE")
                 
             return Response(generate(), mimetype="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
@@ -2672,6 +2868,17 @@ def health():
     })
 
 
+@app.route("/api/llm/calls", methods=["GET"])
+def get_llm_calls():
+    from integrations.rag_engine import get_llm_calls_count
+    return jsonify({"count": get_llm_calls_count()})
+
+@app.route("/api/llm/calls/reset", methods=["POST"])
+def reset_llm_calls():
+    from integrations.rag_engine import reset_llm_calls_count
+    return jsonify({"count": reset_llm_calls_count()})
+
+
 # ─── Legacy /api Compatibility (from Editor) ───────────────────────────────
 
 @app.route("/api/cli/exec", methods=["POST"])
@@ -3031,5 +3238,39 @@ if __name__ == "__main__":
                 except Exception:
                     pass
     threading.Thread(target=_auto_index, daemon=True).start()
+
+    # Daily automated discovery interval execution scheduler
+    def _run_scheduled_discovery():
+        # Wait for startup initialization to complete
+        time.sleep(30)
+        log.info("[Scheduler] Daily discovery scheduler thread is online.")
+        while True:
+            try:
+                # Default seed IP fallback
+                seed_ips = ["10.20.10.5"]
+                
+                # Dynamically load from our master index to seed discovery
+                index_path = os.path.join(MONOREPO, "data", "master_index.json")
+                if os.path.exists(index_path):
+                    try:
+                        with open(index_path, "r") as f:
+                            idx = json.load(f)
+                        # Find arrays to seed
+                        all_devs = virtual_network.list_devices()
+                        array_ips = [d["ip"] for d in all_devs if d.get("type") == "array" or d.get("ip") in idx.get("arrays", [])]
+                        if array_ips:
+                            seed_ips = array_ips
+                    except Exception:
+                        pass
+                
+                log.info(f"[Scheduler] Starting daily automated discovery crawl. Seeds: {seed_ips}")
+                discovery_crawler.discover(seed_ips, delay_ms=20)
+            except Exception as ex:
+                log.error(f"[Scheduler] Daily crawl failed: {ex}")
+            
+            # Run once every 24 hours (86400 seconds)
+            time.sleep(86400)
+            
+    threading.Thread(target=_run_scheduled_discovery, daemon=True).start()
     
     app.run(debug=True, host="0.0.0.0", port=port, threaded=True)

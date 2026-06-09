@@ -64,6 +64,32 @@ class Neo4jStore:
         if not self._available:
             return
         dtype = parsed.get("_device_type", "")
+        ip = parsed.get("_ip", "")
+        
+        # Replace trigger: clear existing components to prevent stale/duplicate entries
+        if ip:
+            try:
+                if dtype == "hpe_array":
+                    self._run("""
+                        MATCH (a:ArraySystem {ip_address: $ip})
+                        OPTIONAL MATCH (a)-[:HAS_NODE]->(n:Node)
+                        OPTIONAL MATCH (a)-[:HAS_PORT]->(pt:Port)
+                        OPTIONAL MATCH (a)-[:HAS_CAGE]->(c:Cage)
+                        OPTIONAL MATCH (c)-[:CONTAINS]->(pd:PhysicalDisk)
+                        OPTIONAL MATCH (c)-[:HAS_SLOT]->(cs:CageSlot)
+                        DETACH DELETE n, pt, pd, cs, c, a
+                    """, ip=ip)
+                    log.info(f"[neo4j] Wiped old ArraySystem elements for {ip} to perform complete overwrite update")
+                elif dtype in ("linux_host", "windows_host"):
+                    self._run("""
+                        MATCH (h:Host {ip_address: $ip})
+                        OPTIONAL MATCH (h)-[:HAS_DISK]->(pd:PhysicalDisk)
+                        DETACH DELETE pd, h
+                    """, ip=ip)
+                    log.info(f"[neo4j] Wiped old Host elements for {ip} to perform complete overwrite update")
+            except Exception as e:
+                log.warning(f"[neo4j] Overwrite clear query failed for {ip}: {e}")
+
         if dtype == "hpe_array":
             self._store_array(parsed)
         elif dtype in ("linux_host", "windows_host"):

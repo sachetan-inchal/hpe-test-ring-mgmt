@@ -20,7 +20,7 @@ const PORT = process.env.CHATBOT_PORT || 5010;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5005', 'http://127.0.0.1:3000'],
+  origin: (origin, callback) => callback(null, true), // Allow all origins for RHEL IP access
   credentials: true
 }));
 app.use(express.json());
@@ -38,8 +38,8 @@ app.get('/', (req, res) => {
   res.json({ service: 'HPE SAN Chatbot Service', status: 'running', port: PORT });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n${'='.repeat(50)}`);
-  console.log(`  HPE SAN Chatbot Service — http://localhost:${PORT}`);
+  console.log(`  HPE SAN Chatbot Service — http://0.0.0.0:${PORT}`);
   console.log(`${'='.repeat(50)}\n`);
 });
