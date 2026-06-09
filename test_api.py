@@ -52,6 +52,8 @@ def run_suite():
     # --- TOPOLOGY ---
     results.append(test_endpoint("Get Topology (v1)", "/api/v1/san/topology"))
     results.append(test_endpoint("Graph Cytoscape (v1)", "/api/v1/san/graph/cytoscape"))
+    results.append(test_endpoint("Ontology Export", "/api/ontology/export"))
+    results.append(test_endpoint("Ontology Import", "/api/ontology/import", "POST", {"nodes": [], "edges": []}))
     
     # --- LEGACY ROUTES ---
     print("\n--- Legacy Compatibility Layer ---")

@@ -2615,6 +2615,35 @@ def ontology_chat():
         return jsonify({"error": str(ex)}), 500
 
 
+@app.route("/api/ontology/export", methods=["GET"])
+def export_ontology_topology():
+    """Export the entire ontology topology database.json."""
+    try:
+        data = _topology_db.get_topology()
+        return jsonify(data)
+    except Exception as ex:
+        log.exception("Ontology export failed")
+        return jsonify({"error": str(ex)}), 500
+
+
+@app.route("/api/ontology/import", methods=["POST"])
+def import_ontology_topology():
+    """Import and overwrite the entire ontology topology database.json."""
+    data = request.json or {}
+    if not isinstance(data, dict) or "nodes" not in data or "edges" not in data:
+        return jsonify({"error": "Invalid format. JSON must contain 'nodes' and 'edges' lists."}), 400
+    try:
+        _topology_db._write(data)
+        # Re-populate graph after update to keep reasoning engine in sync
+        global _ontology_graph, _ontology_traversal, _ontology_source, _ontology_engine
+        _ontology_graph, _ontology_traversal, _ontology_source = populate_graph()
+        _ontology_engine = OntologyLLMEngine(_ontology_traversal)
+        return jsonify({"status": "success", "message": "Ontology database configuration imported successfully."})
+    except Exception as ex:
+        log.exception("Ontology import failed")
+        return jsonify({"error": str(ex)}), 500
+
+
 # ── Graph node CRUD (elementId) ───────────────────────────────────────────────
 
 @app.route("/api/graph/nodes/<path:element_id>", methods=["PATCH"])

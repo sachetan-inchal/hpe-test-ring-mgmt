@@ -515,6 +515,66 @@ function DeleteSection({ apiBase, allNodes, onRefresh }) {
   )
 }
 
+// Ontology Backup & Import Section
+function OntologyBackupSection({ apiBase }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const fileRef = useRef(null)
+
+  const handleExport = async () => {
+    setBusy(true); setMsg('')
+    try {
+      const res = await fetch(`${apiBase}/api/ontology/export`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url
+      a.download = `ontology_topology_backup_${Date.now()}.json`; a.click()
+      URL.revokeObjectURL(url)
+      setMsg('✓ Exported database.json configuration.')
+    } catch (e) { setMsg(`✗ ${e.message}`) } finally { setBusy(false) }
+  }
+
+  const handleImport = async (file) => {
+    if (!file) return
+    setBusy(true); setMsg('')
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const res = await fetch(`${apiBase}/api/ontology/import`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed)
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setMsg(`✓ ${data.message || 'Imported ontology successfully'}`)
+    } catch (e) { setMsg(`✗ ${e.message}`) } finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
+  }
+
+  return (
+    <div className="glass-card" style={{ padding: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <Database size={18} style={{ color: 'var(--accent-purple)' }} />
+        <h3 style={{ fontSize: 15, fontWeight: 600 }}>Ontology Database Backup</h3>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
+        Backup and restore the entire ontology topology database configuration (`database.json`).
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <button className="btn btn-primary" onClick={handleExport} disabled={busy}>
+          <Download size={14} /> Export database.json
+        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, color: 'var(--muted)' }}>Restore/Import configuration file:</label>
+          <input ref={fileRef} type="file" accept=".json" className="input" onChange={e => handleImport(e.target.files?.[0])} />
+        </div>
+        {msg && <div style={{ fontSize: 12, color: msg.startsWith('✓') ? 'var(--status-ok)' : 'var(--accent-rose)' }}>{msg}</div>}
+      </div>
+    </div>
+  )
+}
+
 // ====== Main Admin Page ======
 export default function AdminPage({ apiBase }) {
   const [allNodes, setAllNodes] = useState([])
@@ -543,6 +603,7 @@ export default function AdminPage({ apiBase }) {
         <AddNodeSection apiBase={apiBase} onRefresh={refresh} />
         <CsvIngestSection apiBase={apiBase} />
         <FieldSchemaSection apiBase={apiBase} />
+        <OntologyBackupSection apiBase={apiBase} />
         <DeleteSection apiBase={apiBase} allNodes={allNodes} onRefresh={refresh} />
       </div>
     </div>
