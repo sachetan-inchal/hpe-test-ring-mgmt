@@ -118,7 +118,30 @@ class DiscoveryCrawler:
                 self.running = False
                 log.info("[crawler] Cancel requested by API.")
 
-    def discover(self, seed_ips: List[str], delay_ms: int = 20):
+    def _get_ssh_connector(self, ip: str):
+        if not self.mongo or not self.mongo.available:
+            return None
+        try:
+            db = self.mongo.client.hpe_san
+            cred = db.ssh_credentials.find_one({"ip": ip})
+            if cred:
+                from api.integrations.device_connector import SSHConnector
+                import base64
+                key = os.environ.get("SECRET_ENCRYPTION_KEY", "HPE_SECRET_KEY_2026")
+                enc_password = cred.get("password")
+                try:
+                    decoded = base64.b64decode(enc_password.encode("utf-8")).decode("utf-8", errors="ignore")
+                    password = "".join(chr(ord(c) ^ ord(key[i % len(key)])) for i, c in enumerate(decoded))
+                except Exception:
+                    password = enc_password
+                username = cred.get("username", "root")
+                port = int(cred.get("port", 22))
+                return SSHConnector(host=ip, username=username, password=password, port=port)
+        except Exception as e:
+            log.warning(f"[crawler] Failed to fetch credentials for {ip} from MongoDB: {e}")
+        return None
+
+    def discover(self, seed_ips: List[str], delay_ms: int = 20, commands: Optional[List[str]] = None):
         """Start BFS discovery from one or more seed IPs."""
         with self._lock:
             self.running = True
@@ -127,6 +150,7 @@ class DiscoveryCrawler:
             self.queue = collections.deque(seed_ips)
             self.discovered_entities = []
             self.delay_ms = delay_ms
+            self.custom_commands = commands
 
         self._emit({"type": "start", "msg": f"Discovery started. Seeds: {seed_ips}"})
 
@@ -151,27 +175,64 @@ class DiscoveryCrawler:
     def _discover_device(self, ip: str):
         self._emit({"type": "connecting", "ip": ip, "msg": f"Connecting to {ip}..."})
 
-        terminal = virtual_network.connect(ip)
-        if terminal is None:
-            self._emit({"type": "unreachable", "ip": ip, "msg": f"{ip}: Connection refused"})
-            return
+        ssh_connector = self._get_ssh_connector(ip)
+        dev_type = DeviceType.UNKNOWN
+        device_name = ip
+        connected_via_ssh = False
 
-        # Fingerprint the device
-        dev_type = fingerprint_device(ip, virtual_network)
-        meta = virtual_network.get_metadata(ip)
-        device_name = meta.get("name", ip)
+        if ssh_connector and ssh_connector.connect():
+            self._emit({"type": "connecting", "ip": ip, "msg": f"SSH connection established to {ip}. Fingerprinting..."})
+            connected_via_ssh = True
+            # Probe showsys
+            probe = ssh_connector.execute("showsys")
+            if probe.get("exit_code") == 0 and any(kw in probe.get("stdout", "") for kw in ["TotalCap", "AllocCap", "Model", "Serial"]):
+                dev_type = DeviceType.HPE_ARRAY
+            else:
+                # Probe uname -a
+                probe = ssh_connector.execute("uname -a")
+                if "Linux" in probe.get("stdout", ""):
+                    dev_type = DeviceType.LINUX
+                else:
+                    probe_w = ssh_connector.execute("Get-ComputerInfo")
+                    if "WindowsProductName" in probe_w.get("stdout", ""):
+                        dev_type = DeviceType.WINDOWS
+            
+            # Run hostname to get the real device name
+            hn_probe = ssh_connector.execute("hostname")
+            if hn_probe.get("exit_code") == 0:
+                device_name = hn_probe.get("stdout", "").strip()
+            
+            ssh_connector.disconnect()
+            self._emit({
+                "type": "connected",
+                "ip": ip,
+                "device_name": device_name,
+                "device_type": dev_type.value,
+                "msg": f"SSH connected to {device_name} ({dev_type.value}) @ {ip}",
+            })
 
-        self._emit({
-            "type": "connected",
-            "ip": ip,
-            "device_name": device_name,
-            "device_type": dev_type.value,
-            "msg": f"Connected to {device_name} ({dev_type.value}) @ {ip}",
-        })
+        if not connected_via_ssh:
+            terminal = virtual_network.connect(ip)
+            if terminal is None:
+                self._emit({"type": "unreachable", "ip": ip, "msg": f"{ip}: Connection refused"})
+                return
+
+            dev_type = fingerprint_device(ip, virtual_network)
+            meta = virtual_network.get_metadata(ip)
+            device_name = meta.get("name", ip)
+
+            self._emit({
+                "type": "connected",
+                "ip": ip,
+                "device_name": device_name,
+                "device_type": dev_type.value,
+                "msg": f"Connected to simulated {device_name} ({dev_type.value}) @ {ip}",
+            })
 
         # Execute the right command set
+        cmd_list = self.custom_commands if self.custom_commands else HPE_COMMANDS
         if dev_type == DeviceType.HPE_ARRAY:
-            raw_outputs = self._run_commands(ip, HPE_COMMANDS)
+            raw_outputs = self._run_commands(ip, cmd_list)
             with self._lock:
                 if not self.running:
                     return
@@ -202,7 +263,8 @@ class DiscoveryCrawler:
             })
 
         elif dev_type == DeviceType.LINUX:
-            raw_outputs = self._run_commands(ip, LINUX_COMMANDS)
+            cmd_list = self.custom_commands if self.custom_commands else LINUX_COMMANDS
+            raw_outputs = self._run_commands(ip, cmd_list)
             with self._lock:
                 if not self.running:
                     return
@@ -220,7 +282,8 @@ class DiscoveryCrawler:
             })
 
         elif dev_type == DeviceType.WINDOWS:
-            raw_outputs = self._run_commands(ip, WINDOWS_COMMANDS)
+            cmd_list = self.custom_commands if self.custom_commands else WINDOWS_COMMANDS
+            raw_outputs = self._run_commands(ip, cmd_list)
             with self._lock:
                 if not self.running:
                     return
@@ -274,6 +337,30 @@ class DiscoveryCrawler:
                             "msg": f"Discovered new device IP: {new_ip} from {ip}"})
 
     def _run_commands(self, ip: str, commands: List[str]) -> dict:
+        ssh_connector = self._get_ssh_connector(ip)
+        if ssh_connector and ssh_connector.connect():
+            self._emit({"type": "command_session_start", "ip": ip, "msg": f"Executing command checklist over SSH on {ip}..."})
+            outputs = {}
+            for cmd in commands:
+                with self._lock:
+                    if not self.running:
+                        break
+                res = ssh_connector.execute(cmd)
+                output = res.get("stdout", "") + res.get("stderr", "")
+                outputs[cmd] = output
+                self._emit({
+                    "type": "command",
+                    "ip": ip,
+                    "command": cmd,
+                    "output": output,
+                    "output_preview": output[:80] + "..." if len(output) > 80 else output,
+                    "msg": f"  [{ip}] > {cmd}",
+                })
+                if getattr(self, "delay_ms", 0) > 0:
+                    time.sleep(self.delay_ms / 1000.0)
+            ssh_connector.disconnect()
+            return outputs
+
         terminal = virtual_network.connect(ip)
         if not terminal:
             return {}

@@ -710,6 +710,7 @@ def save_ssh_credentials():
     ip = data.get("ip")
     username = data.get("username")
     password = data.get("password")
+    port = data.get("port", 22)
     
     if not ip or not username or not password:
         return jsonify({"error": "ip, username, and password are required"}), 400
@@ -720,7 +721,7 @@ def save_ssh_credentials():
             db = mongo._client.hpe_san
             db.ssh_credentials.update_one(
                 {"ip": ip},
-                {"$set": {"username": username, "password": encrypted}},
+                {"$set": {"username": username, "password": encrypted, "port": port}},
                 upsert=True
             )
             return jsonify({"status": "saved", "message": f"SSH credentials indexed for {ip}"})
@@ -738,6 +739,39 @@ def get_ssh_credentials_status(ip):
             if cred:
                 return jsonify({"ip": ip, "has_credentials": True, "username": cred.get("username")})
         return jsonify({"ip": ip, "has_credentials": False})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/ssh-ring/exec", methods=["POST"])
+def ssh_ring_exec():
+    """Execute a CLI command on a real SSH device directly."""
+    data = request.json or {}
+    ip = data.get("ip")
+    command = data.get("command")
+    username = data.get("username")
+    password = data.get("password")
+    port = int(data.get("port", 22))
+    
+    if not ip or not command or not username or not password:
+        return jsonify({"error": "ip, command, username, and password are required"}), 400
+        
+    try:
+        from api.integrations.device_connector import SSHConnector
+        connector = SSHConnector(host=ip, username=username, password=password, port=port)
+        if connector.connect():
+            res = connector.execute(command)
+            connector.disconnect()
+            return jsonify({
+                "ip": ip,
+                "command": command,
+                "output": res.get("stdout", "") + res.get("stderr", "")
+            })
+        else:
+            return jsonify({
+                "ip": ip,
+                "command": command,
+                "output": f"SSH Connection Authentication Failure to {ip}"
+            })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1296,12 +1330,13 @@ def start_discovery():
     data = request.json or {}
     seed_ips = data.get("seed_ips") or [data.get("seed_ip", "10.20.10.5")]
     delay_ms = data.get("delay_ms", 20)
+    commands = data.get("commands")
 
     if discovery_crawler.running:
         return jsonify({"error": "Discovery already running"}), 409
 
     def _run():
-        discovery_crawler.discover(seed_ips, delay_ms=delay_ms)
+        discovery_crawler.discover(seed_ips, delay_ms=delay_ms, commands=commands)
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
@@ -2220,6 +2255,114 @@ def terminal_spawn():
         return jsonify({"success": True, "message": "Shell spawned."})
     except Exception as e:
         log.exception('[DesktopShell] Failed to spawn')
+        return jsonify({"success": False, "error": str(e)}), 500
+
+def capture_window_screenshot(hwnd: int):
+    """Capture a screenshot of a specific window by HWND using PIL.ImageGrab."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        import PIL.ImageGrab
+        
+        user32 = ctypes.windll.user32
+        rect = wintypes.RECT()
+        if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+            bbox = (rect.left, rect.top, rect.right, rect.bottom)
+            if bbox[2] > bbox[0] and bbox[3] > bbox[1]:
+                # Add 8px offset to clip Windows shadows/borders if necessary
+                return PIL.ImageGrab.grab(bbox)
+    except Exception as e:
+        log.warning(f"[Screencast] Failed to grab screenshot for hwnd {hwnd}: {e}")
+    return None
+
+@app.route("/api/terminal/screencast/<path:hwnd_str>")
+def terminal_screencast(hwnd_str):
+    """MJPEG stream of a specific window screenshot."""
+    import time
+    try:
+        hwnd = int(hwnd_str)
+    except ValueError:
+        return "Invalid HWND", 400
+        
+    def generate():
+        import io
+        while True:
+            img = capture_window_screenshot(hwnd)
+            if img:
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=80)
+                jpeg_bytes = buf.getvalue()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n'
+                       b'Content-Length: ' + str(len(jpeg_bytes)).encode('utf-8') + b'\r\n\r\n' +
+                       jpeg_bytes + b'\r\n')
+            else:
+                time.sleep(0.3)
+            time.sleep(0.1) # ~10 FPS
+            
+    return Response(
+        generate(),
+        mimetype='multipart/x-mixed-replace; boundary=frame',
+        headers={
+            'Cache-Control': 'no-cache, private',
+            'Pragma': 'no-cache'
+        }
+    )
+
+@app.route("/api/terminal/spawn-powershell", methods=["POST"])
+def spawn_powershell_window():
+    """Spawn a real, visible PowerShell window on the Windows desktop."""
+    import sys
+    import subprocess
+    if sys.platform != 'win32':
+        return jsonify({"success": False, "error": "Only supported on Windows"}), 400
+    try:
+        subprocess.Popen("start powershell.exe", shell=True)
+        return jsonify({"success": True, "message": "PowerShell window spawned."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/terminal/type", methods=["POST"])
+def terminal_type_keys():
+    """Send keystrokes to a specific window by HWND using Windows automation."""
+    data = request.json or {}
+    hwnd_str = data.get("hwnd")
+    text = data.get("text", "")
+    
+    if not hwnd_str or not text:
+        return jsonify({"success": False, "error": "hwnd and text are required"}), 400
+        
+    try:
+        hwnd = int(hwnd_str)
+        import ctypes
+        import time
+        user32 = ctypes.windll.user32
+        
+        if not user32.IsWindow(hwnd):
+            return jsonify({"success": False, "error": f"Invalid window handle: {hwnd}"}), 400
+            
+        # SW_RESTORE = 9
+        user32.ShowWindow(hwnd, 9)
+        # Bypass Windows Focus Stealing Prevention (simulate ALT press)
+        user32.keybd_event(0x12, 0, 0, 0)
+        user32.keybd_event(0x12, 0, 2, 0)
+        user32.SetForegroundWindow(hwnd)
+        time.sleep(0.3)
+        
+        import subprocess
+        escaped_text = text.replace("`", "``").replace('"', '`"').replace('$', '`$')
+        # Send keys directly to currently active (foreground) window
+        ps_cmd = f"""
+        $wshell = New-Object -ComObject wscript.shell;
+        $wshell.SendKeys("{escaped_text}");
+        """
+        res = subprocess.run(["powershell", "-Command", ps_cmd], capture_output=True, text=True)
+        if res.returncode == 0:
+            return jsonify({"success": True, "message": f"Keystrokes typed to window {hwnd}."})
+        else:
+            return jsonify({"success": False, "error": res.stderr or "Failed to type"}), 500
+            
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
