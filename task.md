@@ -5,10 +5,10 @@
 - [/] Update .env / .env.example with all keys
 - [ ] Copy & adapt Node.js chatbot service (Preetham's backend → monorepo/chatbot-service/)
 - [x] Port Unmesh's topology CRUD + ontology engine into Flask API
-- [ ] Add SAN Fake Data Generator endpoint
-- [ ] Add import/export configuration endpoints
+- [x] Add SAN Fake Data Generator endpoint
+- [x] Add import/export configuration endpoints
 - [ ] Enhance RAG engine with dual mode (Standard RAG + GraphRAG)
-- [ ] Update requirements.txt
+- [x] Update requirements.txt
 
 ## Phase 2: React Dashboard — Foundation
 - [ ] Update package.json with new dependencies
@@ -23,10 +23,10 @@
 - [ ] Topology Page (port Unmesh's SAN diagram, NodeCard, etc.)
 - [ ] Emulator Page (terminal + CLI execution)
 - [ ] AI Chat Page (full-page chat, RadialMenu, dual AI modes)
-- [ ] Admin Page (device CRUD, field schema, CSV ingest, data faker, import/export)
+- [x] Admin Page (device CRUD, field schema, CSV ingest, data faker, import/export)
 - [ ] Health Page (system health, capacity, recommendations)
 
 ## Phase 4: Verification
-- [ ] Build dashboard (npm run build)
-- [ ] Test all API endpoints
+- [x] Build dashboard (npm run build)
+- [x] Test all API endpoints
 - [ ] Update RUN_GUIDE.md
