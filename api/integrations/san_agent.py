@@ -1,12 +1,20 @@
 """
-SAN AI Agent — constrained tool-calling loop over the Python simulator.
+SAN AI Agent — Autonomous ReAct-style agentic loop over the HPE simulator.
 
-Flow: natural language → plan → simulator CLI → parse → Neo4j → Cypher → summary.
+Architecture:
+  1. LLM #1 (Planner)   — Given user query, decide which CLI tools to call.
+  2. Execute tools       — Run validated simulator/SSH commands, parse outputs.
+  3. LLM #2..N (Reflect) — After each observation, ask: "Done or need more?"
+                           Max MAX_REFLECT_ITERS reflection rounds.
+  4. LLM #final (Synth)  — Stream the expert markdown report to the user.
+
+All four phases stream step events to the UI in real time.
 """
 from __future__ import annotations
 
 import json
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
@@ -14,7 +22,8 @@ from typing import Any, Callable, Optional
 from discovery.crawler import HPE_COMMANDS
 from discovery.parsers.sim_parser import parse_sim_array_output
 
-# Same allowlist as discovery crawler (+ health commands)
+# ── Allowlist ─────────────────────────────────────────────────────────────────
+
 ALLOWED_COMMANDS = frozenset(HPE_COMMANDS) | frozenset({
     "checkhealth", "cli checkhealth", "showversion", "showportdev",
 })
@@ -24,6 +33,10 @@ FORBIDDEN_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+# How many "reflect → run more commands" rounds before forcing synthesis
+MAX_REFLECT_ITERS = 3
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
@@ -39,15 +52,13 @@ def validate_command(command: str) -> str:
         raise ValueError("Empty command")
     if FORBIDDEN_PATTERNS.search(cmd):
         raise ValueError("Command contains disallowed shell patterns")
-    base = cmd
     for allowed in sorted(ALLOWED_COMMANDS, key=len, reverse=True):
         if cmd == allowed or cmd.startswith(allowed + " "):
             return cmd
-    raise ValueError(f"Command not in allowlist: {cmd.split()[0]}")
+    raise ValueError(f"Command not in allowlist: {cmd.split()[0]!r}")
 
 
 def _parse_single(command: str, output: str, command_parsers: dict) -> Any:
-    """Delegate to injected parsers (api._PARSERS + sim_parser extras from app.py)."""
     cmd = _normalize_cmd(command)
     for key in sorted(command_parsers.keys(), key=len, reverse=True):
         if cmd == key or cmd.startswith(key + " "):
@@ -57,12 +68,11 @@ def _parse_single(command: str, output: str, command_parsers: dict) -> Any:
 
 def _extract_array_hint(query: str) -> Optional[str]:
     q = query.lower()
-    # s9999, prod-a, array s9999, etc.
-    m = re.search(r"\b(array\s+)?([a-z0-9][a-z0-9_-]{2,})\b", q, re.I)
     candidates = []
     for token in re.findall(r"\b([a-z][a-z0-9_-]{2,}|\d{3,})\b", q, re.I):
         t = token.lower()
-        if t in ("array", "hosts", "host", "list", "given", "along", "with", "type", "that", "all", "the", "show", "running"):
+        if t in ("array", "hosts", "host", "list", "given", "along", "with",
+                 "type", "that", "all", "the", "show", "running"):
             continue
         candidates.append(token)
     for c in candidates:
@@ -70,6 +80,32 @@ def _extract_array_hint(query: str) -> Optional[str]:
             return c
     return candidates[0] if candidates else None
 
+
+def _strip_think(text: str) -> str:
+    """Remove <think>...</think> blocks from LLM output."""
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+
+def _extract_json(text: str) -> Optional[dict]:
+    """Pull the first {...} JSON object out of an LLM response."""
+    text = _strip_think(text)
+    # Try direct parse first
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    # Strip code fences
+    text = re.sub(r"```(?:json)?", "", text).strip().strip("`").strip()
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    if m:
+        try:
+            return json.loads(m.group())
+        except Exception:
+            pass
+    return None
+
+
+# ── Agent ─────────────────────────────────────────────────────────────────────
 
 class SanAgent:
     def __init__(
@@ -90,6 +126,8 @@ class SanAgent:
         self.command_parsers = command_parsers or {}
         self.parse_array_outputs = parse_array_outputs or parse_sim_array_output
 
+    # ── Device resolution ────────────────────────────────────────────────────
+
     def _arrays(self) -> list[dict]:
         devices = self.list_devices() or []
         arrays = []
@@ -105,20 +143,19 @@ class SanAgent:
                 name = (d.get("name") if isinstance(d, dict) else str(d)) or ""
                 if name and not name.startswith("host") and not name.startswith("sw"):
                     arrays.append(d if isinstance(d, dict) else {"ip": name, "name": name})
-                    
-        import os
+
+        # Fallback: scan simulator data directory
         from pathlib import Path
         try:
             repo_root = Path(__file__).resolve().parent.parent.parent
             devices_dir = repo_root / "simulator" / "data" / "devices"
             if devices_dir.exists():
-                for file_path in devices_dir.glob("*.txt"):
-                    name = file_path.stem
-                    if not any(a.get("name") == name or a.get("ip") == file_path.name for a in arrays):
-                        arrays.append({"ip": file_path.name, "name": name, "type": "hpe_array"})
+                for fp in devices_dir.glob("*.txt"):
+                    name = fp.stem
+                    if not any(a.get("name") == name or a.get("ip") == fp.name for a in arrays):
+                        arrays.append({"ip": fp.name, "name": name, "type": "hpe_array"})
         except Exception:
             pass
-            
         return arrays
 
     def _resolve_array(self, hint: Optional[str]) -> Optional[dict]:
@@ -128,8 +165,6 @@ class SanAgent:
         if not hint:
             return arrays[0]
         h = hint.lower().replace(".txt", "")
-        
-        # 1. Host or Device name lookup: check if hint refers to a host/device that belongs to a parent array
         devices = self.list_devices() or []
         for d in devices:
             dname = (d.get("name") or "").lower()
@@ -141,14 +176,14 @@ class SanAgent:
                     aip = (a.get("ip") or "").lower()
                     if p_array == aname or p_array == aip:
                         return a
-
-        # 2. Direct array name match
         for a in arrays:
             name = (a.get("name") or a.get("id") or "").lower()
             ip = (a.get("ip") or "").lower()
             if h in name or h in ip or name in h:
                 return a
         return arrays[0]
+
+    # ── Step emitter ─────────────────────────────────────────────────────────
 
     def _step(self, steps: list, step_type: str, title: str, detail: str = "", **extra):
         step = {
@@ -161,7 +196,6 @@ class SanAgent:
             **extra,
         }
         steps.append(step)
-        
         callback = getattr(self, "on_step", None)
         if callback:
             try:
@@ -169,87 +203,123 @@ class SanAgent:
             except Exception:
                 pass
 
-    def _plan(self, query: str, array_name: str) -> dict:
+    # ── Phase 1: LLM Planner ─────────────────────────────────────────────────
+
+    _PLANNER_SYSTEM = """\
+You are a SAN Diagnostics Planner for HPE 3PAR/Primera/Alletra storage arrays.
+Decide which CLI commands to execute to answer the user's question.
+
+Allowed CLI commands (use ONLY these):
+  showsys, showhost, showport, showpd, showcage, showcage -state,
+  showversion -b, shownode, showswitch, cli checkhealth
+
+Neo4j Schema (for cypher field):
+  Nodes: ArraySystem(ip_address, name, model, serial, release_version),
+         Node, Switch, Host, Cage, PhysicalDisk
+  Relationships: (Host)-[:CONNECTS_TO]->(ArraySystem),
+                 (ArraySystem)-[:HAS_NODE|HAS_CAGE|HAS_SWITCH]->(Node|Cage|Switch),
+                 (Cage)-[:CONTAINS]->(PhysicalDisk)
+
+Return ONLY a valid JSON object with these keys:
+  "reasoning"  — one sentence explaining your plan
+  "commands"   — list of CLI command strings (1-6 commands, no duplicates)
+  "cypher"     — optional Neo4j Cypher query string, or null
+
+Output ONLY the JSON. No markdown, no explanation outside the JSON."""
+
+    def _llm_plan(self, query: str, array_name: str, steps: list,
+                  use_ollama=False, disable_think=False) -> dict:
+        """LLM Call #1: Ask the model what tools to use."""
+
+        # Rule-based fallback plan (used if LLM unavailable or fails)
+        fallback = self._rule_plan(query, array_name)
+
+        if not self.llm_call:
+            return fallback
+
+        user_msg = (
+            f"User query: {query}\n"
+            f"Target array: {array_name}\n"
+            f"Available arrays: {', '.join(a.get('name','?') for a in self._arrays()[:5])}"
+        )
+
+        self._step(steps, "thinking", "Planning",
+                   f"Asking LLM to plan diagnostic steps for: *{query}*")
+        try:
+            raw = self.llm_call(
+                self._PLANNER_SYSTEM, user_msg,
+                use_ollama=use_ollama, disable_think=disable_think, stream=False,
+                json_mode=True
+            )
+            data = _extract_json(raw)
+            if data:
+                cmds_raw = data.get("commands") or []
+                validated = []
+                seen = set()
+                for c in cmds_raw[:6]:
+                    try:
+                        v = validate_command(str(c))
+                        if v not in seen:
+                            seen.add(v)
+                            validated.append(v)
+                    except ValueError:
+                        pass
+                if validated:
+                    plan = {
+                        "reasoning": str(data.get("reasoning", "LLM diagnostic plan")),
+                        "commands": validated,
+                        "cypher": data.get("cypher") or fallback.get("cypher"),
+                    }
+                    self._step(steps, "thinking", "Planning",
+                               f"Plan: {plan['reasoning']}\n"
+                               f"Commands: {', '.join('`' + c + '`' for c in validated)}")
+                    return plan
+        except Exception as e:
+            sys.stderr.write(f"[SanAgent] LLM plan failed: {e}\n")
+
+        # Use fallback and emit it as a step
+        self._step(steps, "thinking", "Planning",
+                   f"Using rule-based plan: {fallback['reasoning']}\n"
+                   f"Commands: {', '.join('`' + c + '`' for c in fallback['commands'])}")
+        return fallback
+
+    def _rule_plan(self, query: str, array_name: str) -> dict:
+        """Keyword-based fallback planner (no LLM required)."""
         q = query.lower()
-        commands = []
+        commands, reasoning = [], []
         cypher = None
-        reasoning = []
 
-        # Check conditions independently to support multi-part queries!
-        if any(k in q for k in ("host", "zoned", "os type", "os that")):
-            reasoning.append("Need host zoning from showhost and OS from host records.")
+        if any(k in q for k in ("host", "zoned", "os type")):
+            reasoning.append("Need host zoning from showhost.")
             commands.append("showhost")
-            if not cypher:
-                cypher = (
-                    "MATCH (a:ArraySystem)<-[:CONNECTS_TO]-(h:Host) "
-                    f"WHERE toLower(a.name) = toLower('{array_name}') "
-                    "RETURN h.name AS host_name, h.os_name AS os_type, h.multipath AS paths "
-                    "ORDER BY h.name"
-                )
-
+            cypher = (
+                "MATCH (a:ArraySystem)<-[:CONNECTS_TO]-(h:Host) "
+                f"WHERE toLower(a.name) = toLower('{array_name}') "
+                "RETURN h.name AS host_name, h.os_name AS os_type ORDER BY h.name"
+            )
         if any(k in q for k in ("hba", "driver", "portdev")):
-            reasoning.append("Need HBA detail, driver, and firmware versions from showportdev ns.")
+            reasoning.append("Need HBA detail from showportdev.")
             commands.extend(["showportdev ns -nohdtot 0:3:1", "showportdev ns -nohdtot 1:3:1"])
-            if not cypher:
-                cypher = (
-                    "MATCH (a:ArraySystem)<-[:CONNECTS_TO]-(h:Host) "
-                    f"WHERE toLower(a.name) = toLower('{array_name}') "
-                    "RETURN h.name AS host_name, h.os_name AS os_type, h.wwn AS wwn, "
-                    "h.hba_fw AS hba_fw, h.hba_driver AS hba_driver, h.hba_model AS hba_model "
-                    "ORDER BY h.name"
-                )
-
-        if "failed" in q and ("pd" in q or "drive" in q or "disk" in q):
+        if "failed" in q and any(k in q for k in ("pd", "drive", "disk")):
             reasoning.append("Need physical disk state from showpd.")
             commands.append("showpd")
-            if not cypher:
-                cypher = (
-                    "MATCH (a:ArraySystem)-[:HAS_CAGE]->(:Cage)-[:CONTAINS]->(d:PhysicalDisk) "
-                    "WHERE d.state IN ['failed', 'degraded'] "
-                    "RETURN a.name AS array_name, d.pd_id AS pd_id, d.state AS state "
-                    "ORDER BY a.name"
-                )
-
         if "protocol" in q:
-            reasoning.append("Extract supported protocols from showport.")
             commands.append("showport")
-            if not cypher:
-                cypher = (
-                    f"MATCH (a:ArraySystem) WHERE toLower(a.name) = toLower('{array_name}') "
-                    "RETURN a.name AS array_name, a.protocols_supported AS protocols"
-                )
-
-        if "switch" in q and "state" in q:
-            reasoning.append("Inspect internal fabric switches via showswitch.")
+        if "switch" in q:
             commands.append("showswitch")
-
-        if "tpd" in q or "version" in q or "firmware" in q:
-            reasoning.append("Read release version from showversion -b.")
+        if any(k in q for k in ("tpd", "version", "firmware")):
+            reasoning.append("Need firmware version from showversion -b.")
             commands.append("showversion -b")
-            if not cypher:
-                cypher = (
-                    f"MATCH (a:ArraySystem) WHERE toLower(a.name) = toLower('{array_name}') "
-                    "RETURN a.name AS array_name, a.release_version AS tpd_version"
-                )
-
-        if "capacity" in q or "usable" in q or "tib" in q or "tb" in q:
-            reasoning.append("Read capacity from showsys.")
+        if any(k in q for k in ("capacity", "usable", "tib", "tb")):
             commands.append("showsys")
-
-        if "node" in q and "count" in q:
-            reasoning.append("Count nodes via shownode.")
+        if "node" in q:
             commands.append("shownode")
-
-        if any(k in q for k in ("upgrade", "firmware update", "update", "readiness", "health check", "checkhealth")):
-            reasoning.append("Running full array diagnostics suite (nodes, cages, disks, and checkhealth) for update readiness.")
+        if any(k in q for k in ("upgrade", "firmware update", "readiness", "health check", "checkhealth")):
+            reasoning.append("Running full diagnostic suite.")
             commands.extend(["shownode", "showcage -state", "showcage", "showpd", "cli checkhealth"])
-
         if "cage" in q:
-            reasoning.append("Evaluate cage health from showcage -state.")
-            commands.append("showcage -state")
-            commands.append("showcage")
+            commands.extend(["showcage -state", "showcage"])
 
-        # If nothing matched, use the default suite
         if not commands:
             reasoning.append("General array inventory: showsys, showhost, showport.")
             commands = ["showsys", "showhost", "showport"]
@@ -259,39 +329,286 @@ class SanAgent:
                 "RETURN h.name AS host_name, h.os_name AS os_type ORDER BY h.name LIMIT 25"
             )
 
-        # Deduplicate commands while preserving order
-        seen = set()
-        deduped_commands = []
-        for cmd in commands:
-            if cmd not in seen:
-                seen.add(cmd)
-                deduped_commands.append(cmd)
+        seen, deduped = set(), []
+        for c in commands:
+            if c not in seen:
+                seen.add(c)
+                deduped.append(c)
 
-        if self.llm_call and not deduped_commands:
+        return {
+            "reasoning": " ".join(reasoning) or "General array diagnostics.",
+            "commands": deduped,
+            "cypher": cypher,
+        }
+
+    # ── Phase 2: Execute tools ────────────────────────────────────────────────
+
+    def _execute_command(self, ip: str, array_name: str, cmd: str,
+                         steps: list, cmd_outputs: dict) -> Any:
+        """Run one validated CLI command, parse it, emit steps."""
+        try:
+            safe = validate_command(cmd)
+        except ValueError as e:
+            self._step(steps, "error", "Command blocked", str(e))
+            return None
+
+        output = self.execute(ip, safe)
+        cmd_outputs[safe] = output
+        self._step(steps, "command", f"Ran command on {array_name}", safe,
+                   command=safe, device_ip=ip, command_output=output)
+
+        parsed = _parse_single(safe, output, self.command_parsers)
+        count = len(parsed) if isinstance(parsed, list) else (1 if parsed else 0)
+        label = safe.split()[0]
+        self._step(steps, "parsed", f"Parsed {label} output",
+                   f"Successfully parsed {count} record(s) from `{safe}`.",
+                   parsed_preview=parsed if isinstance(parsed, (list, dict)) else None)
+        return parsed
+
+    # ── Phase 3: LLM Reflection ───────────────────────────────────────────────
+
+    _REFLECT_SYSTEM = """\
+You are a SAN diagnostics agent deciding whether you have enough information to answer the user.
+
+You have already run some CLI commands and received their outputs (summarised as SAN facts).
+Decide: are you done, or do you need one more specific command to fully answer the query?
+
+Allowed CLI commands (use ONLY these, if needed):
+  showsys, showhost, showport, showpd, showcage, showcage -state,
+  showversion -b, shownode, showswitch, cli checkhealth
+
+Return ONLY a valid JSON object:
+  {"done": true}                                   — if you have enough data
+  {"done": false, "command": "showpd"}             — if you need one more command
+
+Output ONLY the JSON. No markdown, no explanation outside the JSON."""
+
+    def _llm_reflect(self, query: str, array_name: str, san_facts: dict,
+                     already_run: list[str], steps: list,
+                     use_ollama=False, disable_think=False) -> Optional[str]:
+        """LLM Call #N: Reflection. Returns a new command string or None if done."""
+        if not self.llm_call:
+            return None
+
+        user_msg = (
+            f"User query: {query}\n"
+            f"Array: {array_name}\n"
+            f"Commands already run: {', '.join(already_run)}\n\n"
+            f"Current SAN facts gathered:\n{json.dumps(san_facts, indent=2, default=str)}"
+        )
+
+        try:
+            raw = self.llm_call(
+                self._REFLECT_SYSTEM, user_msg,
+                use_ollama=use_ollama, disable_think=disable_think, stream=False,
+                json_mode=True
+            )
+            data = _extract_json(raw)
+            if data:
+                if data.get("done") is True:
+                    return None  # Agent is satisfied
+                cmd = data.get("command") or data.get("action")
+                if cmd:
+                    try:
+                        return validate_command(str(cmd))
+                    except ValueError:
+                        pass
+        except Exception as e:
+            sys.stderr.write(f"[SanAgent] LLM reflect failed: {e}\n")
+        return None
+
+    # ── Normalise parsed output into clean SAN facts ──────────────────────────
+
+    def _build_san_facts(self, array_name: str, parsed_snapshot: dict) -> dict:
+        hosts_list = parsed_snapshot.get("hosts", [])
+        drives_list = parsed_snapshot.get("drives", [])
+        nodes_list = parsed_snapshot.get("nodes", [])
+        cages_list = parsed_snapshot.get("cages", [])
+
+        unhealthy_drives = [d for d in drives_list if d.get("state", "").lower() not in ("normal", "ok")]
+        unhealthy_cages = [c for c in cages_list if c.get("state", "").lower() not in ("normal", "ok")]
+        unhealthy_nodes = [n for n in nodes_list if n.get("state", "").lower() not in ("normal", "ok", "online")]
+
+        health = "Degraded" if (unhealthy_drives or unhealthy_cages or unhealthy_nodes) else "Healthy"
+
+        return {
+            "array_name": array_name,
+            "overall_health_status": health,
+            "tpd_firmware_version": (
+                parsed_snapshot.get("release_version")
+                or parsed_snapshot.get("version")
+                or "Not Available"
+            ),
+            "total_host_connections": len(hosts_list),
+            "host_list": [
+                {"name": h.get("name"), "os": h.get("os_name") or h.get("os", "Unknown"),
+                 "wwn": h.get("wwn", "-"), "paths": h.get("port") or h.get("multipath", "-")}
+                for h in hosts_list[:20]
+            ],
+            "total_drive_count": len(drives_list),
+            "total_cage_count": len(cages_list),
+            "total_node_count": len(nodes_list),
+            "node_list": [
+                {"id": n.get("node_id"), "name": n.get("name"), "status": n.get("status", "unknown")}
+                for n in nodes_list[:8]
+            ],
+            "degraded_drives": [{"id": d.get("pd_id"), "state": d.get("state")} for d in unhealthy_drives],
+            "degraded_cages": [{"id": c.get("cage_id"), "state": c.get("state")} for c in unhealthy_cages],
+            "degraded_nodes": [{"id": n.get("node_id"), "state": n.get("state")} for n in unhealthy_nodes],
+            "cage_list": [
+                {"id": c.get("cage_id"), "name": c.get("name"), "state": c.get("state", "unknown")}
+                for c in cages_list[:8]
+            ],
+        }
+
+    # ── Phase 4: LLM Synthesis (streamed) ────────────────────────────────────
+
+    _SYNTH_SYSTEM = """\
+You are an expert HPE SAN storage systems engineer writing a diagnostic assessment.
+
+CRITICAL RULES:
+1. Write like a senior SAN engineer presenting to a customer. Professional, clear, precise.
+2. NEVER mention JSON fields, parser internals, database rows, dictionary keys, or missing properties.
+3. If a value is Not Available, state it as "Not Available". Never speculate.
+4. Format all tables using standard GitHub Flavored Markdown pipe-table syntax.
+5. Base everything solely on the SAN facts provided. No hallucination.
+6. Provide a clear, actionable recommendation at the end."""
+
+    def _llm_synthesize(self, query: str, array_name: str, san_facts: dict,
+                        neo4j_rows: list, steps: list,
+                        use_ollama=False, disable_think=False, stream=False) -> str:
+        """LLM Call #final: Produce the markdown expert report."""
+        if not self.llm_call:
+            return self._fallback_report(array_name, san_facts)
+
+        user_msg = (
+            f"SAN DIAGNOSTIC FACTS:\n{json.dumps(san_facts, indent=2, default=str)}\n\n"
+            f"USER QUESTION:\n{query}"
+        )
+        if neo4j_rows:
+            user_msg += f"\n\nADDITIONAL GRAPH DATA:\n{json.dumps(neo4j_rows[:20], indent=2, default=str)}"
+
+        try:
+            ans = self.llm_call(
+                self._SYNTH_SYSTEM, user_msg,
+                use_ollama=use_ollama, disable_think=disable_think, stream=stream
+            )
+
+            if stream and hasattr(ans, "__iter__") and not isinstance(ans, str):
+                full_ans = []
+                for chunk in ans:
+                    try:
+                        chunk_data = json.loads(chunk)
+                        msg = chunk_data.get("message", {})
+                        thinking = msg.get("thinking") or msg.get("reasoning_content", "")
+                        content = msg.get("content", "")
+                        if thinking:
+                            chunk_text, is_think = thinking, True
+                        else:
+                            chunk_text, is_think = content, False
+                    except Exception:
+                        chunk_text, is_think = chunk, False
+
+                    if chunk_text:
+                        full_ans.append(chunk_text)
+                        callback = getattr(self, "on_synthesis_chunk", None)
+                        if callback:
+                            try:
+                                callback(chunk_text, is_think)
+                            except Exception:
+                                pass
+                return "".join(full_ans)
+
+            return ans or self._fallback_report(array_name, san_facts)
+        except Exception as e:
+            sys.stderr.write(f"[SanAgent] LLM synthesis failed: {e}\n")
+            return self._fallback_report(array_name, san_facts)
+
+    # ── Fallback plain-text report (no LLM) ──────────────────────────────────
+
+    def _fallback_report(self, array_name: str, san_facts: dict) -> str:
+        lines = [f"### SAN Diagnostic Report: **{array_name}**\n"]
+        v = san_facts.get("tpd_firmware_version", "Not Available")
+        lines.append(f"* **TPD / Firmware Version:** `{v}`")
+        lines.append(f"* **Overall Health:** {san_facts.get('overall_health_status', 'Unknown')}")
+
+        n = san_facts.get("total_node_count", 0)
+        if n:
+            lines.append(f"* **Controller Nodes:** {n} node(s) online.")
+        c = san_facts.get("total_cage_count", 0)
+        if c:
+            degraded_cages = san_facts.get("degraded_cages", [])
+            if degraded_cages:
+                lines.append(f"* **Cages:** {len(degraded_cages)} degraded enclosure(s) detected!")
+            else:
+                lines.append(f"* **Cages:** All {c} enclosure cages healthy.")
+        d = san_facts.get("total_drive_count", 0)
+        if d:
+            degraded_drives = san_facts.get("degraded_drives", [])
+            if degraded_drives:
+                lines.append(f"* **Drives:** {len(degraded_drives)} degraded/failed disk(s) detected!")
+            else:
+                lines.append(f"* **Drives:** All {d} physical drives healthy.")
+        h = san_facts.get("total_host_connections", 0)
+        if h:
+            lines.append(f"* **Hosts:** {h} host(s) registered and zoned.")
+        if len(lines) == 1:
+            lines.append(f"All components on **{array_name}** are operating within normal parameters.")
+        return "\n".join(lines)
+
+    # ── Neo4j helpers ─────────────────────────────────────────────────────────
+
+    def _run_cypher_safe(self, cypher: str, steps: list,
+                         use_ollama=False, disable_think=False) -> list:
+        """Run cypher with LLM self-correction on failure."""
+        if not (cypher and self.run_cypher and self.neo4j and self.neo4j.available):
+            return []
+
+        self._step(steps, "cypher", "Ran query on Neo4j", cypher.strip(), cypher=cypher.strip())
+        try:
+            rows = self.run_cypher(cypher) or []
+            self._step(steps, "result", "Graph query results",
+                       f"Retrieved {len(rows)} row(s) from Neo4j.", rows=rows[:50])
+            return rows
+        except Exception as ex:
+            self._step(steps, "cypher_error", "Cypher failed", str(ex))
+            if not self.llm_call:
+                return []
+
+            # Self-correction
+            self._step(steps, "thinking", "Correcting Cypher query",
+                       "Asking LLM to fix the invalid Cypher statement.")
+            correction_system = (
+                "You are a Neo4j Cypher debugging assistant. "
+                "Fix the failing Cypher query so it compiles and runs. "
+                "Schema: ArraySystem(ip_address, name, model, serial, release_version), "
+                "Node, Switch, Host, Cage, PhysicalDisk. "
+                "Relationships: (Host)-[:CONNECTS_TO]->(ArraySystem), "
+                "(ArraySystem)-[:HAS_NODE|HAS_CAGE|HAS_SWITCH]->(Node|Cage|Switch), "
+                "(Cage)-[:CONTAINS]->(PhysicalDisk). "
+                "GOTCHA: Use IN ['a','b'] not 'a' OR name = 'b'. "
+                "Output ONLY the corrected Cypher. No markdown."
+            )
             try:
-                raw = self.llm_call(
-                    "You plan SAN diagnostics. Return JSON only: "
-                    '{"reasoning":"...","commands":["showhost"],"cypher":"MATCH ..."}. '
-                    f"Array: {array_name}. Allowed commands: {sorted(ALLOWED_COMMANDS)}.",
-                    query,
+                corrected = self.llm_call(
+                    correction_system,
+                    f"Original:\n{cypher}\n\nError:\n{ex}",
+                    use_ollama=use_ollama, disable_think=disable_think, stream=False
                 )
-                m = re.search(r"\{.*\}", raw, re.DOTALL)
-                if m:
-                    data = json.loads(m.group())
-                    commands = [validate_command(c) for c in data.get("commands", [])[:6]]
-                    reasoning = [data.get("reasoning", "LLM plan")]
-                    cypher = data.get("cypher") or cypher
-                    # Re-deduplicate
-                    seen = set()
-                    deduped_commands = []
-                    for c in commands:
-                        if c not in seen:
-                            seen.add(c)
-                            deduped_commands.append(c)
-            except Exception:
-                pass
+                corrected = _strip_think(corrected).strip().strip("`").strip()
+                if corrected.startswith("```"):
+                    corrected = "\n".join(corrected.split("\n")[1:])
+                if corrected.endswith("```"):
+                    corrected = "\n".join(corrected.split("\n")[:-1])
 
-        return {"reasoning": " ".join(reasoning), "commands": deduped_commands, "cypher": cypher}
+                self._step(steps, "cypher", "Retrying corrected Cypher", corrected, cypher=corrected)
+                rows = self.run_cypher(corrected) or []
+                self._step(steps, "result", "Graph query results (corrected)",
+                           f"Retrieved {len(rows)} row(s) from Neo4j.", rows=rows[:50])
+                return rows
+            except Exception as e2:
+                self._step(steps, "cypher_error", "Cypher self-correction failed", str(e2))
+                return []
 
     def _hosts_for_neo4j(self, hosts: list) -> list:
         out = []
@@ -315,10 +632,9 @@ class SanAgent:
         return parsed
 
     def _build_subgraph(self, array_name: str, rows: list) -> dict:
-        """Small Cytoscape-style graph for the UI."""
         nodes = [{"data": {"id": f"array:{array_name}", "label": array_name, "type": "ArraySystem"}}]
         edges = []
-        for i, row in enumerate(rows[:12]):
+        for row in rows[:12]:
             hname = row.get("host_name") or row.get("h.name") or row.get("name")
             if not hname:
                 continue
@@ -327,336 +643,192 @@ class SanAgent:
             edges.append({"data": {"source": hid, "target": f"array:{array_name}", "label": "CONNECTS_TO"}})
         return {"nodes": nodes, "edges": edges}
 
-    def run(self, query: str, array_hint: Optional[str] = None, on_step: Optional[callable] = None, use_ollama=False, disable_think=False) -> dict:
+    # ── Public entry points ───────────────────────────────────────────────────
+
+    def run(self, query: str, array_hint: Optional[str] = None,
+            on_step: Optional[callable] = None,
+            use_ollama=False, disable_think=False, stream=False) -> dict:
         self.on_step = on_step
         try:
-            return self._run_internal(query, array_hint, use_ollama=use_ollama, disable_think=disable_think)
+            return self._run_agentic(query, array_hint,
+                                     use_ollama=use_ollama,
+                                     disable_think=disable_think,
+                                     stream=stream)
         finally:
             self.on_step = None
 
-    def _run_internal(self, query: str, array_hint: Optional[str] = None, use_ollama=False, disable_think=False) -> dict:
+    # ── Core agentic loop ─────────────────────────────────────────────────────
+
+    def _run_agentic(self, query: str, array_hint: Optional[str] = None,
+                     use_ollama=False, disable_think=False, stream=False) -> dict:
         steps: list[dict] = []
         t0 = time.time()
+
+        # ── Resolve target array ─────────────────────────────────────────────
         hint = array_hint or _extract_array_hint(query)
         target = self._resolve_array(hint)
         if not target:
             return {
-                "answer": "No simulated arrays found. Start the Python simulator (simulator_manager.py) first.",
-                "steps": [{"type": "error", "title": "No devices", "detail": "Simulator returned an empty device list."}],
+                "answer": "No simulated arrays found. Start the Python simulator first.",
+                "steps": [{"type": "error", "title": "No devices",
+                            "detail": "Simulator returned an empty device list."}],
                 "neo4j_connected": bool(self.neo4j and self.neo4j.available),
             }
 
         ip = target.get("ip") or target.get("id")
         array_name = target.get("name") or hint or ip
-        plan = self._plan(query, array_name)
 
-        self._step(
-            steps, "thinking", "Thinking",
-            f"To answer this, I need to:\n• {plan['reasoning']}\n• Target array: **{array_name}** (`{ip}`)",
-        )
+        # ── Phase 1: LLM Planner ─────────────────────────────────────────────
+        plan = self._llm_plan(query, array_name, steps,
+                              use_ollama=use_ollama, disable_think=disable_think)
+        commands_to_run: list[str] = list(plan["commands"])
+        cypher: Optional[str] = plan.get("cypher")
+        ran_commands: list[str] = []
+        cmd_outputs: dict = {}
 
-        cmd_outputs = {}
-        parsed_snapshot = {}
+        # ── Phase 2: Execute initial tool set ────────────────────────────────
+        for cmd in commands_to_run:
+            self._execute_command(ip, array_name, cmd, steps, cmd_outputs)
+            ran_commands.append(cmd)
 
-        for cmd in plan["commands"]:
-            try:
-                safe = validate_command(cmd)
-            except ValueError as e:
-                self._step(steps, "error", "Command blocked", str(e))
-                continue
-
-            output = self.execute(ip, safe)
-            cmd_outputs[safe] = output
-            self._step(
-                steps, "command", f"Ran command on {array_name}", safe,
-                command=safe, device_ip=ip, command_output=output
-            )
-
-            parsed = _parse_single(safe, output, self.command_parsers)
-            count = len(parsed) if isinstance(parsed, list) else (1 if parsed else 0)
-            label = safe.split()[0]
-            self._step(
-                steps, "parsed", f"Parsed {label} output",
-                f"Successfully parsed {count} record(s) from `{safe}`.",
-                parsed_preview=parsed if isinstance(parsed, (list, dict)) else None,
-            )
-
+        # ── Persist + normalise ───────────────────────────────────────────────
+        parsed_snapshot: dict = {}
         if cmd_outputs:
             try:
                 parsed_snapshot = self._persist_parsed(ip, array_name, cmd_outputs)
                 hosts_n = len(parsed_snapshot.get("hosts", []))
                 drives_n = len(parsed_snapshot.get("drives", []))
-                self._step(
-                    steps, "neo4j", "Updated Neo4j graph database",
-                    f"Merged array **{array_name}**: {hosts_n} host(s), {drives_n} drive(s), "
-                    f"{len(parsed_snapshot.get('nodes', []))} node(s).",
-                    nodes_updated=hosts_n + drives_n,
-                )
+                self._step(steps, "neo4j", "Updated Neo4j graph database",
+                           f"Merged array **{array_name}**: {hosts_n} host(s), "
+                           f"{drives_n} drive(s), "
+                           f"{len(parsed_snapshot.get('nodes', []))} node(s).",
+                           nodes_updated=hosts_n + drives_n)
             except Exception as ex:
                 self._step(steps, "neo4j", "Neo4j update skipped", str(ex))
 
-        rows = []
-        cypher = plan.get("cypher")
-        if cypher and self.run_cypher and self.neo4j and self.neo4j.available:
-            self._step(steps, "cypher", "Ran query on Neo4j", cypher.strip(), cypher=cypher.strip())
-            try:
-                rows = self.run_cypher(cypher) or []
-                self._step(
-                    steps, "result", "Graph query results",
-                    f"Retrieved {len(rows)} row(s) from Neo4j.",
-                    rows=rows[:50],
-                )
-            except Exception as ex:
-                self._step(steps, "cypher_error", "Cypher failed", str(ex))
+        san_facts = self._build_san_facts(array_name, parsed_snapshot)
 
-        # Deterministic fallbacks when graph empty
-        if not rows and parsed_snapshot.get("hosts") and "host" in query.lower():
-            rows = [
-                {
-                    "host_name": h.get("name"),
-                    "os_type": h.get("os_name") or h.get("os"),
-                    "paths": h.get("port") or h.get("multipath"),
-                    "connection_type": "Fibre Channel",
-                }
+        # ── Phase 3: Reflection loop ──────────────────────────────────────────
+        if self.llm_call and use_ollama:
+            for reflection_round in range(MAX_REFLECT_ITERS):
+                self._step(steps, "reflecting", "Reflecting",
+                           f"Checking if more data is needed (round {reflection_round + 1}/{MAX_REFLECT_ITERS})…")
+                next_cmd = self._llm_reflect(
+                    query, array_name, san_facts, ran_commands, steps,
+                    use_ollama=use_ollama, disable_think=disable_think
+                )
+                if next_cmd is None:
+                    self._step(steps, "reflecting", "Reflecting",
+                               "Agent is satisfied with the data collected. Proceeding to synthesis.")
+                    break
+                if next_cmd in ran_commands:
+                    # LLM asked for a command already run — stop
+                    self._step(steps, "reflecting", "Reflecting",
+                               f"Command `{next_cmd}` already executed. Proceeding to synthesis.")
+                    break
+
+                # Run the extra command the agent requested
+                self._step(steps, "reflecting", "Reflecting",
+                           f"Agent needs more data: running `{next_cmd}`")
+                self._execute_command(ip, array_name, next_cmd, steps, cmd_outputs)
+                ran_commands.append(next_cmd)
+
+                # Re-parse & rebuild facts with new data
+                try:
+                    parsed_snapshot = self._persist_parsed(ip, array_name, cmd_outputs)
+                    san_facts = self._build_san_facts(array_name, parsed_snapshot)
+                except Exception:
+                    pass
+
+        # ── Cypher / Neo4j query ──────────────────────────────────────────────
+        neo4j_rows: list = []
+        if cypher:
+            neo4j_rows = self._run_cypher_safe(
+                cypher, steps, use_ollama=use_ollama, disable_think=disable_think
+            )
+
+        # Deterministic fallbacks when graph is empty
+        if not neo4j_rows and parsed_snapshot.get("hosts") and "host" in query.lower():
+            neo4j_rows = [
+                {"host_name": h.get("name"), "os_type": h.get("os_name") or h.get("os"),
+                 "paths": h.get("port") or h.get("multipath"), "connection_type": "Fibre Channel"}
                 for h in parsed_snapshot["hosts"]
             ]
-
-        if not rows and parsed_snapshot.get("drives") and "fail" in query.lower():
-            rows = [
+        if not neo4j_rows and parsed_snapshot.get("drives") and "fail" in query.lower():
+            neo4j_rows = [
                 {"array_name": array_name, "pd_id": d.get("pd_id"), "state": d.get("state")}
                 for d in parsed_snapshot["drives"]
                 if d.get("state") in ("failed", "degraded")
             ]
 
-        if not rows and parsed_snapshot.get("protocols_supported"):
-            rows = [{"array_name": array_name, "protocols": parsed_snapshot["protocols_supported"]}]
+        # ── Phase 4: Synthesis ────────────────────────────────────────────────
+        answer = self._llm_synthesize(
+            query, array_name, san_facts, neo4j_rows, steps,
+            use_ollama=use_ollama, disable_think=disable_think, stream=stream
+        )
 
-        answer = self._summarize(query, array_name, rows, parsed_snapshot, plan, use_ollama=use_ollama, disable_think=disable_think)
-        
-        # Dynamically extract a short, informative sentence from the AI's actual summary
+        # Short description for the final step bubble
         final_desc = "Successfully completed SAN diagnostics."
-        summary_lines = [l.strip() for l in answer.split('\n') if l.strip()]
-        for line in summary_lines:
-            # Strip markdown headers, bolding, lists, etc.
-            clean = re.sub(r'^[#*\s\-\[\]\(\)]+', '', line).strip()
-            if clean and not clean.lower().startswith('san diagnostic') and len(clean) > 10:
-                # Skip simple headers
-                if clean.lower() in ("array health and status", "host details", "recommendation", "health summary", "host zoning status", "tpd version"):
-                    continue
-                if len(clean) > 140:
-                    final_desc = clean[:137] + "..."
-                else:
-                    final_desc = clean
+        for line in [l.strip() for l in answer.split("\n") if l.strip()]:
+            clean = re.sub(r"^[#*\s\-\[\]\(\)]+", "", line).strip()
+            if clean and len(clean) > 10 and clean.lower() not in (
+                "san diagnostic report", "array health and status", "host details",
+                "recommendation", "health summary", "host zoning status", "tpd version"
+            ):
+                final_desc = clean[:137] + "..." if len(clean) > 140 else clean
                 break
-                
+
         self._step(steps, "final", "Final result", final_desc)
 
         return {
             "answer": answer,
             "steps": steps,
             "cypher": cypher,
-            "table": rows,
-            "graph": self._build_subgraph(array_name, rows),
+            "table": neo4j_rows,
+            "graph": self._build_subgraph(array_name, neo4j_rows),
             "array": {"name": array_name, "ip": ip},
             "neo4j_connected": bool(self.neo4j and self.neo4j.available),
             "elapsed_ms": int((time.time() - t0) * 1000),
         }
 
-    def _analyze_batch(self, entity_type: str, items: list, chunk_size: int = 30, use_ollama=False, disable_think=False) -> list:
-        """Analyze large lists of hardware entities in batches to prevent LLM token overflow."""
+    # ── Batch analysis helper (kept for token-overflow fallback) ──────────────
+
+    def _analyze_batch(self, entity_type: str, items: list, chunk_size: int = 30,
+                       use_ollama=False, disable_think=False) -> list:
+        """Analyze large hardware entity lists in batches to avoid LLM token overflow."""
         issues = []
         if not self.llm_call or not items:
             return issues
-
-        total_items = len(items)
-        total_batches = (total_items + chunk_size - 1) // chunk_size
-
-        for i in range(0, total_items, chunk_size):
+        total = len(items)
+        n_batches = (total + chunk_size - 1) // chunk_size
+        for i in range(0, total, chunk_size):
             chunk = items[i:i + chunk_size]
             batch_num = (i // chunk_size) + 1
-            
             prompt = (
-                f"You are a hardware diagnostics agent. Analyze this batch ({batch_num}/{total_batches}) "
-                f"of {len(chunk)} {entity_type} records. Identify any components reporting degraded, failed, "
-                f"or abnormal states. If a component is completely healthy, ignore it.\n\n"
+                f"You are a hardware diagnostics agent. Analyze batch {batch_num}/{n_batches} "
+                f"of {len(chunk)} {entity_type} records. Identify components in degraded, failed, "
+                f"or abnormal states. Healthy components — ignore entirely.\n\n"
                 f"Records:\n{json.dumps(chunk, default=str)}\n\n"
-                f"Format your output strictly as a JSON list of objects containing only the problematic components, "
-                f"or return an empty list [] if everything in this batch is completely healthy."
+                "Return ONLY a valid JSON list of problematic component objects, "
+                "or [] if all are healthy."
             )
             try:
                 res = self.llm_call(
-                    "You are a hardware diagnostics agent that returns strictly raw, valid JSON. Do not include markdown formatting (like ```json). Return ONLY a valid JSON list [] of abnormal, degraded, or failed component objects, or an empty list [] if all are healthy.",
-                    prompt,
-                    use_ollama=use_ollama,
-                    disable_think=disable_think
+                    "Return ONLY a valid JSON list [] of abnormal components, or [] if all healthy. "
+                    "No markdown.",
+                    prompt, use_ollama=use_ollama, disable_think=disable_think,
+                    json_mode=True
                 )
-                # Try to parse the LLM's response as a list
                 try:
-                    parsed_res = json.loads(res.strip())
+                    parsed_res = json.loads(_strip_think(res).strip())
                     if isinstance(parsed_res, list):
                         issues.extend(parsed_res)
                 except Exception:
-                    # Fallback string parsing if JSON fails
-                    if "failed" in res.lower() or "degraded" in res.lower() or "abnormal" in res.lower():
+                    if any(k in res.lower() for k in ("failed", "degraded", "abnormal")):
                         issues.append({"batch": batch_num, "summary": res.strip()})
             except Exception:
-                # If LLM rate limits on batching, do local state checks as fallback
-                local_unhealthy = [
-                    item for item in chunk 
-                    if item.get("state", "").lower() not in ("normal", "ok") 
-                    or item.get("status", "").lower() not in ("normal", "ok", "online")
-                ]
-                issues.extend(local_unhealthy)
-                
+                issues.extend([
+                    item for item in chunk
+                    if item.get("state", "").lower() not in ("normal", "ok")
+                ])
         return issues
-
-    def _summarize(self, query: str, array_name: str, rows: list, parsed: dict, plan: dict, use_ollama=False, disable_think=False) -> str:
-        if self.llm_call and (rows or parsed):
-            # 1. Try sending the full context first (for Dev Tier or high token limit configurations)
-            try:
-                summary_context = {
-                    "question": query,
-                    "array": array_name,
-                    "rows_returned": len(rows),
-                    "table_data": rows,
-                    "release_version": parsed.get("release_version") or parsed.get("version"),
-                    "parsed_nodes": parsed.get("nodes", []),
-                    "parsed_cages": parsed.get("cages", []),
-                    "parsed_drives": parsed.get("drives", []),
-                    "parsed_hosts": parsed.get("hosts", []),
-                }
-                ans = self.llm_call(
-                    "You are a premium SAN diagnostic assistant. Summarize the array health, TPD version, and host zoning status in markdown. "
-                    "You MUST format all tables using standard GitHub Flavored Markdown (GFM) pipe-table syntax "
-                    "(with | separators and dashes for headers, e.g. | Header | Header |\n| --- | --- |\n| Row | Row |). "
-                    "Never use plain text, tab-separated columns, or HTML tables. "
-                    "If the query asked about physical disks, cages, nodes, or checkhealth and they are all healthy, state that explicitly! "
-                    "Provide a clear recommendation on whether the array is ready for a firmware update based on the health check. Be concise.",
-                    json.dumps(summary_context, default=str),
-                    use_ollama=use_ollama,
-                    disable_think=disable_think
-                )
-                if ans and (ans.startswith("LLM Error:") or ans.startswith("Error:") or any(k in ans.lower() for k in ("rate_limit", "rate limit", "413", "too large", "tpm", "token"))):
-                    raise ValueError(ans)
-                return ans
-            except Exception as ex:
-                err_msg = str(ex)
-                # 2. Catch Request too large / rate limits / 413 error and initiate self-healing batch analysis loops
-                if any(k in err_msg.lower() for k in ("rate_limit", "rate limit", "413", "too large", "tpm", "token")):
-                    print(f"Token limit / Rate limit exceeded. Triggering dynamic self-healing batching orchestrator...")
-                    
-                    nodes = parsed.get("nodes", [])
-                    cages = parsed.get("cages", [])
-                    drives = parsed.get("drives", [])
-                    hosts = parsed.get("hosts", [])
-
-                    # Parallelize/Batch analyze the 96 drives in chunks of 30
-                    unhealthy_drives = self._analyze_batch("physical drive", drives, chunk_size=30, use_ollama=use_ollama, disable_think=disable_think)
-                    
-                    # Batch analyze cages in chunks of 10
-                    unhealthy_cages = self._analyze_batch("enclosure cage", cages, chunk_size=10, use_ollama=use_ollama, disable_think=disable_think)
-
-                    # Compact hosts to preserve essential fields
-                    compact_hosts = [
-                        {
-                            "name": h.get("name"),
-                            "os": h.get("os") or h.get("os_name") or "Generic",
-                            "paths": h.get("port") or h.get("multipath") or "-"
-                        }
-                        for h in hosts
-                    ]
-
-                    summary_context_compact = {
-                        "question": query,
-                        "array": array_name,
-                        "rows_returned": len(rows),
-                        "table_data": rows[:20],
-                        "node_count": parsed.get("node_count") or len(nodes),
-                        "cage_count": len(cages),
-                        "drive_count": len(drives),
-                        "host_count": len(hosts),
-                        "release_version": parsed.get("release_version") or parsed.get("version"),
-                        "unhealthy_drives_detected": unhealthy_drives,
-                        "unhealthy_cages_detected": unhealthy_cages,
-                        "parsed_nodes": [{"node_id": n.get("node_id"), "name": n.get("name"), "status": n.get("status")} for n in nodes[:4]],
-                        "parsed_hosts": compact_hosts[:15],
-                        "batch_processing_active": True,
-                        "batch_processing_note": "Token limits were exceeded on full request. Sub-loops pre-analyzed drives and cages to extract unhealthy instances."
-                    }
-
-                    try:
-                        ans = self.llm_call(
-                            "You are a premium SAN diagnostic assistant. Summarize the array health, TPD version, and host zoning status in markdown. "
-                            "You MUST format all tables using standard GitHub Flavored Markdown (GFM) pipe-table syntax "
-                            "(with | separators and dashes for headers, e.g. | Header | Header |\n| --- | --- |\n| Row | Row |). "
-                            "Never use plain text, tab-separated columns, or HTML tables. "
-                            "If the query asked about physical disks, cages, nodes, or checkhealth and they are all healthy, state that explicitly! "
-                            "Provide a clear recommendation on whether the array is ready for a firmware update based on the health check. Be concise.",
-                            json.dumps(summary_context_compact, default=str),
-                            use_ollama=use_ollama,
-                            disable_think=disable_think
-                        )
-                        if ans and not (ans.startswith("LLM Error:") or ans.startswith("Error:") or any(k in ans.lower() for k in ("rate_limit", "rate limit", "413", "too large", "tpm", "token"))):
-                            return ans
-                    except Exception:
-                        pass
-
-        # 3. Manual markdown synthesis fallback if Groq/LLM completely fails or is disabled:
-        lines = [f"### SAN Diagnostic Report: **{array_name}**\n"]
-
-        # 0. Active TPD Version
-        rel_ver = parsed.get("release_version") or parsed.get("version")
-        if rel_ver:
-            lines.append(f"* **Active TPD Version:** `{rel_ver}`")
-
-        # 1. Node count summary
-        node_list = parsed.get("nodes", [])
-        n_count = parsed.get("node_count") or len(node_list)
-        if n_count > 0:
-            lines.append(f"* **Controller Nodes:** {n_count} Node(s) Online and active in cluster.")
-            if node_list:
-                node_names = ", ".join(n.get("name", f"node-{n.get('node_id')}") for n in node_list)
-                lines.append(f"  * Active nodes: `{node_names}`")
-
-        # 2. Cages summary
-        cage_list = parsed.get("cages", [])
-        if cage_list:
-            degraded_cages = [c for c in cage_list if c.get("state", "").lower() not in ("normal", "ok")]
-            if degraded_cages:
-                lines.append(f"* **Enclosure Cages:** {len(degraded_cages)} degraded enclosure(s) found!")
-                for c in degraded_cages:
-                    lines.append(f"  * `{c.get('name')}` state is `{c.get('state')}` (Temp: {c.get('temp')})")
-            else:
-                lines.append(f"* **Enclosure Cages:** All {len(cage_list)} cages are healthy and reporting `Normal` temperature and power states.")
-
-        # 3. Disk summary
-        drive_list = parsed.get("drives", [])
-        if drive_list:
-            failed_drives = [d for d in drive_list if d.get("state", "").lower() not in ("normal", "ok")]
-            if failed_drives:
-                lines.append(f"* **Physical Disks:** {len(failed_drives)} degraded/failed disk(s) detected!")
-                lines.append("\n| Drive ID | Enclosure Position | Type | State |")
-                lines.append("| --- | --- | --- | --- |")
-                for d in failed_drives:
-                    lines.append(f"| {d.get('pd_id')} | {d.get('cage_pos')} | {d.get('type')} | **{d.get('state')}** |")
-            else:
-                lines.append(f"* **Physical Disks:** All {len(drive_list)} physical drives (SSD/HDD) are healthy (`normal` state).")
-
-        # 4. Host connections summary
-        host_list = parsed.get("hosts", [])
-        if host_list:
-            lines.append(f"* **Zoned Hosts:** {len(host_list)} hosts are registered and zoned with this array.")
-            # If hosts were queried directly, print a nice table
-            if "host" in query.lower():
-                lines.append("\n| Host Name | OS Type | Persona | WWN / Path |")
-                lines.append("| --- | --- | --- | --- |")
-                for h in host_list[:15]:
-                    lines.append(f"| {h.get('name')} | {h.get('os') or h.get('os_name') or 'Unknown'} | {h.get('persona', '-')} | {h.get('wwn')} |")
-                if len(host_list) > 15:
-                    lines.append(f"| ... | and {len(host_list) - 15} more | | |")
-
-        # 5. General fallback
-        if len(lines) == 1:
-            lines.append(f"Successfully executed SAN diagnostics on **{array_name}**. All components (nodes, cages, disks) are operating within normal operational parameters.")
-
-        return "\n".join(lines)

@@ -53,6 +53,16 @@ Notes:
   - Hosts attach to arrays with CONNECTS_TO (direction: Host -> ArraySystem)
   - Use labels() or properties liberally in RETURN for clarity
 """
+LLM_CALL_COUNTER = 0
+
+def get_llm_calls_count():
+    global LLM_CALL_COUNTER
+    return LLM_CALL_COUNTER
+
+def reset_llm_calls_count():
+    global LLM_CALL_COUNTER
+    LLM_CALL_COUNTER = 0
+    return LLM_CALL_COUNTER
 
 
 class RAGEngine:
@@ -64,7 +74,9 @@ class RAGEngine:
         self.client = Groq(api_key=key) if HAS_GROQ and key else None
         self.active_ollama_port = detect_ollama()
 
-    def _llm_call_ollama(self, system_prompt, user_prompt, history=None, temperature=0.1, disable_think=False, stream=False):
+    def _llm_call_ollama(self, system_prompt, user_prompt, history=None, temperature=0.1, disable_think=False, stream=False, json_mode=False):
+        global LLM_CALL_COUNTER
+        LLM_CALL_COUNTER += 1
         messages = [{"role": "system", "content": system_prompt}]
         if history and isinstance(history, list):
             for msg in history[-6:]:
@@ -72,63 +84,119 @@ class RAGEngine:
                     messages.append(msg)
         messages.append({"role": "user", "content": user_prompt})
         
+        # Auto-detect best model from available tags
+        model_to_use = OLLAMA_MODEL
+        if not os.environ.get("OLLAMA_MODEL"):
+            try:
+                r = requests.get(f"http://127.0.0.1:{self.active_ollama_port}/api/tags", timeout=1.0)
+                if r.status_code == 200:
+                    available_models = [m.get("name") for m in r.json().get("models", []) if m.get("name")]
+                    if available_models:
+                        # Prioritize deepseek models first
+                        deepseek_models = [m for m in available_models if "deepseek" in m.lower()]
+                        if deepseek_models:
+                            # Prefer 8b or 7b if available, otherwise any deepseek
+                            deepseek_8b = [m for m in deepseek_models if "8b" in m.lower()]
+                            deepseek_7b = [m for m in deepseek_models if "7b" in m.lower()]
+                            if deepseek_8b:
+                                model_to_use = deepseek_8b[0]
+                            elif deepseek_7b:
+                                model_to_use = deepseek_7b[0]
+                            else:
+                                model_to_use = deepseek_models[0]
+                        elif "qwen3:4b" in available_models:
+                            model_to_use = "qwen3:4b"
+                        else:
+                            model_to_use = available_models[0]
+            except Exception:
+                pass
+
         try:
             url = f"http://127.0.0.1:{self.active_ollama_port}/api/chat"
             if disable_think:
                 messages[0]["content"] += "\n\nCRITICAL INSTRUCTION: DO NOT output any reasoning or thinking steps. Output ONLY the final direct answer. DO NOT output <think> tags."
                 
             data = {
-                "model": OLLAMA_MODEL,
+                "model": model_to_use,
                 "messages": messages,
                 "stream": stream,
                 "options": {
                     "temperature": temperature
                 }
             }
+            if json_mode:
+                data["format"] = "json"
             if stream:
-                response = requests.post(url, json=data, stream=True, timeout=60)
+                try:
+                    response = requests.post(url, json=data, stream=True, timeout=15)
+                    response.raise_for_status()
+                except Exception as conn_err:
+                    def error_generator():
+                        yield json.dumps({
+                            "message": {
+                                "content": f"Ollama connection error: {str(conn_err)}. Please verify that Ollama is running on port {self.active_ollama_port} (e.g. using `ollama serve`)."
+                            },
+                            "done": True
+                        })
+                    return error_generator()
+
                 if disable_think:
                     def generator():
                         import json
                         buffer = ""
                         passed_think = False
-                        for line in response.iter_lines():
-                            if line:
-                                decoded = line.decode('utf-8')
-                                try:
-                                    chunk_data = json.loads(decoded)
-                                    content = chunk_data.get("message", {}).get("content", "")
-                                    buffer += content
-                                    
-                                    if not passed_think:
-                                        if "</think>" in buffer:
-                                            parts = buffer.split("</think>", 1)
-                                            passed_think = True
-                                            remaining = parts[1]
-                                            # We transitioned! Yield any remaining normal response text
-                                            if remaining:
-                                                chunk_data["message"]["content"] = remaining
+                        try:
+                            for line in response.iter_lines():
+                                if line:
+                                    decoded = line.decode('utf-8')
+                                    try:
+                                        chunk_data = json.loads(decoded)
+                                        content = chunk_data.get("message", {}).get("content", "")
+                                        buffer += content
+                                        
+                                        if not passed_think:
+                                            if "</think>" in buffer:
+                                                parts = buffer.split("</think>", 1)
+                                                passed_think = True
+                                                remaining = parts[1]
+                                                # We transitioned! Yield any remaining normal response text
+                                                if remaining:
+                                                    chunk_data["message"]["content"] = remaining
+                                                    yield json.dumps(chunk_data)
+                                            else:
+                                                # We are still in the think block.
+                                                chunk_data["type"] = "think"
                                                 yield json.dumps(chunk_data)
                                         else:
-                                            # We are still in the think block.
-                                            # To keep the connection alive and show fast moving text,
-                                            # we yield these chunks tagged as type 'think' (which the frontend can optionally hide/discard).
-                                            chunk_data["type"] = "think"
-                                            yield json.dumps(chunk_data)
-                                    else:
+                                            yield decoded
+                                    except Exception:
                                         yield decoded
-                                except Exception:
-                                    yield decoded
+                        except Exception as stream_err:
+                            yield json.dumps({
+                                "message": {"content": f"\n\n[Ollama stream interrupted: {str(stream_err)}]"},
+                                "done": True
+                            })
                     return generator()
                 else:
                     def generator():
-                        for line in response.iter_lines():
-                            if line:
-                                yield line.decode('utf-8')
+                        try:
+                            for line in response.iter_lines():
+                                if line:
+                                    yield line.decode('utf-8')
+                        except Exception as stream_err:
+                            yield json.dumps({
+                                "message": {"content": f"\n\n[Ollama stream interrupted: {str(stream_err)}]"},
+                                "done": True
+                            })
                     return generator()
 
-            response = requests.post(url, json=data, timeout=300)
-            result = response.json().get("message", {}).get("content", "")
+            try:
+                response = requests.post(url, json=data, timeout=300)
+                response.raise_for_status()
+                result = response.json().get("message", {}).get("content", "")
+            except Exception as conn_err:
+                return f"Ollama connection error: {str(conn_err)}. Please verify that Ollama is running on port {self.active_ollama_port}."
+
             if disable_think:
                 import re
                 result = re.sub(r'<think>.*?</think>', '', result, flags=re.DOTALL).strip()
@@ -140,8 +208,10 @@ class RAGEngine:
 
     def _llm_call(self, system_prompt, user_prompt, history=None, temperature=0.1, use_ollama=False, disable_think=False, stream=False, json_mode=False):
         if use_ollama:
-            return self._llm_call_ollama(system_prompt, user_prompt, history, temperature, disable_think, stream)
+            return self._llm_call_ollama(system_prompt, user_prompt, history, temperature, disable_think, stream, json_mode)
             
+        global LLM_CALL_COUNTER
+        LLM_CALL_COUNTER += 1
         if stream:
             # Fake stream for Groq if requested (since we didn't implement Groq stream)
             def fake_stream(text):
@@ -156,12 +226,17 @@ class RAGEngine:
                     if isinstance(msg, dict) and "role" in msg and "content" in msg:
                         messages.append(msg)
             messages.append({"role": "user", "content": user_prompt})
-            response = self.client.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=4096,
-            )
+            
+            kwargs = {
+                "model": GROQ_MODEL,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": 4096,
+            }
+            if json_mode:
+                kwargs["response_format"] = {"type": "json_object"}
+                
+            response = self.client.chat.completions.create(**kwargs)
             result = response.choices[0].message.content
             if stream:
                 return fake_stream(result)

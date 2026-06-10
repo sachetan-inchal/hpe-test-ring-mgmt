@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Brain, Terminal, Braces, Database, Search, CheckCircle2, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
+import { Brain, Terminal, Braces, Database, Search, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
 
 const ICONS = {
   thinking: Brain,
+  reflecting: Sparkles,
   command: Terminal,
   parsed: Braces,
   neo4j: Database,

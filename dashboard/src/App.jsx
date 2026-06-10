@@ -9,6 +9,7 @@ import ChatPage from './pages/ChatPage'
 import AdminPage from './pages/AdminPage'
 import HealthPage from './pages/HealthPage'
 import InventoryPage from './pages/InventoryPage'
+import SSHRingPage from './pages/SSHRingPage'
 import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check } from 'lucide-react'
 
 const FLASK_API = `http://${window.location.hostname}:5005`
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { path: '/discovery', label: 'Discovery', icon: Radar, desc: 'Live BFS network scan' },
   { path: '/topology', label: 'Test Ring Viewer', icon: Map, desc: 'SAN diagram & ring topology' },
   { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
+  { path: '/ssh-ring', label: 'SSH Ring Manager', icon: Layers, desc: 'Configure and discover SSH rings' },
   { path: '/emulator', label: 'Emulator', icon: Terminal, desc: 'CLI terminal' },
   { path: '/chat', label: 'AI Assistant', icon: MessageSquare, desc: 'Intelligent chat' },
   { path: '/admin', label: 'Admin', icon: Settings, desc: 'Device & schema mgmt' },
@@ -497,6 +499,7 @@ export default function App() {
                   <Route path="/discovery" element={<DiscoveryPage apiBase={FLASK_API} />} />
                   <Route path="/topology" element={<TopologyPage apiBase={FLASK_API} />} />
                   <Route path="/inventory" element={<InventoryPage apiBase={FLASK_API} />} />
+                  <Route path="/ssh-ring" element={<SSHRingPage apiBase={FLASK_API} />} />
                   <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} />} />
                   <Route path="/chat" element={<ChatPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} /> : <Navigate to="/discovery" replace />} />
