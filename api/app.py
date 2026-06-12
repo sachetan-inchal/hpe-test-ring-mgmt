@@ -2568,9 +2568,11 @@ def chat():
                                 yield f"data: {json.dumps({'type': c_type, 'content': content, 'done': chunk_data.get('done', False)})}\n\n"
                         except json.JSONDecodeError:
                             yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    
                 except Exception as stream_err:
                     log.exception("Error during SSE stream generation")
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': f'\\n\\n[Stream Error: {str(stream_err)}]' })}\n\n"
+                    error_msg = f"\n\n[Stream Error: {str(stream_err)}]"
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': error_msg})}\n\n"
                         
                 # After the stream finishes, yield the final result structure (cypher, table etc)
                 try:

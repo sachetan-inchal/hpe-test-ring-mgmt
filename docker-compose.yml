@@ -14,12 +14,12 @@ services:
     restart: unless-stopped
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.22
     container_name: hpe_elasticsearch
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms512m -Xmx1g
+      - ES_JAVA_OPTS=-Xms128m -Xmx128m
     ports:
       - "9200:9200"
     volumes:
@@ -28,10 +28,14 @@ services:
 
   # Local MongoDB Fallback
   mongo:
-    image: mongo:latest
+    image: mongo:4.4
     container_name: hpe_mongo
     ports:
       - "27017:27017"
     volumes:
       - ./mongodb_data:/data/db
     restart: unless-stopped
+    
+volumes:
+  elasticsearch_data:
+  mongo_data:
