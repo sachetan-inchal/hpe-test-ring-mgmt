@@ -16,14 +16,14 @@ const FLASK_API = `http://${window.location.hostname}:5005`
 const CHATBOT_API = '/chatbot'
 
 const NAV_ITEMS = [
-  { path: '/discovery', label: 'Discovery', icon: Radar, desc: 'Live BFS network scan' },
   { path: '/topology', label: 'Test Ring Viewer', icon: Map, desc: 'SAN diagram & ring topology' },
   { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
+  { path: '/discovery', label: 'Discovery', icon: Radar, desc: 'Live BFS network scan' },
   { path: '/ssh-ring', label: 'SSH Ring Manager', icon: Layers, desc: 'Configure and discover SSH rings' },
   { path: '/emulator', label: 'Emulator', icon: Terminal, desc: 'CLI terminal' },
+  { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
   { path: '/chat', label: 'AI Assistant', icon: MessageSquare, desc: 'Intelligent chat' },
   { path: '/admin', label: 'Admin', icon: Settings, desc: 'Device & schema mgmt' },
-  { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
 ]
 
 function ProtectedRoute({ children }) {
