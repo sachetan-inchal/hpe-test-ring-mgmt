@@ -6,6 +6,7 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     "10.20.108.67": "host-prod-a-00",
     "10.20.247.30": "host-prod-a-01",
     "10.20.110.168": "host-prod-a-02",
@@ -62,21 +63,32 @@
     "10.20.58.214": "host-prod-a-06",
     "10.20.154.227": "host-prod-a-07",
 >>>>>>> origin/prototype
+=======
+    "10.20.215.141": "host-prod-a-00",
+    "10.20.142.147": "host-prod-a-01",
+    "10.20.92.81": "host-prod-a-02",
+    "10.20.87.85": "host-prod-a-03",
+    "10.20.242.10": "host-prod-a-04",
+    "10.20.71.87": "host-prod-a-05",
+    "10.20.104.246": "host-prod-a-06",
+    "10.20.177.230": "host-prod-a-07",
+>>>>>>> origin/prototype
     "10.20.20.5": "PROD-B",
     "10.20.20.200": "swprod-b1",
     "10.20.20.201": "swprod-b2",
-    "10.20.121.29": "host-prod-b-00",
-    "10.20.75.180": "host-prod-b-01",
-    "10.20.233.64": "host-prod-b-02",
-    "10.20.56.221": "host-prod-b-03",
+    "10.20.53.113": "host-prod-b-00",
+    "10.20.79.90": "host-prod-b-01",
+    "10.20.62.167": "host-prod-b-02",
+    "10.20.4.200": "host-prod-b-03",
     "10.20.30.5": "DR-C",
     "10.20.30.200": "swdr-c1",
-    "10.20.163.24": "host-dr-c-00",
-    "10.20.246.209": "host-dr-c-01",
-    "10.20.22.96": "host-dr-c-02",
-    "10.20.204.93": "host-dr-c-03",
+    "10.20.5.177": "host-dr-c-00",
+    "10.20.25.243": "host-dr-c-01",
+    "10.20.58.152": "host-dr-c-02",
+    "10.20.193.168": "host-dr-c-03",
     "10.20.40.5": "EDGE-D",
     "10.20.40.200": "swedge-d1",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
     "10.20.170.117": "host-edge-d-00",
@@ -96,6 +108,12 @@
     "10.20.62.87": "host-edge-d-02",
     "10.20.62.42": "host-edge-d-03"
 >>>>>>> origin/prototype
+=======
+    "10.20.104.78": "host-edge-d-00",
+    "10.20.26.230": "host-edge-d-01",
+    "10.20.3.112": "host-edge-d-02",
+    "10.20.152.41": "host-edge-d-03"
+>>>>>>> origin/prototype
   },
   "arrays": [
     {
@@ -103,6 +121,7 @@
       "array_id": "0x1001",
       "ip_address": "10.20.10.5",
       "model": "HPE Alletra Storage MP",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -115,6 +134,9 @@
 >>>>>>> origin/prototype
 =======
       "serial": "HPE25760856",
+>>>>>>> origin/prototype
+=======
+      "serial": "HPE51594243",
 >>>>>>> origin/prototype
       "node_count": 4,
       "connected_array_ips": [
@@ -133,6 +155,7 @@
       "hosts": [
         {
           "name": "host-prod-a-00",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -166,16 +189,25 @@
           "os_type": "linux"
 =======
           "ip_address": "10.20.29.156",
+=======
+          "ip_address": "10.20.215.141",
+          "os_type": "windows"
+        },
+        {
+          "name": "host-prod-a-01",
+          "ip_address": "10.20.142.147",
+>>>>>>> origin/prototype
           "os_type": "windows"
 >>>>>>> origin/prototype
         },
         {
           "name": "host-prod-a-02",
-          "ip_address": "10.20.154.121",
-          "os_type": "linux"
+          "ip_address": "10.20.92.81",
+          "os_type": "windows"
         },
         {
           "name": "host-prod-a-03",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -203,25 +235,29 @@
 =======
           "ip_address": "10.20.115.158",
 >>>>>>> origin/prototype
+=======
+          "ip_address": "10.20.87.85",
+>>>>>>> origin/prototype
           "os_type": "linux"
         },
         {
           "name": "host-prod-a-04",
-          "ip_address": "10.20.129.26",
-          "os_type": "linux"
+          "ip_address": "10.20.242.10",
+          "os_type": "windows"
         },
         {
           "name": "host-prod-a-05",
-          "ip_address": "10.20.30.155",
-          "os_type": "linux"
+          "ip_address": "10.20.71.87",
+          "os_type": "windows"
         },
         {
           "name": "host-prod-a-06",
-          "ip_address": "10.20.58.214",
+          "ip_address": "10.20.104.246",
           "os_type": "linux"
         },
         {
           "name": "host-prod-a-07",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
           "ip_address": "10.20.194.38",
@@ -231,6 +267,9 @@
 >>>>>>> origin/prototype
 =======
           "ip_address": "10.20.154.227",
+>>>>>>> origin/prototype
+=======
+          "ip_address": "10.20.177.230",
 >>>>>>> origin/prototype
           "os_type": "linux"
         },
@@ -249,6 +288,7 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
       "serial": "HPE62960689",
 =======
       "serial": "HPE70797132",
@@ -258,6 +298,9 @@
 >>>>>>> origin/prototype
 =======
       "serial": "HPE95116048",
+>>>>>>> origin/prototype
+=======
+      "serial": "HPE71542887",
 >>>>>>> origin/prototype
       "node_count": 2,
       "connected_array_ips": [
@@ -277,6 +320,7 @@
       "hosts": [
         {
           "name": "host-prod-b-00",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -311,19 +355,24 @@
           "ip_address": "10.20.121.29",
 >>>>>>> origin/prototype
           "os_type": "linux"
+=======
+          "ip_address": "10.20.53.113",
+          "os_type": "windows"
+>>>>>>> origin/prototype
         },
         {
           "name": "host-prod-b-01",
-          "ip_address": "10.20.75.180",
+          "ip_address": "10.20.79.90",
           "os_type": "windows"
         },
         {
           "name": "host-prod-b-02",
-          "ip_address": "10.20.233.64",
+          "ip_address": "10.20.62.167",
           "os_type": "linux"
         },
         {
           "name": "host-prod-b-03",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
           "ip_address": "10.20.6.123",
@@ -337,6 +386,10 @@
           "ip_address": "10.20.56.221",
           "os_type": "windows"
 >>>>>>> origin/prototype
+=======
+          "ip_address": "10.20.4.200",
+          "os_type": "linux"
+>>>>>>> origin/prototype
         }
       ]
     },
@@ -345,6 +398,7 @@
       "array_id": "0x1003",
       "ip_address": "10.20.30.5",
       "model": "HPE Primera 600",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -357,6 +411,9 @@
 >>>>>>> origin/prototype
 =======
       "serial": "HPE64206598",
+>>>>>>> origin/prototype
+=======
+      "serial": "HPE68594002",
 >>>>>>> origin/prototype
       "node_count": 2,
       "connected_array_ips": [
@@ -371,6 +428,7 @@
       "hosts": [
         {
           "name": "host-dr-c-00",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -418,21 +476,25 @@
 =======
           "ip_address": "10.20.163.24",
           "os_type": "windows"
+=======
+          "ip_address": "10.20.5.177",
+          "os_type": "linux"
+>>>>>>> origin/prototype
         },
         {
           "name": "host-dr-c-01",
-          "ip_address": "10.20.246.209",
+          "ip_address": "10.20.25.243",
           "os_type": "windows"
 >>>>>>> origin/prototype
         },
         {
           "name": "host-dr-c-02",
-          "ip_address": "10.20.22.96",
+          "ip_address": "10.20.58.152",
           "os_type": "windows"
         },
         {
           "name": "host-dr-c-03",
-          "ip_address": "10.20.204.93",
+          "ip_address": "10.20.193.168",
           "os_type": "linux"
 >>>>>>> origin/prototype
         }
@@ -446,6 +508,7 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
       "serial": "HPE63662863",
 =======
       "serial": "HPE66225670",
@@ -455,6 +518,9 @@
 >>>>>>> origin/prototype
 =======
       "serial": "HPE20310170",
+>>>>>>> origin/prototype
+=======
+      "serial": "HPE80941406",
 >>>>>>> origin/prototype
       "node_count": 2,
       "connected_array_ips": [],
@@ -470,6 +536,7 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
           "ip_address": "10.20.41.85",
 =======
           "ip_address": "10.20.170.117",
@@ -480,10 +547,14 @@
 =======
           "ip_address": "10.20.166.64",
 >>>>>>> origin/prototype
+=======
+          "ip_address": "10.20.104.78",
+>>>>>>> origin/prototype
           "os_type": "linux"
         },
         {
           "name": "host-edge-d-01",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -526,10 +597,19 @@
           "ip_address": "10.20.62.87",
           "os_type": "linux"
 >>>>>>> origin/prototype
+=======
+          "ip_address": "10.20.26.230",
+          "os_type": "windows"
+        },
+        {
+          "name": "host-edge-d-02",
+          "ip_address": "10.20.3.112",
+          "os_type": "windows"
+>>>>>>> origin/prototype
         },
         {
           "name": "host-edge-d-03",
-          "ip_address": "10.20.62.42",
+          "ip_address": "10.20.152.41",
           "os_type": "windows"
 >>>>>>> origin/prototype
         }

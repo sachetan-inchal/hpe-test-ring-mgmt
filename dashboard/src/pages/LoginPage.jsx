@@ -120,14 +120,14 @@ export default function LoginPage() {
         <div className="login-brand">
           <div className="login-logo-row" style={{ justifyContent: 'center', marginBottom: '1rem' }}>
             <img 
-              src="/images/hpe-logo.jpg" 
+              src="/images/HPE_logo_transparent.png" 
               alt="Hewlett Packard Enterprise" 
-              style={{ width: '180px', borderRadius: '8px', objectFit: 'contain' }} 
+              style={{ width: '270px', borderRadius: '8px', objectFit: 'contain' }} 
             />
           </div>
-          <h1 className="login-title">SAN Unified Platform</h1>
+        
           <p className="login-subtitle">
-            {isLogin ? 'Sign in to access the SAN management dashboard' : 'Create your account to get started'}
+            {isLogin ? 'Sign in to access the HPE Ring Test Management Tool' : 'Create your account to get started'}
           </p>
         </div>
 

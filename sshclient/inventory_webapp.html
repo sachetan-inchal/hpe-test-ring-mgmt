@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SAN SSH Inventory - Web Password Manager (Minimal)</title>
+  <style>
+    :root { --bg:#0b1020; --card:#111a33; --muted:#9fb0d0; --text:#eaf1ff; --accent:#6ea8fe; --danger:#ff6b6b; --ok:#2ee59d; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: linear-gradient(180deg, #0b1020, #070a14); color:var(--text); }
+    .wrap { max-width: 1100px; margin: 28px auto; padding: 0 16px; }
+    h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: .2px; }
+    .sub { color: var(--muted); margin: 0 0 22px; font-size: 13px; line-height: 1.4; }
+    .grid { display:grid; grid-template-columns: 1fr; gap: 14px; }
+    @media (min-width: 960px){ .grid{ grid-template-columns: 1.05fr .95fr; } }
+
+    .card { background: rgba(17,26,51,.92); border: 1px solid rgba(110,168,254,.18); border-radius: 14px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+
+    label { display:block; color: var(--muted); font-size: 12px; margin: 10px 0 6px; }
+    input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: var(--text); outline: none; }
+    input::placeholder{ color: rgba(159,176,208,.6); }
+
+    .row { display:flex; gap: 10px; }
+    .row > * { flex: 1; }
+
+    button { padding: 11px 14px; border-radius: 12px; border: 1px solid rgba(110,168,254,.35); background: rgba(110,168,254,.15); color: var(--text); cursor: pointer; font-weight: 650; }
+    button:hover{ background: rgba(110,168,254,.22); }
+    button.secondary { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.16); }
+    button.secondary:hover{ background: rgba(255,255,255,.10); }
+    button.danger { border-color: rgba(255,107,107,.35); background: rgba(255,107,107,.10); }
+    button.danger:hover { background: rgba(255,107,107,.17); }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+
+    .status { margin-top: 12px; font-size: 13px; }
+    .status.ok{ color: var(--ok); }
+    .status.err{ color: var(--danger); }
+
+    .table { width:100%; border-collapse: collapse; margin-top: 10px; }
+    .table th, .table td { text-align:left; padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 13px; vertical-align: top; }
+    .table th { color: var(--muted); font-weight: 750; }
+
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    .actions { display:flex; gap: 8px; flex-wrap: wrap; }
+    .cmdout { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; max-height: 260px; overflow:auto; background: rgba(0,0,0,.18); border: 1px solid rgba(255,255,255,.08); padding: 10px; border-radius: 12px; }
+
+    .note { background: rgba(255,255,255,.05); border: 1px dashed rgba(110,168,254,.35); padding: 12px; border-radius: 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>SAN SSH Inventory - Password Manager + Connector</h1>
+    <p class="sub">
+      Minimal static UI. Uses backend endpoints in <code>api/app.py</code>:
+      <br/>- <code>POST /api/credentials/save</code> to save encrypted credentials into MongoDB
+      <br/>- <code>POST /api/ssh-ring/exec</code> to connect + run a command
+      <br/>
+      <b>Set API_BASE</b> below if you open this HTML via <code>file://</code>.
+    </p>
+
+    <div class="grid">
+      <section class="card">
+        <h2 style="margin:0 0 4px; font-size:16px;">Add / Save SSH Credentials</h2>
+        <div class="note" style="margin-bottom:12px;">
+          Credentials are stored server-side encrypted. Password is never stored in browser on success.
+          <br/>If you refresh without backend, the list may be empty because this minimal app doesn’t implement a secure “list credentials” API.
+        </div>
+
+        <label for="deviceName">Device name</label>
+        <input id="deviceName" placeholder="e.g. node-alpha" />
+
+        <div class="row">
+          <div>
+            <label for="ip">IP address</label>
+            <input id="ip" placeholder="e.g. 192.168.1.101" />
+          </div>
+          <div>
+            <label for="port">Port</label>
+            <input id="port" placeholder="22" value="22" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="username">Username</label>
+            <input id="username" placeholder="e.g. root" />
+          </div>
+          <div>
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="SSH password" />
+          </div>
+        </div>
+
+        <button id="saveBtn" style="width:100%; margin-top:12px;">Save credentials</button>
+        <div id="saveStatus" class="status" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="card">
+        <h2 style="margin:0 0 4px; font-size:16px;">Run commands against saved credentials</h2>
+        <div class="note" style="margin-bottom:12px;">
+          Since there is no API to list decrypted credentials, this minimal UI keeps a small local cache of (ip, username, port, device_name).
+          <br/>The password is sent only when you press “Run commands”.
+        </div>
+
+        <label for="targetIp">Target IP</label>
+        <input id="targetIp" placeholder="Enter IP from your saved devices" />
+
+        <div class="row">
+          <div>
+            <label for="targetUser">Username</label>
+            <input id="targetUser" placeholder="Username" />
+          </div>
+          <div>
+            <label for="targetPort">Port</label>
+            <input id="targetPort" placeholder="22" value="22" />
+          </div>
+        </div>
+
+        <label for="targetPassword">Password</label>
+        <input id="targetPassword" type="password" placeholder="Password" />
+
+        <label for="command">Command to run</label>
+        <input id="command" class="mono" placeholder="e.g. showsys" value="ls" />
+
+        <div class="actions" style="margin-top:10px;">
+          <button id="runBtn">Connect SSH & run</button>
+          <button id="quickBtn" class="secondary" type="button">Run: ls + showversion -b + showsys</button>
+        </div>
+        <div id="runStatus" class="status" role="status" aria-live="polite"></div>
+        <div id="cmdOutput" class="cmdout" style="margin-top:10px;">(No output yet)</div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:14px;">
+      <h2 style="margin:0 0 8px; font-size:16px;">Devices from server</h2>
+      <table class="table" aria-label="Server devices">
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>IP</th>
+            <th>User</th>
+            <th>Port</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="devicesBody">
+          <tr><td colspan="5" style="color:var(--muted);">Loading devices...</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    const CACHE_KEY = 'san_ssh_inventory_ui_cache_v1';
+
+    function loadCache(){
+      try{
+        const raw = localStorage.getItem(CACHE_KEY);
+        if(!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      }catch{ return []; }
+    }
+
+    function saveCache(list){
+      localStorage.setItem(CACHE_KEY, JSON.stringify(list));
+    }
+
+    function setStatus(el, msg, kind){
+      el.textContent = msg;
+      el.classList.remove('ok','err');
+      if(kind === 'ok') el.classList.add('ok');
+      if(kind === 'err') el.classList.add('err');
+    }
+
+    function renderDevices(){
+      const body = document.getElementById('devicesBody');
+      body.innerHTML = '';
+      if(!allDevices.length){
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="5" style="color:var(--muted);">No devices found.</td>';
+        body.appendChild(tr);
+        return;
+      }
+      for(const d of allDevices){
+        const tr = document.createElement('tr');
+
+        const tdName = document.createElement('td');
+        tdName.textContent = d.device_name || '';
+
+        const tdIp = document.createElement('td');
+        tdIp.textContent = d.ip_address;
+
+        const tdUser = document.createElement('td');
+        tdUser.textContent = d.username;
+
+        const tdPort = document.createElement('td');
+        tdPort.textContent = String(d.port ?? 22);
+
+        const tdActions = document.createElement('td');
+        const wrap = document.createElement('div');
+        wrap.className = 'actions';
+
+        const btnUse = document.createElement('button');
+        btnUse.className = 'secondary';
+        btnUse.type = 'button';
+        btnUse.textContent = 'Use';
+        btnUse.onclick = () => {
+          document.getElementById('targetIp').value = d.ip_address;
+          document.getElementById('targetUser').value = d.username;
+          document.getElementById('targetPort').value = String(d.port ?? 22);
+          document.getElementById('targetPassword').value = d.password;
+        };
+
+        const btnEdit = document.createElement('button');
+        btnEdit.className = 'secondary';
+        btnEdit.type = 'button';
+        btnEdit.textContent = 'Edit';
+        btnEdit.onclick = () => {
+          document.getElementById('deviceName').value = d.device_name || '';
+          document.getElementById('ip').value = d.ip_address;
+          document.getElementById('port').value = String(d.port ?? 22);
+          document.getElementById('username').value = d.username;
+          document.getElementById('password').value = d.password;
+          document.getElementById('saveBtn').textContent = `Update "${d.device_name}"`;
+          document.getElementById('saveBtn').dataset.originalName = d.device_name;
+          window.scrollTo(0, 0);
+        };
+
+        const btnDel = document.createElement('button');
+        btnDel.className = 'danger';
+        btnDel.type = 'button';
+        btnDel.textContent = 'Delete';
+        btnDel.onclick = async () => {
+          if(confirm(`Delete device "${d.device_name}"?`)){
+            try{
+              const res = await fetch(`${API_BASE}/api/credentials/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ device_name: d.device_name })
+              });
+              if(!res.ok) throw new Error(await res.text());
+              await fetchDevices();
+              setStatus(document.getElementById('saveStatus'), `Deleted "${d.device_name}"`, 'ok');
+            }catch(e){
+              setStatus(document.getElementById('saveStatus'), `Delete failed: ${e}`, 'err');
+            }
+          }
+        };
+
+        wrap.appendChild(btnUse);
+        wrap.appendChild(btnEdit);
+        wrap.appendChild(btnDel);
+        tdActions.appendChild(wrap);
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdIp);
+        tr.appendChild(tdUser);
+        tr.appendChild(tdPort);
+        tr.appendChild(tdActions);
+        body.appendChild(tr);
+      }
+    }
+
+    // TEMP server (in sshclient/temp_inventory_server.py)
+    const API_BASE = (window.API_BASE || 'http://127.0.0.1:5055').replace(/\/+$/, '');
+    let allDevices = [];
+
+    async function fetchDevices(){
+      try{
+        const res = await fetch(`${API_BASE}/api/devices`);
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        allDevices = data.devices || [];
+        renderDevices();
+      }catch(e){
+        console.error('Failed to fetch devices:', e);
+      }
+    }
+
+    async function apiSave({ ip, username, password, port, device_name }){
+      const res = await fetch(`${API_BASE}/api/credentials/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_name, ip, username, password, port })
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    }
+
+    async function apiExec({ ip, username, password, port, command }){
+      const res = await fetch(`${API_BASE}/api/ssh/exec`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip, username, password, port, command })
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    }
+
+    async function onSave(){
+      const device_name = document.getElementById('deviceName').value.trim();
+      const ip = document.getElementById('ip').value.trim();
+      const port = parseInt(document.getElementById('port').value || '22', 10);
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      const saveStatus = document.getElementById('saveStatus');
+      if(!device_name || !ip || !username || !password){
+        setStatus(saveStatus, 'device name, ip, username, and password are required', 'err');
+        return;
+      }
+
+      try{
+        setStatus(saveStatus, 'Saving credentials to server...', 'ok');
+        await apiSave({ device_name, ip, username, password, port });
+
+        setStatus(saveStatus, `Saved "${device_name}"`, 'ok');
+        document.getElementById('deviceName').value = '';
+        document.getElementById('ip').value = '';
+        document.getElementById('port').value = '22';
+        document.getElementById('username').value = '';
+        document.getElementById('password').value = '';
+        document.getElementById('saveBtn').textContent = 'Save credentials';
+        delete document.getElementById('saveBtn').dataset.originalName;
+        await fetchDevices();
+      }catch(e){
+        setStatus(saveStatus, `Save failed: ${String(e.message || e)}`, 'err');
+      }
+    }
+
+    async function onRun(command){
+      const runStatus = document.getElementById('runStatus');
+      const cmdOutput = document.getElementById('cmdOutput');
+
+      const ip = document.getElementById('targetIp').value.trim();
+      const username = document.getElementById('targetUser').value.trim();
+      const port = parseInt(document.getElementById('targetPort').value || '22', 10);
+      const password = document.getElementById('targetPassword').value;
+
+      if(!ip || !username || !password){
+        setStatus(runStatus, 'Enter target IP, username, and password', 'err');
+        return;
+      }
+
+      try{
+        setStatus(runStatus, 'Connecting & executing...', 'ok');
+        cmdOutput.textContent = '(running...)';
+        const data = await apiExec({ ip, username, password, port, command });
+        
+        // Format output
+        let output = '';
+        if(data.results){
+          for(const [cmd, result] of Object.entries(data.results)){
+            output += `$ ${cmd}\n`;
+            if(result.stdout) output += result.stdout + '\n';
+            if(result.stderr) output += `[ERROR] ${result.stderr}\n`;
+            output += '\n';
+          }
+        } else {
+          output = JSON.stringify(data, null, 2);
+        }
+        cmdOutput.textContent = output || '(no output)';
+        setStatus(runStatus, 'Done', 'ok');
+      }catch(e){
+        cmdOutput.textContent = '';
+        cmdOutput.textContent = `ERROR: ${String(e.message || e)}`;
+        setStatus(runStatus, 'Failed', 'err');
+      }
+    }
+
+    async function onQuick(){
+      // Run as a single remote shell command to preserve order.
+      // Uses bash-style; if target isn’t bash, you may need adaptation.
+      const composite = [
+        'echo "--- CMD: ls ---"',
+        'ls',
+        'echo "--- CMD: showversion -b ---"',
+        'showversion -b',
+        'echo "--- CMD: showsys ---"',
+        'showsys'
+      ].join('; ');
+      document.getElementById('command').value = composite;
+      await onRun(composite);
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', onSave);
+    document.getElementById('runBtn').addEventListener('click', () => onRun(document.getElementById('command').value));
+    document.getElementById('quickBtn').addEventListener('click', onQuick);
+
+    // Fetch devices from server on load
+    fetchDevices();
+  </script>
+</body>
+</html>
+
