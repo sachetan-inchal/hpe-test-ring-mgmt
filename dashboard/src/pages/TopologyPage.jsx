@@ -186,28 +186,44 @@ export default function TopologyPage({ apiBase }) {
       activeTab === 'decommissioned' ? n.isDecommissioned : !n.isDecommissioned
     )
 
+    const userTeamName = teamConfig.teams.find(t => t.id === userTeamId)?.name || 'Team Alpha'
+
     // Apply team/cluster filter based on role
     if (role === 'admin') {
-      // Admin sees all — no filter needed (selectedTeamId may be 'all' or a specific team for admin view switching)
       if (selectedTeamId !== 'all') {
-        const clId = teamConfig.teams.find(t => t.id === selectedTeamId)?.clusterId
-        if (clId) {
-          const allowed = new Set(teamConfig.clusters.find(c => c.id === clId)?.devices || [])
+        const selectedTeamName = teamConfig.teams.find(t => t.id === selectedTeamId)?.name || ''
+        nodes = nodes.filter(n => {
+          const tName = n.team || n.owner_team || ''
+          return tName.toLowerCase() === selectedTeamName.toLowerCase()
+        })
+      }
+    } else if (role === 'user') {
+      // Team Member: strictly filter to their own team only
+      nodes = nodes.filter(n => {
+        const tName = n.team || n.owner_team || ''
+        return tName.toLowerCase() === userTeamName.toLowerCase()
+      })
+    } else if (role === 'manager') {
+      // Manager: filter to teams under their cluster
+      const managerClusterId = teamConfig.teams.find(t => t.id === userTeamId)?.clusterId
+      if (managerClusterId) {
+        const clusterTeams = new Set(
+          teamConfig.teams
+            .filter(t => t.clusterId === managerClusterId)
+            .map(t => t.name.toLowerCase())
+        )
+        if (selectedTeamId && selectedTeamId !== 'all') {
+          const selectedTeamName = teamConfig.teams.find(t => t.id === selectedTeamId)?.name || ''
           nodes = nodes.filter(n => {
-            const rootId = getRootId(n, nodesById)
-            return allowed.has(rootId) || allowed.has(n.id)
+            const tName = n.team || n.owner_team || ''
+            return tName.toLowerCase() === selectedTeamName.toLowerCase()
+          })
+        } else {
+          nodes = nodes.filter(n => {
+            const tName = (n.team || n.owner_team || '').toLowerCase()
+            return clusterTeams.has(tName)
           })
         }
-      }
-    } else {
-      // Manager and User: filter to their team's cluster
-      const clId = teamConfig.teams.find(t => t.id === selectedTeamId)?.clusterId
-      if (clId) {
-        const allowed = new Set(teamConfig.clusters.find(c => c.id === clId)?.devices || [])
-        nodes = nodes.filter(n => {
-          const rootId = getRootId(n, nodesById)
-          return allowed.has(rootId) || allowed.has(n.id)
-        })
       }
     }
 
@@ -226,7 +242,7 @@ export default function TopologyPage({ apiBase }) {
     }
 
     return nodes
-  }, [data.nodes, searchQuery, activeTab, role, selectedTeamId, nodesById])
+  }, [data.nodes, searchQuery, activeTab, role, selectedTeamId, userTeamId, nodesById])
 
   const activeEdges = useMemo(() => {
     const ids = new Set(activeNodes.map(n => n.id))

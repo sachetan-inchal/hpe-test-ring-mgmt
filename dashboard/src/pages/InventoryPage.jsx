@@ -1,31 +1,10 @@
 import { useState, useEffect, useMemo, useContext } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Database, Layers, Network, Activity, Zap, Play } from 'lucide-react'
 import HierarchyTree from '../components/HierarchyTree'
 import NodeCard from '../components/NodeCard'
 import SearchBar from '../components/SearchBar'
 import { AuthContext } from '../context/AuthContext'
 import teamConfig from '../teamconfig.json'
-
-// Build a lookup: deviceId -> clusterId, clusterId -> teamId
-const deviceToCluster = {}
-const clusterToTeam = {}
-teamConfig.clusters.forEach(c => {
-  c.devices.forEach(d => { deviceToCluster[d] = c.id })
-})
-teamConfig.teams.forEach(t => {
-  clusterToTeam[t.clusterId] = t.id
-})
-
-// Given a node id, what team does it belong to?
-function getNodeTeam(nodeId) {
-  const clusterId = deviceToCluster[nodeId]
-  return clusterId ? clusterToTeam[clusterId] : null
-}
-
-// Given a node id, what cluster does it belong to?
-function getNodeCluster(nodeId) {
-  return deviceToCluster[nodeId] || null
-}
 
 export default function InventoryPage({ apiBase }) {
   const [data, setData] = useState({ nodes: [], edges: [] })
@@ -35,6 +14,13 @@ export default function InventoryPage({ apiBase }) {
   const [expandedIds, setExpandedIds] = useState([])
   const [selectedSource, setSelectedSource] = useState('all')
   const [sources, setSources] = useState([])
+  
+  // Tab control: 'hierarchy' or 'flow'
+  const [activeTab, setActiveTab] = useState('hierarchy')
+  
+  // Data Flow Visualizer state
+  const [selectedFlowHost, setSelectedFlowHost] = useState('')
+  const [selectedFlowArray, setSelectedFlowArray] = useState('')
 
   // Fetch ingestion sources on mount
   useEffect(() => {
@@ -115,7 +101,6 @@ export default function InventoryPage({ apiBase }) {
       } finally {
         setLoading(false)
       }
-
     }
     load()
   }, [apiBase, selectedSource])
@@ -123,7 +108,7 @@ export default function InventoryPage({ apiBase }) {
   const { user } = useContext(AuthContext)
 
   // Roles: 'admin', 'manager', 'user'
-  const initialRole = user?.role === 'admin' ? 'admin' : user?.role === 'manager' ? 'manager' : 'user'
+  const initialRole = user?.role === 'admin' ? 'admin' : (user?.role === 'manager' || user?.role === 'senior_manager') ? 'manager' : 'user'
   
   // Normalize team id -> display name
   const teamIdToName = useMemo(() => {
@@ -141,12 +126,11 @@ export default function InventoryPage({ apiBase }) {
   const initialTeamId = normalizeTeamId(user?.team || 'team-alpha')
 
   const [role, setRole] = useState(initialRole)
-  const [userTeamId, setUserTeamId] = useState(initialTeamId)  // the locked team for 'user' role sim
+  const [userTeamId, setUserTeamId] = useState(initialTeamId)  
   const [selectedTeamId, setSelectedTeamId] = useState(
     initialRole === 'admin' ? 'all' : initialTeamId
   )
 
-  // When role changes, reset team selection
   const handleRoleChange = (newRole) => {
     setRole(newRole)
     if (newRole === 'admin') {
@@ -156,48 +140,63 @@ export default function InventoryPage({ apiBase }) {
     }
   }
 
+  const selectedTeamClusterId = useMemo(() => {
+    if (selectedTeamId === 'all') return null
+    return teamConfig.teams.find(t => t.id === selectedTeamId)?.clusterId || null
+  }, [selectedTeamId])
+
+  // Build ID lookup map for fast traversal
   const nodesById = useMemo(() => {
     const m = new Map()
     data.nodes.forEach(n => m.set(n.id, n))
     return m
   }, [data.nodes])
 
-  // The cluster that the currently selected team owns (for manager/user auto-lock)
-  const selectedTeamClusterId = useMemo(() => {
-    if (selectedTeamId === 'all') return null
-    return teamConfig.teams.find(t => t.id === selectedTeamId)?.clusterId || null
-  }, [selectedTeamId])
-
+  // Strict Team-based / Cluster-based RBAC filter
   const activeNodes = useMemo(() => {
     let nodes = data.nodes
+    const userTeamName = teamConfig.teams.find(t => t.id === userTeamId)?.name || 'Team Alpha'
 
-    // Apply team/cluster filter based on role
     if (role === 'admin') {
-      // Admin sees all — no filter needed (selectedTeamId may be 'all' or a specific team for admin view switching)
       if (selectedTeamId !== 'all') {
-        const clId = teamConfig.teams.find(t => t.id === selectedTeamId)?.clusterId
-        if (clId) {
-          const allowed = new Set(teamConfig.clusters.find(c => c.id === clId)?.devices || [])
+        const selectedTeamName = teamConfig.teams.find(t => t.id === selectedTeamId)?.name || ''
+        nodes = nodes.filter(n => {
+          const tName = n.team || n.owner_team || ''
+          return tName.toLowerCase() === selectedTeamName.toLowerCase()
+        })
+      }
+    } else if (role === 'user') {
+      // Team Member: strictly filter to their own team only
+      nodes = nodes.filter(n => {
+        const tName = n.team || n.owner_team || ''
+        return tName.toLowerCase() === userTeamName.toLowerCase()
+      })
+    } else if (role === 'manager') {
+      // Manager: filter to teams under their cluster
+      const managerClusterId = teamConfig.teams.find(t => t.id === userTeamId)?.clusterId
+      if (managerClusterId) {
+        const clusterTeams = new Set(
+          teamConfig.teams
+            .filter(t => t.clusterId === managerClusterId)
+            .map(t => t.name.toLowerCase())
+        )
+        if (selectedTeamId && selectedTeamId !== 'all') {
+          const selectedTeamName = teamConfig.teams.find(t => t.id === selectedTeamId)?.name || ''
           nodes = nodes.filter(n => {
-            const rootId = getRootId(n, nodesById)
-            return allowed.has(rootId) || allowed.has(n.id)
+            const tName = n.team || n.owner_team || ''
+            return tName.toLowerCase() === selectedTeamName.toLowerCase()
+          })
+        } else {
+          nodes = nodes.filter(n => {
+            const tName = (n.team || n.owner_team || '').toLowerCase()
+            return clusterTeams.has(tName)
           })
         }
-      }
-    } else {
-      // Manager and User: filter to their team's cluster
-      const clId = teamConfig.teams.find(t => t.id === selectedTeamId)?.clusterId
-      if (clId) {
-        const allowed = new Set(teamConfig.clusters.find(c => c.id === clId)?.devices || [])
-        nodes = nodes.filter(n => {
-          const rootId = getRootId(n, nodesById)
-          return allowed.has(rootId) || allowed.has(n.id)
-        })
       }
     }
 
     return nodes
-  }, [data.nodes, role, selectedTeamId, nodesById])
+  }, [data.nodes, role, selectedTeamId, userTeamId])
 
   const filteredNodes = useMemo(() => {
     if (!searchQuery) return activeNodes
@@ -212,7 +211,6 @@ export default function InventoryPage({ apiBase }) {
   const visibleIds = useMemo(() => filteredNodes.map(n => n.id), [filteredNodes])
   
   const rootIds = useMemo(() => {
-    // Top-level arrays or independent switches
     return activeNodes.filter(n => n.category === 'main').map(n => n.id)
   }, [activeNodes])
 
@@ -236,28 +234,98 @@ export default function InventoryPage({ apiBase }) {
     setExpandedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
   }
 
+  // Data Flow visualizer derived datasets
+  const flowHosts = useMemo(() => activeNodes.filter(n => n.type === 'Host'), [activeNodes])
+  const flowArrays = useMemo(() => activeNodes.filter(n => n.type === 'Array'), [activeNodes])
+  
+  // Automatically select default flow endpoints if none selected
+  useEffect(() => {
+    if (flowHosts.length > 0 && !selectedFlowHost) {
+      setSelectedFlowHost(flowHosts[0].id)
+    }
+    if (flowArrays.length > 0 && !selectedFlowArray) {
+      setSelectedFlowArray(flowArrays[0].id)
+    }
+  }, [flowHosts, flowArrays, selectedFlowHost, selectedFlowArray])
+
+  // Resolve the active path switches and ports
+  const activeFlowTraced = useMemo(() => {
+    if (!selectedFlowHost || !selectedFlowArray) return null
+    
+    // Find switches connected to selected Host
+    const connectedSwitches = new Set()
+    
+    for (const e of data.edges) {
+      if ((e.from === selectedFlowHost || e.to === selectedFlowHost)) {
+        const peer = e.from === selectedFlowHost ? e.to : e.from
+        const peerNode = nodesById.get(peer)
+        if (peerNode?.type === 'Switch') {
+          connectedSwitches.add(peer)
+        }
+      }
+    }
+    
+    // If empty, find active switches in the network
+    if (connectedSwitches.size === 0) {
+      activeNodes.filter(n => n.type === 'Switch').forEach(s => connectedSwitches.add(s.id))
+    }
+    
+    // Disks inside selected Array
+    const childDisks = activeNodes.filter(n => n.parentId === selectedFlowArray && n.type === 'Disk')
+    
+    return {
+      host: nodesById.get(selectedFlowHost),
+      switches: Array.from(connectedSwitches).map(id => nodesById.get(id)).filter(Boolean),
+      array: nodesById.get(selectedFlowArray),
+      disks: childDisks
+    }
+  }, [selectedFlowHost, selectedFlowArray, data.edges, activeNodes, nodesById])
+
   if (loading) return <div className="loading-screen"><div className="loading-spinner" /><span>Loading Inventory...</span></div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', color: 'var(--foreground)' }}>
+      {/* Controls Bar */}
       <div className="page-header">
         <div>
-          <h2 className="page-title">Resource Inventory</h2>
-          <p className="page-subtitle">Hierarchical view of all discovered SAN components</p>
+          <h2 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            Resource Inventory
+            <span style={{ fontSize: 10, background: 'var(--surface-1)', padding: '3px 10px', borderRadius: 20, border: '1px solid var(--line)' }}>
+              {activeNodes.length} Components
+            </span>
+          </h2>
+          <p className="page-subtitle">Interactive scale-optimized hierarchy and path flow maps</p>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Sub-tabs selector */}
+          <div className="sub-tabs" style={{ marginBottom: 0 }}>
+            <button className={`sub-tab ${activeTab === 'hierarchy' ? 'active' : ''}`} onClick={() => setActiveTab('hierarchy')}>
+              <Database size={14} style={{ marginRight: 6 }} /> Directory
+            </button>
+            <button className={`sub-tab ${activeTab === 'flow' ? 'active' : ''}`} onClick={() => setActiveTab('flow')}>
+              <Zap size={14} style={{ marginRight: 6 }} /> Data Flow Map
+            </button>
+          </div>
+
+          <div style={{ height: 20, width: 1, background: 'var(--line)' }} />
+          
+          <select className="input" style={{ width: 130, height: 32, padding: '0 8px', fontSize: 11, background: 'var(--surface-1)', cursor: 'pointer' }}
+            value={selectedSource} onChange={e => setSelectedSource(e.target.value)}>
+            <option value="all">🌐 All Sources</option>
+            {sources.map(s => (
+              <option key={s.id} value={s.id}>{s.label || s.id}</option>
+            ))}
+          </select>
+          
           <SearchBar value={searchQuery} onChange={setSearchQuery} />
-          <div className="badge badge-ok">{activeNodes.length} Components</div>
         </div>
       </div>
-
-
 
       {/* RBAC Scope Panel */}
       {(user?.role === 'admin' || user?.role === 'manager') && (
         <div className="glass-card" style={{ display: 'flex', gap: 16, padding: '10px 16px', border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: '8px', marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-
-          {/* Role Switcher */}
+          
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Simulate Role:</span>
             <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
@@ -270,15 +338,13 @@ export default function InventoryPage({ apiBase }) {
 
           <div style={{ height: 16, width: 1, background: 'var(--line)' }} />
 
-          {/* Team selector — admin & manager can switch; user is locked */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team:</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team Scope:</span>
             {role === 'user' ? (
               <span style={{ fontSize: 11, color: '#58a6ff', background: 'rgba(58,166,255,0.1)', border: '1px solid rgba(58,166,255,0.2)', padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>
                 🔒 {teamIdToName[selectedTeamId] || selectedTeamId}
               </span>
             ) : role === 'manager' ? (
-              // Manager: can switch team but not cluster
               <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
                 value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
                 {teamConfig.teams.map(t => (
@@ -286,7 +352,6 @@ export default function InventoryPage({ apiBase }) {
                 ))}
               </select>
             ) : (
-              // Admin: can pick all or specific team
               <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
                 value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
                 <option value="all">All Teams</option>
@@ -297,13 +362,11 @@ export default function InventoryPage({ apiBase }) {
             )}
           </div>
 
-          {/* Cluster display — always read-only for manager/user, derived from their team */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cluster:</span>
             {role === 'admin' && selectedTeamId === 'all' ? (
               <span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-strong)', padding: '4px 8px', borderRadius: 4 }}>All Clusters</span>
             ) : (
-              // For all roles: cluster is auto-derived from selected team — no control for manager/user
               <span style={{ fontSize: 11, color: role === 'admin' ? 'var(--muted)' : '#58a6ff',
                 background: role === 'admin' ? 'var(--line-strong)' : 'rgba(58,166,255,0.1)',
                 border: role !== 'admin' ? '1px solid rgba(58,166,255,0.2)' : 'none',
@@ -313,42 +376,197 @@ export default function InventoryPage({ apiBase }) {
               </span>
             )}
           </div>
-
-          {/* Role badge */}
-          {role === 'user' && (
-            <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(88,166,255,0.1)', color: '#58a6ff', border: '1px solid rgba(88,166,255,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#58a6ff', boxShadow: '0 0 8px #58a6ff' }} />
-              Team-Scoped View
-            </div>
-          )}
-          {role === 'manager' && (
-            <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(210,153,34,0.1)', color: '#d29922', border: '1px solid rgba(210,153,34,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d29922', boxShadow: '0 0 8px #d29922' }} />
-              Manager View
-            </div>
-          )}
-          {role === 'admin' && (
-            <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(63,185,80,0.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3fb950', boxShadow: '0 0 8px #3fb950' }} />
-              Administrator Override
-            </div>
-          )}
         </div>
       )}
 
+      {/* Main Content Area */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 16 }}>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <HierarchyTree 
-            nodes={activeNodes} 
-            edges={data.edges} 
-            visibleIds={visibleIds} 
-            expandedIds={expandedIds} 
-            focusedId={selectedNodeId}
-            rootIds={rootIds}
-            onNodeClick={handleNodeClick}
-          />
-        </div>
+        
+        {activeTab === 'hierarchy' ? (
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <HierarchyTree 
+                nodes={filteredNodes} 
+                edges={data.edges} 
+                visibleIds={visibleIds} 
+                expandedIds={expandedIds} 
+                focusedId={selectedNodeId}
+                rootIds={rootIds}
+                onNodeClick={handleNodeClick}
+              />
+            </div>
+          </div>
+        ) : (
+          /* Premium Interactive Data Flow Visualizer */
+          <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 24, border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+            
+            {/* Flow selection panels */}
+            <div style={{ display: 'flex', gap: 20, marginBottom: 24, alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>SELECT HOST INITIATOR</label>
+                <select className="input" style={{ width: '100%' }} value={selectedFlowHost} onChange={e => setSelectedFlowHost(e.target.value)}>
+                  {flowHosts.map(h => (
+                    <option key={h.id} value={h.id}>{h.name} ({h.id})</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 16 }}>
+                <Zap size={20} className="animate-pulse" style={{ color: 'var(--hpe-green)' }} />
+              </div>
+              
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>SELECT STORAGE TARGET</label>
+                <select className="input" style={{ width: '100%' }} value={selectedFlowArray} onChange={e => setSelectedFlowArray(e.target.value)}>
+                  {flowArrays.map(a => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.id})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
+            {/* Traced Flow Diagram */}
+            {activeFlowTraced ? (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                {/* SVG path mapping */}
+                <div style={{ display: 'flex', flex: 1, position: 'relative', border: '1px solid var(--line)', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '24px 16px', minHeight: 360 }}>
+                  
+                  {/* Left: Host Node card */}
+                  <div style={{ width: '20%', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 10 }}>
+                    <div className="glass-card" style={{ padding: 12, border: '1px solid #58a6ff', background: 'rgba(88,166,255,0.05)', textAlign: 'center', borderRadius: 8, cursor: 'pointer' }}
+                      onClick={() => setSelectedNodeId(activeFlowTraced.host.id)}>
+                      <Database size={24} style={{ color: '#58a6ff', marginBottom: 8 }} />
+                      <div style={{ fontWeight: 600, fontSize: 13, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{activeFlowTraced.host.name}</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>HOST INITIATOR</div>
+                      <div style={{ fontSize: 10, marginTop: 4, background: 'rgba(88,166,255,0.1)', padding: '2px 6px', borderRadius: 10 }}>{activeFlowTraced.host.osType || 'Linux'}</div>
+                    </div>
+                  </div>
+
+                  {/* Spacer 1 */}
+                  <div style={{ width: '10%' }} />
+
+                  {/* Interconnecting animated SVG lines using a responsive 100x100 viewBox coordinate system */}
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                    <defs>
+                      <style>{`
+                        .flow-line-1 {
+                          stroke: #58a6ff;
+                          stroke-width: 1.2;
+                          fill: none;
+                          stroke-linecap: round;
+                          opacity: 0.85;
+                        }
+                        .flow-line-2 {
+                          stroke: #3fb950;
+                          stroke-width: 1.2;
+                          fill: none;
+                          stroke-linecap: round;
+                          opacity: 0.85;
+                        }
+                        .flow-pulse-1 {
+                          stroke: #c8e1ff;
+                          stroke-width: 1.2;
+                          stroke-dasharray: 2, 4;
+                          animation: flowDash 1.5s linear infinite;
+                        }
+                        .flow-pulse-2 {
+                          stroke: #aff5b4;
+                          stroke-width: 1.2;
+                          stroke-dasharray: 2, 4;
+                          animation: flowDash 1.5s linear infinite;
+                        }
+                        @keyframes flowDash {
+                          to {
+                            stroke-dashoffset: -10;
+                          }
+                        }
+                      `}</style>
+                    </defs>
+                    
+                    {/* Paths from Host -> Switches */}
+                    {activeFlowTraced.switches.map((sw, idx) => {
+                      const swY = (100 / (activeFlowTraced.switches.length + 1)) * (idx + 1)
+                      return (
+                        <g key={`sw-${idx}`}>
+                          <path className="flow-line-1" d={`M 20 50 C 25 50, 25 ${swY}, 30 ${swY}`} />
+                          <path className="flow-line-1 flow-pulse-1" d={`M 20 50 C 25 50, 25 ${swY}, 30 ${swY}`} />
+                        </g>
+                      )
+                    })}
+
+                    {/* Paths from Switches -> Array Target */}
+                    {activeFlowTraced.switches.map((sw, idx) => {
+                      const swY = (100 / (activeFlowTraced.switches.length + 1)) * (idx + 1)
+                      return (
+                        <g key={`arr-${idx}`}>
+                          <path className="flow-line-2" d={`M 50 ${swY} C 55 ${swY}, 55 50, 60 50`} />
+                          <path className="flow-line-2 flow-pulse-2" d={`M 50 ${swY} C 55 ${swY}, 55 50, 60 50`} />
+                        </g>
+                      )
+                    })}
+                  </svg>
+
+                  {/* Middle: Switch Node card */}
+                  <div style={{ width: '20%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12, zIndex: 10 }}>
+                    {activeFlowTraced.switches.map((sw, idx) => (
+                      <div key={sw.id} className="glass-card" style={{ padding: 12, border: '1px solid var(--hpe-green)', background: 'rgba(1,169,130,0.05)', textAlign: 'center', borderRadius: 8, cursor: 'pointer', maxWidth: 160, alignSelf: 'center', width: '100%' }}
+                        onClick={() => setSelectedNodeId(sw.id)}>
+                        <Network size={20} style={{ color: 'var(--hpe-green)', marginBottom: 6 }} />
+                        <div style={{ fontWeight: 600, fontSize: 12, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{sw.name}</div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>FIBRE CHANNEL SW</div>
+                        <div style={{ fontSize: 9, marginTop: 4, color: '#3fb950' }}>{sw.status === 'normal' ? '🟢 Online' : '🔴 Offline'}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Spacer 2 */}
+                  <div style={{ width: '10%' }} />
+
+                  {/* Right: Storage Array target card */}
+                  <div style={{ width: '20%', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 10 }}>
+                    <div className="glass-card" style={{ padding: 12, border: '1px solid #3fb950', background: 'rgba(63,185,80,0.05)', textAlign: 'center', borderRadius: 8, cursor: 'pointer' }}
+                      onClick={() => setSelectedNodeId(activeFlowTraced.array.id)}>
+                      <Database size={24} style={{ color: '#3fb950', marginBottom: 8 }} />
+                      <div style={{ fontWeight: 600, fontSize: 13, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{activeFlowTraced.array.name}</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>STORAGE ARRAY</div>
+                      <div style={{ fontSize: 10, marginTop: 4, background: 'rgba(63,185,80,0.1)', padding: '2px 6px', borderRadius: 10 }}>{activeFlowTraced.array.model || 'HPE 3PAR'}</div>
+                    </div>
+                  </div>
+
+                  {/* Far Right: Disks list within the Storage Array (scalable display) */}
+                  <div style={{ width: '20%', borderLeft: '1px solid var(--line)', paddingLeft: 16, display: 'flex', flexDirection: 'column', minHeight: 0, justifyContent: 'center' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>PHYSICAL DISKS ({activeFlowTraced.disks.length})</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', maxHeight: 200, paddingRight: 4 }}>
+                      {activeFlowTraced.disks.slice(0, 10).map(d => (
+                        <div key={d.id} className="glass-card" style={{ padding: '6px 8px', fontSize: 11, border: '1px solid var(--line)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                          onClick={() => setSelectedNodeId(d.id)}>
+                          <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{d.name}</span>
+                          <span style={{ fontSize: 8, color: d.status === 'normal' ? '#3fb950' : '#da3633' }}>●</span>
+                        </div>
+                      ))}
+                      {activeFlowTraced.disks.length > 10 && (
+                        <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', marginTop: 4 }}>
+                          + {activeFlowTraced.disks.length - 10} more drives
+                        </div>
+                      )}
+                      {activeFlowTraced.disks.length === 0 && (
+                        <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic' }}>No disks reported.</div>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--line)', borderRadius: 8 }}>
+                <span style={{ color: 'var(--muted)' }}>Select active host and array endpoints to trace active connection flow.</span>
+              </div>
+            )}
+
+          </div>
+        )}
+
+        {/* Selected Node Details Card */}
         <div style={{ width: 340, display: selectedNode ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
           <NodeCard 
             node={selectedNode} 
@@ -359,12 +577,12 @@ export default function InventoryPage({ apiBase }) {
             }}
           />
         </div>
+
       </div>
     </div>
   )
 }
 
-// Helper: walk up parentId chain to find the root node id
 function getRootId(node, nodesById) {
   let current = node
   while (current?.parentId && nodesById.has(current.parentId)) {

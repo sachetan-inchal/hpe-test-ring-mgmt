@@ -75,6 +75,8 @@ export default function TopologyCanvas({ data, nodes: legacyNodes, edges: legacy
       const isPulsing = false;
       const isHighlighted = false;
 
+      const isOffline = n.status === 'offline';
+
       return {
         id: n.id,
         position: { x, y },
@@ -85,11 +87,11 @@ export default function TopologyCanvas({ data, nodes: legacyNodes, edges: legacy
               textAlign: 'left',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <span style={{ fontSize: 14 }}>{meta.icon}</span>
+                <span style={{ fontSize: 14 }}>{isOffline ? '⚠️' : meta.icon}</span>
                 <span style={{
                   fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
-                  textTransform: 'uppercase', color: meta.color,
-                }}>{n.type}</span>
+                  textTransform: 'uppercase', color: isOffline ? 'var(--accent-rose)' : meta.color,
+                }}>{n.type} {isOffline && '(OFFLINE)'}</span>
               </div>
               <strong style={{ fontSize: 13, color: '#e6edf3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }} title={n.name || n.id}>{n.name || n.id}</strong>
               <span style={{ fontSize: 10, color: '#8b949e', fontFamily: 'JetBrains Mono, monospace' }} title={n.id}>{n.id}</span>
@@ -99,12 +101,15 @@ export default function TopologyCanvas({ data, nodes: legacyNodes, edges: legacy
         },
         style: {
           background: isSelected ? `rgba(${hexToRgb(meta.color)}, 0.2)` : '#161b22',
-          border: `1.5px solid ${isSelected ? meta.color : isHighlighted || isPulsing ? meta.color : '#30363d'}`,
+          border: isOffline
+            ? '1.5px dashed var(--accent-rose)'
+            : `1.5px solid ${isSelected ? meta.color : isHighlighted || isPulsing ? meta.color : '#30363d'}`,
           borderRadius: 10,
           padding: '12px 16px',
           fontSize: 12,
           color: '#e6edf3',
           minWidth: 200,
+          opacity: isOffline ? 0.6 : 1,
           boxShadow: isPulsing
             ? `0 0 0 4px rgba(${hexToRgb(meta.color)}, 0.55), 0 0 24px rgba(${hexToRgb(meta.color)}, 0.35)`
             : isHighlighted
