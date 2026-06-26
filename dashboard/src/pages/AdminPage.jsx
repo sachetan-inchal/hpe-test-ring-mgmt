@@ -582,8 +582,8 @@ export default function AdminPage({ apiBase }) {
   const refresh = () => setRefreshKey(k => k + 1)
 
   useEffect(() => {
-    fetch(`${apiBase}/api/graph/neo4j`).then(r => r.json())
-      .then(d => setAllNodes((d.nodes || []).map(n => ({ id: n.data?.id || n.id, name: n.data?.name || n.name, type: n.data?.label || n.type }))))
+    fetch(`${apiBase}/api/graph/mongo`).then(r => r.json())
+      .then(d => setAllNodes((d.nodes || []).map(n => ({ id: n.data?.id || n.id, name: n.data?.name || n.name || n.data?.id || n.id, type: n.data?.label || n.type }))))
       .catch(() => {})
   }, [apiBase, refreshKey])
 

@@ -71,18 +71,32 @@ export default function DiscoveryPage({ apiBase }) {
 
   const fetchGraph = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/graph/neo4j`)
+      const res = await fetch(`${API}/api/graph/mongo`)
       if (!res.ok) throw new Error()
       const data = await res.json()
-      const nodes = (data.nodes || []).map(n => ({
-        id: n.data.id, name: n.data.name || n.data.label || n.data.id,
-        type: n.data.label || 'Unknown', status: n.data.status || 'normal',
-        ip: n.data.ip_address || '', ...n.data
-      }))
-      const edges = (data.edges || []).map(e => ({
-        id: `${e.data.source}-${e.data.target}`, from: e.data.source,
-        to: e.data.target, label: e.data.label || ''
-      }))
+      const nodes = (data.nodes || []).map(n => {
+        const id = n.data?.id || n.id
+        const type = n.data?.label || n.type || 'Unknown'
+        return {
+          id,
+          name: n.data?.name || n.name || type || id,
+          type,
+          status: n.data?.status || n.status || 'normal',
+          ip: n.data?.ip_address || n.ip_address || '',
+          ...n.data,
+          ...n
+        }
+      })
+      const edges = (data.edges || []).map(e => {
+        const from = e.data?.source || e.source || e.from
+        const to = e.data?.target || e.target || e.to
+        return {
+          id: `${from}-${to}`,
+          from,
+          to,
+          label: e.data?.label || e.label || ''
+        }
+      })
       setGraph(prev => {
         const isRunning = sessionStorage.getItem('discovery_running') === 'true'
         if (isRunning) return prev

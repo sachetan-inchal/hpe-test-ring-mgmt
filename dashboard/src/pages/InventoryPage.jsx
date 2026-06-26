@@ -60,15 +60,7 @@ export default function InventoryPage({ apiBase }) {
 
         let json = null
         if (selectedSource === 'all') {
-          const localSources = [
-            `${apiBase}/api/graph/mongo`,
-            `${apiBase}/api/graph/neo4j`,
-            `${apiBase}/api/ontology/topology?source=all`,
-            `${apiBase}/api/sim/mock-topology`,
-          ]
-          const localResults = await Promise.all(localSources.map(url => fetchWithData(url)))
-          json = localResults.find(Boolean)
-          if (!json) json = await fetchWithData(`https://hpe-ontology-and-graph.onrender.com/topology`)
+          json = await fetchWithData(`${apiBase}/api/graph/mongo`)
         } else {
           // Fetch only the selected ingestion source's data
           json = await fetchWithData(`${apiBase}/api/ontology/topology?source=${selectedSource}`)

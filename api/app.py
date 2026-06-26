@@ -3048,8 +3048,6 @@ def import_ontology_topology():
 
 @app.route("/api/graph/nodes/<path:element_id>", methods=["PATCH"])
 def patch_graph_node(element_id):
-    if not neo4j.available:
-        return jsonify({"error": "Neo4j not available"}), 503
     body = request.json or {}
     allowed = _load_allowed_keys()
     deco = body.get("isDecommissioned")
@@ -3057,45 +3055,91 @@ def patch_graph_node(element_id):
     if not isinstance(props, dict):
         return jsonify({"error": "properties must be an object"}), 400
 
-    sets = []
-    params = {"eid": element_id}
-    if deco is not None:
-        sets.append("n.is_decommissioned = $deco")
-        params["deco"] = bool(deco)
-    for k, v in props.items():
-        if k not in allowed or not _valid_prop_key(k):
-            continue
-        pk = "pv_" + k
-        sets.append(f"n.{k} = ${pk}")
-        params[pk] = v
-    if not sets:
-        return jsonify({"error": "No valid updates (isDecommissioned or whitelisted properties required)"}), 400
-    cypher = f"MATCH (n) WHERE elementId(n) = $eid SET {', '.join(sets)} RETURN elementId(n) AS element_id"
-    try:
-        neo4j._run(cypher, **params)
-        return jsonify({"status": "ok", "element_id": element_id})
-    except Exception as ex:
-        return jsonify({"error": str(ex)}), 400
+    # 1. Update in MongoDB if available
+    if mongo.available:
+        try:
+            db = mongo.db
+            doc = db.sandatas.find_one({})
+            if doc:
+                nodes_list = doc.setdefault("nodes", [])
+                for node in nodes_list:
+                    if str(node.get("id")) == element_id:
+                        if deco is not None:
+                            node["isDecommissioned"] = bool(deco)
+                            # Cascade to children
+                            for child in nodes_list:
+                                if str(child.get("parentId")) == element_id:
+                                    child["isDecommissioned"] = bool(deco)
+                        for k, v in props.items():
+                            if k in allowed and _valid_prop_key(k):
+                                node[k] = v
+                from datetime import datetime
+                doc["lastUpdated"] = datetime.utcnow()
+                db.sandatas.replace_one({}, doc, upsert=True)
+                log.info(f"[mongo] Updated node '{element_id}' in MongoDB.")
+        except Exception as mongo_err:
+            log.warning(f"[mongo] Failed to update node in MongoDB: {mongo_err}")
+
+    # 2. Update in Neo4j (best effort)
+    if neo4j.available:
+        try:
+            sets = []
+            params = {"eid": element_id}
+            if deco is not None:
+                sets.append("n.is_decommissioned = $deco")
+                params["deco"] = bool(deco)
+            for k, v in props.items():
+                if k not in allowed or not _valid_prop_key(k):
+                    continue
+                pk = "pv_" + k
+                sets.append(f"n.{k} = ${pk}")
+                params[pk] = v
+            if sets:
+                cypher = f"MATCH (n) WHERE elementId(n) = $eid SET {', '.join(sets)} RETURN elementId(n) AS element_id"
+                neo4j._run(cypher, **params)
+        except Exception as ex:
+            log.warning(f"Neo4j PATCH failed: {ex}")
+
+    return jsonify({"status": "ok", "element_id": element_id})
 
 
 @app.route("/api/graph/nodes/<path:element_id>", methods=["DELETE"])
 def delete_graph_node(element_id):
-    if not neo4j.available:
-        return jsonify({"error": "Neo4j not available"}), 503
-    try:
-        found = neo4j._run("MATCH (n) WHERE elementId(n) = $eid RETURN elementId(n) AS e LIMIT 1", eid=element_id)
-        if not found:
-            return jsonify({"error": "Node not found"}), 404
-        neo4j._run("MATCH (n) WHERE elementId(n) = $eid DETACH DELETE n", eid=element_id)
-        return jsonify({"status": "ok"})
-    except Exception as ex:
-        return jsonify({"error": str(ex)}), 400
+    # 1. Delete from MongoDB if available
+    if mongo.available:
+        try:
+            db = mongo.db
+            doc = db.sandatas.find_one({})
+            if doc:
+                nodes_list = doc.get("nodes", [])
+                edges_list = doc.get("edges", [])
+                doc["nodes"] = [n for n in nodes_list if str(n.get("id")) != element_id]
+                doc["edges"] = [
+                    e for e in edges_list 
+                    if str(e.get("from")) != element_id 
+                    and str(e.get("to")) != element_id 
+                    and str(e.get("source")) != element_id 
+                    and str(e.get("target")) != element_id
+                ]
+                from datetime import datetime
+                doc["lastUpdated"] = datetime.utcnow()
+                db.sandatas.replace_one({}, doc, upsert=True)
+                log.info(f"[mongo] Deleted node '{element_id}' from MongoDB.")
+        except Exception as mongo_err:
+            log.warning(f"[mongo] Failed to delete node from MongoDB: {mongo_err}")
+
+    # 2. Delete from Neo4j (best effort)
+    if neo4j.available:
+        try:
+            neo4j._run("MATCH (n) WHERE elementId(n) = $eid DETACH DELETE n", eid=element_id)
+        except Exception as ex:
+            log.warning(f"Neo4j DELETE failed: {ex}")
+            
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/graph/nodes", methods=["POST"])
 def create_graph_node():
-    if not neo4j.available:
-        return jsonify({"error": "Neo4j not available"}), 503
     body = request.json or {}
     label = body.get("label") or body.get("type")
     if label not in ALLOWED_CREATE_LABELS:
@@ -3104,128 +3148,218 @@ def create_graph_node():
     extra = body.get("properties") or {}
     arr_ip = body.get("connect_to_array_ip") or body.get("array_ip")
 
-    try:
-        if label == "Host":
-            ip = body.get("ip_address") or extra.get("ip_address")
-            if not ip:
-                return jsonify({"error": "ip_address required for Host"}), 400
-            name = body.get("name") or extra.get("name") or ip
-            rows = neo4j._run(
-                """
-                CREATE (n:Host {ip_address: $ip, name: $name})
-                WITH n
-                OPTIONAL MATCH (a:ArraySystem {ip_address: $arr})
-                WHERE $arr IS NOT NULL
-                FOREACH (x IN CASE WHEN a IS NOT NULL THEN [a] ELSE [] END |
-                  MERGE (n)-[:CONNECTS_TO]->(x))
-                RETURN elementId(n) AS element_id
-                """,
-                ip=ip,
-                name=name,
-                arr=arr_ip,
-            )
-        elif label == "Switch":
-            name = body.get("name") or extra.get("name")
-            serial = body.get("serial") or extra.get("serial") or name
-            if not name:
-                return jsonify({"error": "name required for Switch"}), 400
-            rows = neo4j._run(
-                """
-                CREATE (n:Switch {name: $name, serial: $serial})
-                WITH n
-                OPTIONAL MATCH (a:ArraySystem {ip_address: $arr})
-                WHERE $arr IS NOT NULL
-                FOREACH (x IN CASE WHEN a IS NOT NULL THEN [a] ELSE [] END |
-                  MERGE (x)-[:HAS_SWITCH]->(n))
-                RETURN elementId(n) AS element_id
-                """,
-                name=name,
-                serial=serial or name,
-                arr=arr_ip,
-            )
-        elif label == "ArraySystem":
-            ip = body.get("ip_address") or extra.get("ip_address")
-            if not ip:
-                return jsonify({"error": "ip_address required for ArraySystem"}), 400
-            nm = body.get("name") or extra.get("name") or ip
-            rows = neo4j._run(
-                """
-                MERGE (n:ArraySystem {ip_address: $ip})
-                SET n.name = coalesce(n.name, $name)
-                RETURN elementId(n) AS element_id
-                """,
-                ip=ip,
-                name=nm,
-            )
-        elif label == "PhysicalDisk":
-            serial = body.get("serial") or extra.get("serial")
-            if not serial:
-                return jsonify({"error": "serial required for PhysicalDisk"}), 400
-            rows = neo4j._run(
-                """
-                CREATE (n:PhysicalDisk {serial: $serial})
-                RETURN elementId(n) AS element_id
-                """,
-                serial=serial,
-            )
-        elif label == "Cage":
-            cid = body.get("cage_id") or extra.get("cage_id")
-            if not cid:
-                return jsonify({"error": "cage_id required for Cage"}), 400
-            cname = body.get("name") or extra.get("name") or str(cid)
-            rows = neo4j._run(
-                """
-                CREATE (n:Cage {cage_id: $cid, name: $cname})
-                WITH n
-                OPTIONAL MATCH (a:ArraySystem {ip_address: $arr})
-                WHERE $arr IS NOT NULL
-                FOREACH (x IN CASE WHEN a IS NOT NULL THEN [a] ELSE [] END |
-                  MERGE (x)-[:HAS_CAGE]->(n))
-                RETURN elementId(n) AS element_id
-                """,
-                cid=str(cid),
-                cname=cname,
-                arr=arr_ip,
-            )
-        else:  # Node
-            nid = body.get("node_id") or extra.get("node_id")
-            if not nid or not arr_ip:
-                return jsonify({"error": "node_id and connect_to_array_ip required for Node"}), 400
-            nm = body.get("name") or extra.get("name") or nid
-            rows = neo4j._run(
-                """
-                CREATE (n:Node {node_id: $nid, name: $nm})
-                WITH n
-                MATCH (a:ArraySystem {ip_address: $arr})
-                MERGE (a)-[:HAS_NODE]->(n)
-                RETURN elementId(n) AS element_id
-                """,
-                nid=str(nid),
-                nm=nm,
-                arr=arr_ip,
-            )
+    # 1. Determine Node properties for MongoDB
+    user_team = request.headers.get("X-User-Team") or "Team Alpha"
+    if user_team.lower() == "all":
+        user_team = "Team Alpha"
 
-        eid = rows[0]["element_id"] if rows else None
-        if not eid:
-            return jsonify({"error": "Create failed"}), 500
+    node_id = None
+    node_name = body.get("name") or extra.get("name")
+    ip_addr = None
+    serial_no = None
 
-        patch_props = {k: v for k, v in extra.items() if k in allowed and _valid_prop_key(k)}
-        if patch_props:
-            sets = []
-            params = {"eid": eid}
-            for i, (k, v) in enumerate(patch_props.items()):
-                pk = f"pv{i}"
-                sets.append(f"n.{k} = ${pk}")
-                params[pk] = v
-            neo4j._run(
-                f"MATCH (n) WHERE elementId(n) = $eid SET {', '.join(sets)}",
-                **params,
-            )
+    if label == "Host":
+        ip_addr = body.get("ip_address") or extra.get("ip_address")
+        if not ip_addr:
+            return jsonify({"error": "ip_address required for Host"}), 400
+        node_id = ip_addr
+        node_name = node_name or ip_addr
+    elif label == "Switch":
+        node_name = node_name or body.get("serial")
+        if not node_name:
+            return jsonify({"error": "name or serial required for Switch"}), 400
+        serial_no = body.get("serial") or extra.get("serial") or node_name
+        node_id = serial_no
+    elif label == "ArraySystem":
+        ip_addr = body.get("ip_address") or extra.get("ip_address")
+        if not ip_addr:
+            return jsonify({"error": "ip_address required for ArraySystem"}), 400
+        node_id = ip_addr
+        node_name = node_name or ip_addr
+    elif label == "PhysicalDisk":
+        serial_no = body.get("serial") or extra.get("serial")
+        if not serial_no:
+            return jsonify({"error": "serial required for PhysicalDisk"}), 400
+        node_id = serial_no
+        node_name = node_name or serial_no
+    elif label == "Cage":
+        cid = body.get("cage_id") or extra.get("cage_id")
+        if not cid:
+            return jsonify({"error": "cage_id required for Cage"}), 400
+        node_id = str(cid)
+        node_name = node_name or str(cid)
+    else:  # Node
+        nid = body.get("node_id") or extra.get("node_id")
+        if not nid:
+            return jsonify({"error": "node_id required for Node"}), 400
+        node_id = str(nid)
+        node_name = node_name or str(nid)
 
-        return jsonify({"status": "ok", "element_id": eid})
-    except Exception as ex:
-        log.exception("create node")
-        return jsonify({"error": str(ex)}), 400
+    new_node = {
+        "id": node_id,
+        "name": node_name,
+        "type": "Array" if label == "ArraySystem" else ("Disk" if label == "PhysicalDisk" else label),
+        "status": body.get("status", "normal"),
+        "category": "sub" if label in ["PhysicalDisk", "Cage", "Node"] else "main",
+        "team": user_team,
+        "owner_team": user_team,
+        "isDecommissioned": False
+    }
+
+    if ip_addr:
+        new_node["ip_address"] = ip_addr
+    if serial_no:
+        new_node["serial"] = serial_no
+    if label in ["PhysicalDisk", "Cage", "Node"] and arr_ip:
+        new_node["parentId"] = arr_ip
+
+    for k, v in extra.items():
+        if k not in new_node and _valid_prop_key(k):
+            new_node[k] = v
+
+    # 2. Write to MongoDB
+    if mongo.available:
+        try:
+            db = mongo.db
+            doc = db.sandatas.find_one({})
+            from datetime import datetime
+            if not doc:
+                doc = {
+                    "name": "HPE SAN Infrastructure",
+                    "description": "Dynamically discovered SAN data via crawler",
+                    "nodes": [],
+                    "edges": [],
+                    "lastUpdated": datetime.utcnow(),
+                    "version": "1.0"
+                }
+            nodes_list = doc.setdefault("nodes", [])
+            existing_idx = next((i for i, n in enumerate(nodes_list) if str(n.get("id")) == node_id), None)
+            if existing_idx is not None:
+                nodes_list[existing_idx].update(new_node)
+            else:
+                nodes_list.append(new_node)
+
+            if arr_ip:
+                edges_list = doc.setdefault("edges", [])
+                edge_lbl = "CONNECTS_TO" if label == "Host" else ("HAS_SWITCH" if label == "Switch" else f"HAS_{label.upper()}")
+                src = node_id if label == "Host" else arr_ip
+                tgt = arr_ip if label == "Host" else node_id
+                edge_exists = any(str(e.get("source")) == src and str(e.get("target")) == tgt for e in edges_list)
+                if not edge_exists:
+                    edges_list.append({
+                        "from": src,
+                        "to": tgt,
+                        "source": src,
+                        "target": tgt,
+                        "label": edge_lbl
+                    })
+            doc["lastUpdated"] = datetime.utcnow()
+            db.sandatas.replace_one({}, doc, upsert=True)
+            log.info(f"[mongo] Successfully created node '{node_id}' in MongoDB.")
+        except Exception as mongo_err:
+            log.warning(f"[mongo] Failed to write to MongoDB: {mongo_err}")
+            return jsonify({"error": f"MongoDB write failed: {str(mongo_err)}"}), 500
+
+    # 3. Write to Neo4j (Optional / Best effort)
+    eid = None
+    if neo4j.available:
+        try:
+            if label == "Host":
+                rows = neo4j._run(
+                    """
+                    CREATE (n:Host {ip_address: $ip, name: $name})
+                    WITH n
+                    OPTIONAL MATCH (a:ArraySystem {ip_address: $arr})
+                    WHERE $arr IS NOT NULL
+                    FOREACH (x IN CASE WHEN a IS NOT NULL THEN [a] ELSE [] END |
+                      MERGE (n)-[:CONNECTS_TO]->(x))
+                    RETURN elementId(n) AS element_id
+                    """,
+                    ip=ip_addr or node_id,
+                    name=node_name,
+                    arr=arr_ip,
+                )
+            elif label == "Switch":
+                rows = neo4j._run(
+                    """
+                    CREATE (n:Switch {name: $name, serial: $serial})
+                    WITH n
+                    OPTIONAL MATCH (a:ArraySystem {ip_address: $arr})
+                    WHERE $arr IS NOT NULL
+                    FOREACH (x IN CASE WHEN a IS NOT NULL THEN [a] ELSE [] END |
+                      MERGE (x)-[:HAS_SWITCH]->(n))
+                    RETURN elementId(n) AS element_id
+                    """,
+                    name=node_name,
+                    serial=serial_no or node_name,
+                    arr=arr_ip,
+                )
+            elif label == "ArraySystem":
+                rows = neo4j._run(
+                    """
+                    MERGE (n:ArraySystem {ip_address: $ip})
+                    SET n.name = coalesce(n.name, $name)
+                    RETURN elementId(n) AS element_id
+                    """,
+                    ip=ip_addr or node_id,
+                    name=node_name,
+                )
+            elif label == "PhysicalDisk":
+                rows = neo4j._run(
+                    """
+                    CREATE (n:PhysicalDisk {serial: $serial})
+                    RETURN elementId(n) AS element_id
+                    """,
+                    serial=serial_no or node_id,
+                )
+            elif label == "Cage":
+                cid = body.get("cage_id") or extra.get("cage_id")
+                rows = neo4j._run(
+                    """
+                    CREATE (n:Cage {cage_id: $cid, name: $cname})
+                    WITH n
+                    OPTIONAL MATCH (a:ArraySystem {ip_address: $arr})
+                    WHERE $arr IS NOT NULL
+                    FOREACH (x IN CASE WHEN a IS NOT NULL THEN [a] ELSE [] END |
+                      MERGE (x)-[:HAS_CAGE]->(n))
+                    RETURN elementId(n) AS element_id
+                    """,
+                    cid=str(cid),
+                    cname=node_name,
+                    arr=arr_ip,
+                )
+            else:  # Node
+                nid = body.get("node_id") or extra.get("node_id")
+                rows = neo4j._run(
+                    """
+                    CREATE (n:Node {node_id: $nid, name: $nm})
+                    WITH n
+                    MATCH (a:ArraySystem {ip_address: $arr})
+                    MERGE (a)-[:HAS_NODE]->(n)
+                    RETURN elementId(n) AS element_id
+                    """,
+                    nid=str(nid),
+                    nm=node_name,
+                    arr=arr_ip,
+                )
+            eid = rows[0]["element_id"] if rows else None
+            
+            patch_props = {k: v for k, v in extra.items() if k in allowed and _valid_prop_key(k)}
+            if eid and patch_props:
+                sets = []
+                params = {"eid": eid}
+                for i, (k, v) in enumerate(patch_props.items()):
+                    pk = f"pv{i}"
+                    sets.append(f"n.{k} = ${pk}")
+                    params[pk] = v
+                neo4j._run(
+                    f"MATCH (n) WHERE elementId(n) = $eid SET {', '.join(sets)}",
+                    **params,
+                )
+        except Exception as ex:
+            log.warning(f"Neo4j write failed: {ex}")
+
+    return jsonify({"status": "ok", "element_id": eid or node_id})
 
 @app.route("/api/graph/cypher", methods=["POST"])
 @app.route("/api/v1/san/rag/cypher", methods=["POST"])

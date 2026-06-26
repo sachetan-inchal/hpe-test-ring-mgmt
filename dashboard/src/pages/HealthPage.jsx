@@ -87,13 +87,21 @@ export default function HealthPage({ apiBase, chatbotApi }) {
       const [hRes, sanRes, topoRes] = await Promise.allSettled([
         fetch(`${apiBase}/api/health`).then(r => r.json()),
         fetch(`${chatbotApi}/health`).then(r => r.json()),
-        fetch(`${apiBase}/api/graph/neo4j`).then(r => r.json()),
+        fetch(`${apiBase}/api/graph/mongo`).then(r => r.json()),
       ])
       if (hRes.status === 'fulfilled') setHealth(hRes.value)
       if (sanRes.status === 'fulfilled') setSanData(sanRes.value)
       if (topoRes.status === 'fulfilled') {
         const d = topoRes.value
-        const nodes = (d.nodes || []).map(n => ({ ...n.data, id: n.data?.id, name: n.data?.name, type: n.data?.label, status: n.data?.status || 'normal', parentId: n.data?.parentId }))
+        const nodes = (d.nodes || []).map(n => ({
+          id: n.data?.id || n.id,
+          name: n.data?.name || n.name,
+          type: n.data?.label || n.type,
+          status: n.data?.status || n.status || 'normal',
+          parentId: n.data?.parentId || n.parentId,
+          ...n.data,
+          ...n
+        }))
         setTopology({ nodes, edges: d.edges || [] })
       }
     } catch {}
