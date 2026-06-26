@@ -251,52 +251,7 @@ export default function InventoryPage({ apiBase }) {
         </div>
       </div>
 
-      {/* Source Selector Bar */}
-      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 16px', border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: '8px', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ingestion Source:</span>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button 
-              className={`btn ${selectedSource === 'all' ? 'active' : ''}`}
-              style={{
-                fontSize: 11,
-                padding: '4px 10px',
-                borderRadius: '20px',
-                border: '1px solid ' + (selectedSource === 'all' ? 'var(--accent-blue)' : 'var(--line)'),
-                background: selectedSource === 'all' ? 'rgba(88, 166, 255, 0.15)' : 'var(--background)',
-                color: selectedSource === 'all' ? 'var(--accent-blue)' : 'var(--foreground)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                fontWeight: selectedSource === 'all' ? 600 : 400
-              }}
-              onClick={() => setSelectedSource('all')}
-            >
-              🌐 All Sources (incl. Baseline)
-            </button>
-            {sources.map(src => (
-              <button
-                key={src.id}
-                className={`btn ${selectedSource === src.id ? 'active' : ''}`}
-                style={{
-                  fontSize: 11,
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  border: '1px solid ' + (selectedSource === src.id ? 'var(--accent-blue)' : 'var(--line)'),
-                  background: selectedSource === src.id ? 'rgba(88, 166, 255, 0.15)' : 'var(--background)',
-                  color: selectedSource === src.id ? 'var(--accent-blue)' : 'var(--foreground)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  fontWeight: selectedSource === src.id ? 600 : 400
-                }}
-                onClick={() => setSelectedSource(src.id)}
-                title={`Ingested at: ${new Date(src.timestamp).toLocaleString()}`}
-              >
-                📄 {src.label || src.id} ({src.nodeCount || 0} nodes)
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+
 
       {/* RBAC Scope Panel */}
       {(user?.role === 'admin' || user?.role === 'manager') && (

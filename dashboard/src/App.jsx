@@ -2,6 +2,7 @@ import { useState, useContext, useEffect, useRef, useCallback } from 'react'
 import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom'
 import { AuthContext } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
+import LandingPage from './pages/LandingPage'
 import DiscoveryPage from './pages/DiscoveryPage'
 import TopologyPage from './pages/TopologyPage'
 import EmulatorPage from './pages/EmulatorPage'
@@ -9,19 +10,21 @@ import ChatPage from './pages/ChatPage'
 import AdminPage from './pages/AdminPage'
 import HealthPage from './pages/HealthPage'
 import InventoryPage from './pages/InventoryPage'
+import SSHRingPage from './pages/SSHRingPage'
 import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check } from 'lucide-react'
 
 const FLASK_API = window.location.port === '3000' ? '' : `http://${window.location.hostname}:5005`
 const CHATBOT_API = '/chatbot'
 
 const NAV_ITEMS = [
-  { path: '/discovery', label: 'Discovery', icon: Radar, desc: 'Live BFS network scan' },
   { path: '/topology', label: 'Test Ring Viewer', icon: Map, desc: 'SAN diagram & ring topology' },
   { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
+  { path: '/discovery', label: 'Discovery', icon: Radar, desc: 'Live BFS network scan' },
+  { path: '/ssh-ring', label: 'SSH Ring Manager', icon: Layers, desc: 'Configure and discover SSH rings' },
   { path: '/emulator', label: 'Emulator', icon: Terminal, desc: 'CLI terminal' },
+  { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
   { path: '/chat', label: 'AI Assistant', icon: MessageSquare, desc: 'Intelligent chat' },
   { path: '/admin', label: 'Admin', icon: Settings, desc: 'Device & schema mgmt' },
-  { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
 ]
 
 function ProtectedRoute({ children }) {
@@ -412,6 +415,11 @@ export default function App() {
   const isAdmin = (user?.role || '').toLowerCase() === 'admin'
   const visibleNavItems = NAV_ITEMS.filter(item => item.path !== '/admin' || isAdmin)
 
+  // Landing page — no shell
+  if (location.pathname === '/') {
+    return <Routes><Route path="/" element={<LandingPage />} /></Routes>
+  }
+
   // Login page — no shell
   if (location.pathname === '/login') {
     return <Routes><Route path="/login" element={<LoginPage />} /></Routes>
@@ -419,6 +427,7 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/*" element={
         <ProtectedRoute>
@@ -497,6 +506,7 @@ export default function App() {
                   <Route path="/discovery" element={<DiscoveryPage apiBase={FLASK_API} />} />
                   <Route path="/topology" element={<TopologyPage apiBase={FLASK_API} />} />
                   <Route path="/inventory" element={<InventoryPage apiBase={FLASK_API} />} />
+                  <Route path="/ssh-ring" element={<SSHRingPage apiBase={FLASK_API} />} />
                   <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} />} />
                   <Route path="/chat" element={<ChatPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} /> : <Navigate to="/discovery" replace />} />

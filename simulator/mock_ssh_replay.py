@@ -6,6 +6,8 @@ A mock replay command runner.
 When copied to a target RHEL server or computer and added as alias or in PATH,
 it intercepts commands (e.g. showsys, shownode, multipath -ll) and prints the
 exact captured outputs from the HPE logs, mimicking a live HPE storage array or SAN host.
+
+Supports dynamic parsing of m1-array_proxy.txt and other dump files.
 """
 import sys
 import os
@@ -161,30 +163,101 @@ zoning:         ON (FABRIC_DUMMY_1)
 """
 }
 
+def load_dump_file(filepath):
+    if not os.path.exists(filepath):
+        return {}
+    with open(filepath, "r", errors="replace") as f:
+        lines = [l.rstrip() for l in f]
+    
+    has_plus = any(l.startswith("+ ") for l in lines)
+    
+    blocks = {}
+    cur = None
+    
+    if has_plus:
+        for line in lines:
+            if line.startswith("+ "):
+                cur = line[2:].strip()
+                blocks[cur] = []
+            elif cur is not None:
+                blocks[cur].append(line)
+    else:
+        known_cmds = {
+            "showversion -b", "showhost", "showsys", "shownode", "showport",
+            "showswitch", "showpd", "showpd -s", "showpd -i",
+            "showcage", "showcage -state", "showcage -pci", "showcage -sfp",
+            "cli checkhealth", "lscpu", "fabricshow", "switchshow",
+            "showportdev ns -nohdtot 0:3:1", "showportdev ns -nohdtot 1:3:1",
+            "lspci -nnk", "systool -c fc_host"
+        }
+        for line in lines:
+            stripped = line.strip()
+            matched_cmd = None
+            for cmd in sorted(known_cmds, key=len, reverse=True):
+                if stripped == cmd or stripped.startswith(cmd + " "):
+                    matched_cmd = stripped
+                    break
+            if matched_cmd:
+                cur = matched_cmd
+                blocks[cur] = []
+            elif cur is not None:
+                blocks[cur].append(line)
+                
+    return {k: "\n".join(v) for k, v in blocks.items()}
+
 def run_cmd(cmd_str):
     cleaned = cmd_str.strip()
     
-    # Try exact match first
+    # 1. Try loading dynamic logs from potential workspace locations
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.environ.get("REPLAY_DUMP_FILE", ""),
+        "m1-array_proxy.txt",
+        os.path.join(script_dir, "m1-array_proxy.txt"),
+        os.path.join(script_dir, "..", "m1-array_proxy.txt"),
+        os.path.join(script_dir, "..", "..", "m1-array_proxy.txt"),
+        os.path.join(script_dir, "data", "devices", "prod_a.txt")
+    ]
+    
+    dynamic_db = {}
+    for c in candidates:
+        if c and os.path.exists(c):
+            try:
+                dynamic_db = load_dump_file(c)
+                if dynamic_db:
+                    break
+            except Exception:
+                pass
+                
+    # If dynamic db is loaded, search it
+    if dynamic_db:
+        # Exact match
+        if cleaned in dynamic_db:
+            print(dynamic_db[cleaned].strip())
+            sys.exit(0)
+        # Fuzzy match
+        for k, v in dynamic_db.items():
+            if k in cleaned:
+                print(v.strip())
+                sys.exit(0)
+                
+    # 2. Fall back to hardcoded MOCK_DATABASE
     if cleaned in MOCK_DATABASE:
         print(MOCK_DATABASE[cleaned].strip())
         sys.exit(0)
         
-    # Try fuzzy substring match
     for k, v in MOCK_DATABASE.items():
         if k in cleaned:
             print(v.strip())
             sys.exit(0)
             
-    # Default message when command is unknown
     print(f"bash: {cleaned}: command not found (mock SSH replay server)")
     sys.exit(127)
 
 if __name__ == "__main__":
-    # If arguments are passed, join them; otherwise run interactive mode
     if len(sys.argv) > 1:
         run_cmd(" ".join(sys.argv[1:]))
     else:
-        # Simple interactive shell mimic loop
         print("HPE SAN Mock Replay Interactive Console. Type 'exit' to quit.")
         while True:
             try:

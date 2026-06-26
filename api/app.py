@@ -703,30 +703,157 @@ def _decrypt_password(enc_password: str) -> str:
 
 _terminal_gateway = ActiveTerminalGateway()
 
+
+def resolve_dns(domain: str, dns_server: str) -> str:
+    """Resolve a domain name using a specific DNS server IP via UDP."""
+    import socket
+    import struct
+    if not dns_server:
+        return socket.gethostbyname(domain)
+    try:
+        # Build raw DNS Query packet
+        # Header: ID, Flags (RD=1), QDCOUNT=1, ANCOUNT=0, NSCOUNT=0, ARCOUNT=0
+        packet = struct.pack(">HHHHHH", 0x1234, 0x0100, 1, 0, 0, 0)
+        # Question: Name (split by labels), Type (A=1), Class (IN=1)
+        for part in domain.split("."):
+            packet += struct.pack("B", len(part)) + part.encode("utf-8")
+        packet += struct.pack("BHH", 0, 1, 1)
+
+        # Send/Receive over UDP
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(3.0)
+        sock.sendto(packet, (dns_server, 53))
+        data, _ = sock.recvfrom(512)
+        sock.close()
+
+        # Parse response
+        offset = 12
+        while True:
+            length = data[offset]
+            if length == 0:
+                offset += 5  # skip null byte, QTYPE (2B), QCLASS (2B)
+                break
+            offset += 1 + length
+
+        # Answers start here. We check first answer.
+        if data[offset] & 0xc0 == 0xc0:
+            offset += 2
+        else:
+            while True:
+                length = data[offset]
+                if length == 0:
+                    offset += 1
+                    break
+                offset += 1 + length
+        
+        rtype, rclass, ttl, rdlen = struct.unpack(">HHIH", data[offset:offset+10])
+        offset += 10
+        if rtype == 1 and rdlen == 4:  # Type A, length 4
+            ip = socket.inet_ntoa(data[offset:offset+4])
+            return ip
+    except Exception as e:
+        print(f"DNS query failed: {e}")
+    # Fallback to system resolver
+    import socket
+    return socket.gethostbyname(domain)
+
+
 @app.route("/api/credentials/save", methods=["POST"])
 def save_ssh_credentials():
     """Securely save host login credentials in MongoDB."""
     data = request.json or {}
-    ip = data.get("ip")
+    ip = data.get("ip") or data.get("ip_address")
     username = data.get("username")
     password = data.get("password")
+    port = data.get("port", 22)
+    device_name = data.get("device_name") or data.get("name")
+    dns_name = data.get("dns_name", "")
+    dns_server = data.get("dns_server", "")
+    category = data.get("category", "Host")
     
-    if not ip or not username or not password:
-        return jsonify({"error": "ip, username, and password are required"}), 400
+    if not ip and not dns_name:
+        return jsonify({"error": "ip or dns_name is required"}), 400
+        
+    if not username or not password:
+        return jsonify({"error": "username and password are required"}), 400
         
     try:
         encrypted = _encrypt_password(password)
         if mongo.available:
-            db = mongo._client.hpe_san
+            db = mongo.db
             db.ssh_credentials.update_one(
-                {"ip": ip},
-                {"$set": {"username": username, "password": encrypted}},
+                {"ip": ip or dns_name},
+                {"$set": {
+                    "username": username,
+                    "password": encrypted,
+                    "port": int(port),
+                    "device_name": device_name or ip or dns_name,
+                    "dns_name": dns_name,
+                    "dns_server": dns_server,
+                    "category": category
+                }},
                 upsert=True
             )
-            return jsonify({"status": "saved", "message": f"SSH credentials indexed for {ip}"})
+            return jsonify({"status": "saved", "message": f"SSH credentials indexed for {ip or dns_name}"})
         return jsonify({"error": "MongoDB unavailable"}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/credentials/list", methods=["GET"])
+def list_ssh_credentials():
+    """List all saved SSH credentials, decrypted for client use."""
+    try:
+        if mongo.available:
+            db = mongo.db
+            creds = list(db.ssh_credentials.find({}))
+            out = []
+            for c in creds:
+                decrypted = _decrypt_password(c.get("password", ""))
+                out.append({
+                    "device_name": c.get("device_name") or c.get("ip"),
+                    "ip_address": c.get("ip"),
+                    "ip": c.get("ip"),
+                    "username": c.get("username"),
+                    "password": decrypted,
+                    "port": c.get("port", 22),
+                    "dns_name": c.get("dns_name", ""),
+                    "dns_server": c.get("dns_server", ""),
+                    "category": c.get("category", "Host")
+                })
+            return jsonify({"devices": out})
+        return jsonify({"error": "MongoDB unavailable"}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/credentials/delete", methods=["POST"])
+def delete_ssh_credentials():
+    """Delete saved SSH credentials."""
+    data = request.json or {}
+    ip = data.get("ip") or data.get("ip_address")
+    device_name = data.get("device_name")
+    
+    if not ip and not device_name:
+        return jsonify({"error": "ip or device_name is required"}), 400
+        
+    try:
+        if mongo.available:
+            db = mongo.db
+            query = {}
+            if ip:
+                query["ip"] = ip
+            elif device_name:
+                query["device_name"] = device_name
+                
+            res = db.ssh_credentials.delete_one(query)
+            if res.deleted_count > 0:
+                return jsonify({"status": "deleted", "message": "Credentials deleted successfully"})
+            return jsonify({"error": "Credentials not found"}), 404
+        return jsonify({"error": "MongoDB unavailable"}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/credentials/status/<path:ip>", methods=["GET"])
 def get_ssh_credentials_status(ip):
@@ -740,6 +867,77 @@ def get_ssh_credentials_status(ip):
         return jsonify({"ip": ip, "has_credentials": False})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/ssh/exec", methods=["POST"])
+@app.route("/api/ssh-ring/exec", methods=["POST"])
+def ssh_ring_exec():
+    """Execute a CLI command on a real SSH device directly."""
+    data = request.json or {}
+    ip = data.get("ip") or data.get("ip_address")
+    command = data.get("command")
+    commands = data.get("commands")
+    username = data.get("username")
+    password = data.get("password")
+    port = int(data.get("port", 22))
+    dns_name = data.get("dns_name")
+    dns_server = data.get("dns_server")
+    
+    if dns_name:
+        try:
+            resolved_ip = resolve_dns(dns_name, dns_server)
+            ip = resolved_ip
+        except Exception as e:
+            return jsonify({"error": f"Failed to resolve DNS {dns_name}: {e}"}), 400
+
+    if not ip or not username or not password:
+        return jsonify({"error": "IP/DNS Name, username, and password are required"}), 400
+        
+    if not command and not commands:
+        return jsonify({"error": "command or commands are required"}), 400
+        
+    if isinstance(commands, list):
+        cmds_to_run = commands
+    elif command:
+        cmds_to_run = [command]
+    else:
+        cmds_to_run = []
+        
+    try:
+        from api.integrations.device_connector import SSHConnector
+        connector = SSHConnector(host=ip, username=username, password=password, port=port)
+        if connector.connect():
+            results = {}
+            for cmd in cmds_to_run:
+                res = connector.execute(cmd)
+                results[cmd] = {
+                    "stdout": res.get("stdout", ""),
+                    "stderr": res.get("stderr", "")
+                }
+            connector.disconnect()
+            
+            # Return both formats to be safe
+            first_cmd_output = ""
+            if cmds_to_run:
+                first_res = results.get(cmds_to_run[0], {})
+                first_cmd_output = first_res.get("stdout", "") + first_res.get("stderr", "")
+                
+            return jsonify({
+                "ip": ip,
+                "command": command or (cmds_to_run[0] if cmds_to_run else ""),
+                "output": first_cmd_output,
+                "results": results
+            })
+        else:
+            return jsonify({
+                "ip": ip,
+                "command": command or (cmds_to_run[0] if cmds_to_run else ""),
+                "output": f"SSH Connection Authentication Failure to {ip}",
+                "error": f"SSH Connection Authentication Failure to {ip}"
+            }), 401
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 def _san_agent_executor(ip, cmd):
     # Check if we are in manual approval mode
@@ -776,7 +974,7 @@ def _san_agent_executor(ip, cmd):
         # 1. Automate discovery/lookup: pull password from Mongo database
         if not password and mongo.available:
             try:
-                db = mongo._client.hpe_san
+                db = mongo.db
                 cred = db.ssh_credentials.find_one({"ip": target_ip})
                 if cred:
                     username = cred.get("username", username)
@@ -1296,12 +1494,13 @@ def start_discovery():
     data = request.json or {}
     seed_ips = data.get("seed_ips") or [data.get("seed_ip", "10.20.10.5")]
     delay_ms = data.get("delay_ms", 20)
+    commands = data.get("commands")
 
     if discovery_crawler.running:
         return jsonify({"error": "Discovery already running"}), 409
 
     def _run():
-        discovery_crawler.discover(seed_ips, delay_ms=delay_ms)
+        discovery_crawler.discover(seed_ips, delay_ms=delay_ms, commands=commands)
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
@@ -2249,6 +2448,114 @@ def terminal_spawn():
         return jsonify({"success": True, "message": "Shell spawned."})
     except Exception as e:
         log.exception('[DesktopShell] Failed to spawn')
+        return jsonify({"success": False, "error": str(e)}), 500
+
+def capture_window_screenshot(hwnd: int):
+    """Capture a screenshot of a specific window by HWND using PIL.ImageGrab."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        import PIL.ImageGrab
+        
+        user32 = ctypes.windll.user32
+        rect = wintypes.RECT()
+        if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+            bbox = (rect.left, rect.top, rect.right, rect.bottom)
+            if bbox[2] > bbox[0] and bbox[3] > bbox[1]:
+                # Add 8px offset to clip Windows shadows/borders if necessary
+                return PIL.ImageGrab.grab(bbox)
+    except Exception as e:
+        log.warning(f"[Screencast] Failed to grab screenshot for hwnd {hwnd}: {e}")
+    return None
+
+@app.route("/api/terminal/screencast/<path:hwnd_str>")
+def terminal_screencast(hwnd_str):
+    """MJPEG stream of a specific window screenshot."""
+    import time
+    try:
+        hwnd = int(hwnd_str)
+    except ValueError:
+        return "Invalid HWND", 400
+        
+    def generate():
+        import io
+        while True:
+            img = capture_window_screenshot(hwnd)
+            if img:
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=80)
+                jpeg_bytes = buf.getvalue()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n'
+                       b'Content-Length: ' + str(len(jpeg_bytes)).encode('utf-8') + b'\r\n\r\n' +
+                       jpeg_bytes + b'\r\n')
+            else:
+                time.sleep(0.3)
+            time.sleep(0.1) # ~10 FPS
+            
+    return Response(
+        generate(),
+        mimetype='multipart/x-mixed-replace; boundary=frame',
+        headers={
+            'Cache-Control': 'no-cache, private',
+            'Pragma': 'no-cache'
+        }
+    )
+
+@app.route("/api/terminal/spawn-powershell", methods=["POST"])
+def spawn_powershell_window():
+    """Spawn a real, visible PowerShell window on the Windows desktop."""
+    import sys
+    import subprocess
+    if sys.platform != 'win32':
+        return jsonify({"success": False, "error": "Only supported on Windows"}), 400
+    try:
+        subprocess.Popen("start powershell.exe", shell=True)
+        return jsonify({"success": True, "message": "PowerShell window spawned."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/terminal/type", methods=["POST"])
+def terminal_type_keys():
+    """Send keystrokes to a specific window by HWND using Windows automation."""
+    data = request.json or {}
+    hwnd_str = data.get("hwnd")
+    text = data.get("text", "")
+    
+    if not hwnd_str or not text:
+        return jsonify({"success": False, "error": "hwnd and text are required"}), 400
+        
+    try:
+        hwnd = int(hwnd_str)
+        import ctypes
+        import time
+        user32 = ctypes.windll.user32
+        
+        if not user32.IsWindow(hwnd):
+            return jsonify({"success": False, "error": f"Invalid window handle: {hwnd}"}), 400
+            
+        # SW_RESTORE = 9
+        user32.ShowWindow(hwnd, 9)
+        # Bypass Windows Focus Stealing Prevention (simulate ALT press)
+        user32.keybd_event(0x12, 0, 0, 0)
+        user32.keybd_event(0x12, 0, 2, 0)
+        user32.SetForegroundWindow(hwnd)
+        time.sleep(0.3)
+        
+        import subprocess
+        escaped_text = text.replace("`", "``").replace('"', '`"').replace('$', '`$')
+        # Send keys directly to currently active (foreground) window
+        ps_cmd = f"""
+        $wshell = New-Object -ComObject wscript.shell;
+        $wshell.SendKeys("{escaped_text}");
+        """
+        res = subprocess.run(["powershell", "-Command", ps_cmd], capture_output=True, text=True)
+        if res.returncode == 0:
+            return jsonify({"success": True, "message": f"Keystrokes typed to window {hwnd}."})
+        else:
+            return jsonify({"success": False, "error": res.stderr or "Failed to type"}), 500
+            
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3334,3 +3641,5 @@ if __name__ == "__main__":
         threading.Thread(target=_run_scheduled_discovery, daemon=True).start()
     
     app.run(debug=True, host="0.0.0.0", port=port, threaded=True)
+
+# Nodemon trigger restart comment

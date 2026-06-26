@@ -2,11 +2,60 @@ import { useState, useRef, useEffect, useContext, useCallback } from 'react'
 import { AuthContext } from '../context/AuthContext'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Send, Sparkles, Database, MessageSquare, Plus, RotateCcw, Bot, Trash2, Copy, Check, Upload, FileText, CheckCircle2, AlertTriangle, X, Cpu } from 'lucide-react'
+import { Send, Sparkles, Database, MessageSquare, Plus, RotateCcw, Bot, Trash2, Copy, Check, Upload, FileText, CheckCircle2, AlertTriangle, X, Cpu, Monitor, Server } from 'lucide-react'
 import AgentStepTimeline from '../components/AgentStepTimeline'
 import RadialMenu from '../components/RadialMenu'
 import AgentReasoningSidebar from '../components/AgentReasoningSidebar'
-import EmbeddedTerminal from '../components/EmbeddedTerminal'
+
+// ── Emulator constants (mirrors EmulatorPage) ──────────────────────────────
+const EMU_ARRAY_CMDS = [
+  { label: 'showsys', desc: 'System overview' },
+  { label: 'shownode', desc: 'Node details' },
+  { label: 'showport', desc: 'Port info' },
+  { label: 'showpd', desc: 'Physical disks' },
+  { label: 'showhost', desc: 'Connected hosts' },
+  { label: 'showcage', desc: 'Drive cages' },
+  { label: 'showportdev ns -nohdtot 0:3:1', desc: 'Port device NS' },
+  { label: 'showversion -b', desc: 'Firmware version' },
+]
+const EMU_SWITCH_CMDS = [
+  { label: 'fabricshow', desc: 'FC fabric topology' },
+  { label: 'switchshow', desc: 'Switch state + ports' },
+  { label: 'help', desc: 'Available commands' },
+]
+const EMU_HOST_LINUX_CMDS = [
+  { label: 'uname -a', desc: 'OS info' },
+  { label: 'hostname', desc: 'Hostname' },
+  { label: 'ip addr show', desc: 'Network interfaces' },
+  { label: 'multipath -ll', desc: 'Multipath status' },
+]
+const EMU_HOST_WIN_CMDS = [
+  { label: 'Get-PhysicalDisk | Select-Object DeviceId, Model, FirmwareVersion', desc: 'Physical disks' },
+  { label: 'Get-ComputerInfo', desc: 'OS & hardware' },
+  { label: 'Get-HBaPort', desc: 'FC HBA ports' },
+]
+function emuGetDeviceCmds(device) {
+  if (!device) return []
+  const t = (device?.type || '').toLowerCase()
+  const os = (device?.os || device?.os_name || '').toLowerCase()
+  if (t === 'switch') return EMU_SWITCH_CMDS
+  if (t === 'array' || t === 'arraysystem') return EMU_ARRAY_CMDS
+  if (os.includes('windows')) return EMU_HOST_WIN_CMDS
+  return EMU_HOST_LINUX_CMDS
+}
+function emuGetSSHUser(device) {
+  return (device?.type || '').toLowerCase() === 'switch' ? 'admin' : 'root'
+}
+function emuGetDeviceKind(device) {
+  if (!device) return 'host_linux'
+  const t = (device?.type || '').toLowerCase()
+  const os = (device?.os || device?.os_name || '').toLowerCase()
+  if (t === 'switch') return 'switch'
+  if (t === 'array' || t === 'arraysystem') return 'array'
+  if (os.includes('windows')) return 'host_windows'
+  return 'host_linux'
+}
+const EMU_COL = { cmd: '#3fb950', out: '#c9d1d9', error: '#f85149', info: '#58a6ff', warn: '#e3b341', ssh: '#d2a8ff' }
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false)
@@ -335,6 +384,8 @@ export default function ChatPage({ apiBase, chatbotApi }) {
   const [lastQuery, setLastQuery] = useState('')
   const [elapsedTime, setElapsedTime] = useState(0)
   const [sidebarWidth, setSidebarWidth] = useState(380)
+  const [leftSidebarWidth, setLeftSidebarWidth] = useState(260)
+  const [emuPanelWidth, setEmuPanelWidth] = useState(480)
   const [aiMode, setAiMode] = useState('agent') // agent | standard | graphrag
   const [useOllama, setUseOllama] = useState(false)
   const [disableThink, setDisableThink] = useState(false)
@@ -357,6 +408,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
   const [activeChatId, setActiveChatId] = useState(null)
   const [sidebarSearch, setSidebarSearch] = useState('')
   const [agentResult, setAgentResult] = useState(null)
+  const [llmCallsCount, setLlmCallsCount] = useState(0)
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const [showStepsInChat, setShowStepsInChat] = useState(true)
   const [arrayHint, setArrayHint] = useState(() => sessionStorage.getItem('agent_array_hint') || '')
@@ -367,9 +419,30 @@ export default function ChatPage({ apiBase, chatbotApi }) {
   const inputRef = useRef(null)
   const llmFileRef = useRef(null)
 
+  // ── Emulator Gateway Mirror State ─────────────────────────────────────────
+  const [emuDevices, setEmuDevices] = useState([])
+  const [emuSshState, setEmuSshState] = useState('disconnected')
+  const [emuActiveDevice, setEmuActiveDevice] = useState(null)
+  const [emuHandshake, setEmuHandshake] = useState(null)
+  const [emuPrompt, setEmuPrompt] = useState('console-gateway$ ')
+  const [emuHistory, setEmuHistory] = useState([
+    { type: 'info', text: 'HPE SAN Console Gateway v2.0.0 (Jump-Host Server)' },
+    { type: 'info', text: '-------------------------------------------------' },
+    { type: 'info', text: 'Type "ssh <user>@<ip>" or click a device to connect.' },
+    { type: 'out', text: '' },
+  ])
+  const [emuInput, setEmuInput] = useState('')
+  const [emuLoading, setEmuLoading] = useState(false)
+  const [emuCmdHistory, setEmuCmdHistory] = useState([])
+  const [emuHistIdx, setEmuHistIdx] = useState(-1)
+  const [highlightedDevice, setHighlightedDevice] = useState(null)
+  const emuTermBodyRef = useRef(null)
+  const emuInputRef = useRef(null)
+
   // ── LLM Ingest State ─────────────────────────────────────────────────────
   // (State handled dynamically inside the messages array)
 
+  // ── Right agent sidebar resize ──────────────────────────────────────────
   const isResizing = useRef(false)
 
   const handleMouseMove = useCallback((e) => {
@@ -396,7 +469,70 @@ export default function ChatPage({ apiBase, chatbotApi }) {
     document.body.style.userSelect = 'none'
   }, [handleMouseMove, handleMouseUp])
 
-  const scrollBottom = () => msgEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  // ── Left Knowledge Base sidebar resize ──────────────────────────────────
+  const isResizingLeft = useRef(false)
+
+  const handleLeftMouseMove = useCallback((e) => {
+    if (!isResizingLeft.current) return
+    const newWidth = e.clientX
+    if (newWidth > 180 && newWidth < 520) {
+      setLeftSidebarWidth(newWidth)
+    }
+  }, [])
+
+  const handleLeftMouseUp = useCallback(() => {
+    isResizingLeft.current = false
+    document.removeEventListener('mousemove', handleLeftMouseMove)
+    document.removeEventListener('mouseup', handleLeftMouseUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }, [handleLeftMouseMove])
+
+  const startResizingLeft = useCallback((e) => {
+    e.preventDefault()
+    isResizingLeft.current = true
+    document.addEventListener('mousemove', handleLeftMouseMove)
+    document.addEventListener('mouseup', handleLeftMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }, [handleLeftMouseMove, handleLeftMouseUp])
+
+  // ── Emulator panel resize ────────────────────────────────────────────────
+  const isResizingEmu = useRef(false)
+
+  const handleEmuMouseMove = useCallback((e) => {
+    if (!isResizingEmu.current) return
+    const newWidth = window.innerWidth - e.clientX
+    if (newWidth > 320 && newWidth < 900) {
+      setEmuPanelWidth(newWidth)
+    }
+  }, [])
+
+  const handleEmuMouseUp = useCallback(() => {
+    isResizingEmu.current = false
+    document.removeEventListener('mousemove', handleEmuMouseMove)
+    document.removeEventListener('mouseup', handleEmuMouseUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }, [handleEmuMouseMove])
+
+  const startResizingEmu = useCallback((e) => {
+    e.preventDefault()
+    isResizingEmu.current = true
+    document.addEventListener('mousemove', handleEmuMouseMove)
+    document.addEventListener('mouseup', handleEmuMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }, [handleEmuMouseMove, handleEmuMouseUp])
+
+  const scrollBottom = () => {
+    const container = msgEndRef.current?.parentElement
+    if (!container) return
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200
+    if (isNearBottom) {
+      msgEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
   useEffect(scrollBottom, [messages])
 
   useEffect(() => {
@@ -541,12 +677,6 @@ export default function ChatPage({ apiBase, chatbotApi }) {
     }
   }, [apiBase])
 
-  useEffect(() => {
-    if (terminalType === 'desktop' && showConnectModal) {
-      fetchActiveWindows()
-    }
-  }, [terminalType, showConnectModal, fetchActiveWindows])
-
   const handleTerminalApproval = async (decision, modifiedCommand) => {
     try {
       await fetch(`${apiBase}/api/terminal/approval`, {
@@ -559,23 +689,368 @@ export default function ChatPage({ apiBase, chatbotApi }) {
   }
 
   const handleTerminalConnect = async (type, mode, host, username, password, hwnd) => {
+    // Only 'simulated' (Emulator Gateway) is supported now
+    setTerminalType('simulated')
+    setTerminalMode(mode)
+    setShowConnectModal(false)
+    setShowTerminalPanel(true)
+  }
+
+  // ── Emulator Gateway logic (mirrors EmulatorPage) ─────────────────────────
+  useEffect(() => {
+    fetch(`${apiBase}/api/sim/devices`).then(r => r.json())
+      .then(d => {
+        const list = d.devices || d
+        setEmuDevices(Array.isArray(list) ? list : [])
+      }).catch(() => {})
+  }, [apiBase])
+
+  useEffect(() => {
+    if (emuTermBodyRef.current) {
+      emuTermBodyRef.current.scrollTop = emuTermBodyRef.current.scrollHeight
+    }
+  }, [emuHistory, emuInput, emuPrompt])
+
+  useEffect(() => {
+    if (showTerminalPanel) emuInputRef.current?.focus()
+  }, [emuSshState, showTerminalPanel])
+
+  const emuAddLine = useCallback((type, text) =>
+    setEmuHistory(prev => [...prev, { type, text }]), [])
+
+  const emuStartSSHHandshake = useCallback(async (user, ip, originalCmd) => {
+    emuAddLine('cmd', `${emuSshState === 'connected' ? emuPrompt : 'console-gateway$ '}${originalCmd}`)
+    setEmuLoading(true)
+    const foundDev = emuDevices.find(d => d.ip === ip)
+    if (!foundDev) {
+      emuAddLine('error', `ssh: Could not resolve hostname ${ip}: Name or service not known`)
+      setEmuPrompt('console-gateway$ ')
+      setEmuSshState('disconnected')
+      setEmuLoading(false)
+      return
+    }
     try {
-      const res = await fetch(`${apiBase}/api/terminal/connect`, {
+      const res = await fetch(`${apiBase}/api/sim/ssh/connect/${ip}`)
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setEmuHandshake(data)
+      setEmuActiveDevice(foundDev)
+      if (data.key_type) {
+        emuAddLine('warn', `Warning: the ${data.key_type} host key for '${data.name || ip}' differs from key for IP '${ip}'`)
+        setEmuPrompt('Are you sure you want to continue connecting (yes/no)? ')
+        setEmuSshState('awaiting_yes_no')
+      } else {
+        setEmuPrompt(data.password_prompt || 'Password: ')
+        setEmuSshState('awaiting_password')
+      }
+    } catch (err) {
+      emuAddLine('error', `Bypassing SSH simulation: ${err.message}`)
+      setEmuPrompt(`${foundDev?.name || ip}# `)
+      setEmuActiveDevice(foundDev)
+      setEmuSshState('connected')
+    } finally {
+      setEmuLoading(false)
+    }
+  }, [apiBase, emuDevices, emuPrompt, emuSshState, emuAddLine])
+
+  const emuHandleSidebarClick = useCallback(async (device) => {
+    const user = emuGetSSHUser(device)
+    const ip = device.ip
+    if (emuSshState === 'connected' && emuActiveDevice?.ip === ip) {
+      emuAddLine('info', `Already connected to ${device.name || ip}`)
+      return
+    }
+    if (emuSshState === 'connected') {
+      emuAddLine('info', `Connection to ${emuActiveDevice?.name || emuActiveDevice?.ip} closed.`)
+    }
+    setEmuSshState('disconnected')
+    setEmuInput('')
+    await emuStartSSHHandshake(user, ip, `ssh ${user}@${ip}`)
+  }, [emuSshState, emuActiveDevice, emuAddLine, emuStartSSHHandshake])
+
+  const emuRunQuickCommand = useCallback(async (cmd) => {
+    if (emuSshState !== 'connected' || emuLoading) return
+    emuAddLine('cmd', `${emuPrompt}${cmd}`)
+    setEmuLoading(true)
+    try {
+      const res = await fetch(`${apiBase}/api/sim/exec`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, executionMode: mode, host, username, password, hwnd })
+        body: JSON.stringify({ ip: emuActiveDevice?.ip, command: cmd })
       })
-      if (res.ok) {
-        setTerminalType(type)
-        setTerminalMode(mode)
-        if (hwnd) setSelectedHwnd(hwnd)
-        setShowConnectModal(false)
-        if (type === 'desktop') {
-          setShowTerminalPanel(true)
+      const data = await res.json()
+      const output = data.output || data.error || 'No output'
+      output.split('\n').forEach(line => emuAddLine('out', line))
+      emuAddLine('out', '')
+    } catch (err) {
+      emuAddLine('error', `Connection error: ${err.message}`)
+    } finally {
+      setEmuLoading(false)
+    }
+  }, [apiBase, emuActiveDevice, emuLoading, emuPrompt, emuSshState, emuAddLine])
+
+  const emuHandleKeyDown = useCallback(async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const trimmed = emuInput.trim()
+      const currentVal = emuInput
+      setEmuInput('')
+      if (trimmed === 'clear') { setEmuHistory([]); return }
+      try {
+        if (emuSshState === 'disconnected') {
+          if (!trimmed) { emuAddLine('cmd', emuPrompt); return }
+          if (trimmed.startsWith('ssh ')) {
+            const parts = trimmed.substring(4).split('@')
+            let user = 'root', ip = ''
+            if (parts.length === 2) { user = parts[0]; ip = parts[1] } else { ip = parts[0] }
+            await emuStartSSHHandshake(user, ip, trimmed)
+          } else {
+            emuAddLine('cmd', `${emuPrompt}${trimmed}`)
+            emuAddLine('error', 'Not connected. Use "ssh <user>@<ip>" or click a device.')
+          }
+          return
         }
+        if (emuSshState === 'awaiting_yes_no') {
+          emuAddLine('cmd', `${emuPrompt}${currentVal}`)
+          if (trimmed.toLowerCase() === 'yes') {
+            setEmuPrompt(emuHandshake?.password_prompt || 'Password: ')
+            setEmuSshState('awaiting_password')
+          } else if (trimmed.toLowerCase() === 'no') {
+            emuAddLine('error', 'Host key verification failed. Connection closed.')
+            setEmuPrompt('console-gateway$ ')
+            setEmuSshState('disconnected')
+            setEmuActiveDevice(null)
+          } else { emuAddLine('error', "Please type 'yes' or 'no'.") }
+          return
+        }
+        if (emuSshState === 'awaiting_password') {
+          emuAddLine('cmd', `${emuPrompt}`)
+          const devName = emuHandshake?.name || emuActiveDevice?.name || emuActiveDevice?.ip || 'device'
+          const devKind = emuGetDeviceKind(emuActiveDevice)
+          if (devKind === 'switch') {
+            emuAddLine('out', `${devName}:FID100:admin> `)
+            setEmuPrompt(`${devName}:FID100:admin> `)
+          } else if (devKind === 'array') {
+            emuAddLine('out', `root@${devName}:~# `)
+            setEmuPrompt(`root@${devName}:~# `)
+          } else {
+            emuAddLine('info', `Linux ${devName} — logged in`)
+            setEmuPrompt(`root@${devName}:~$ `)
+          }
+          setEmuSshState('connected')
+          return
+        }
+        if (emuSshState === 'connected') {
+          if (!trimmed) { emuAddLine('cmd', emuPrompt); return }
+          emuAddLine('cmd', `${emuPrompt}${trimmed}`)
+          if (trimmed === 'exit' || trimmed === 'logout') {
+            emuAddLine('info', `Connection to ${emuActiveDevice?.name || emuActiveDevice?.ip} closed.`)
+            setEmuPrompt('console-gateway$ ')
+            setEmuSshState('disconnected')
+            setEmuActiveDevice(null)
+            return
+          }
+          setEmuCmdHistory(prev => [trimmed, ...prev.slice(0, 49)])
+          setEmuHistIdx(-1)
+          setEmuLoading(true)
+          try {
+            const res = await fetch(`${apiBase}/api/sim/exec`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ip: emuActiveDevice?.ip, command: trimmed })
+            })
+            const data = await res.json()
+            const output = data.output || data.error || 'No output'
+            output.split('\n').forEach(line => emuAddLine('out', line))
+            emuAddLine('out', '')
+          } catch (err) {
+            emuAddLine('error', `Connection error: ${err.message}`)
+          } finally {
+            setEmuLoading(false)
+          }
+        }
+      } catch (err) {
+        emuAddLine('error', `Internal console error: ${err.message}`)
       }
-    } catch(e) {}
-  }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (emuSshState !== 'connected') return
+      const newIdx = Math.min(emuHistIdx + 1, emuCmdHistory.length - 1)
+      setEmuHistIdx(newIdx)
+      setEmuInput(emuCmdHistory[newIdx] || '')
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (emuSshState !== 'connected') return
+      const newIdx = Math.max(emuHistIdx - 1, -1)
+      setEmuHistIdx(newIdx)
+      setEmuInput(newIdx === -1 ? '' : emuCmdHistory[newIdx] || '')
+    }
+  }, [apiBase, emuInput, emuSshState, emuPrompt, emuHandshake, emuActiveDevice, emuHistIdx, emuCmdHistory, emuAddLine, emuStartSSHHandshake])
+
+  // ── Agent → Emulator automation: when arrayHint changes, glow the device ──
+  useEffect(() => {
+    if (!arrayHint || !emuDevices.length) return
+    const match = emuDevices.find(d =>
+      (d.name || '').toLowerCase().includes(arrayHint.toLowerCase()) ||
+      (d.ip || '').includes(arrayHint)
+    )
+    if (match) {
+      setHighlightedDevice(match.ip)
+      setTimeout(() => setHighlightedDevice(null), 2800)
+    }
+  }, [arrayHint, emuDevices])
+
+  // ── Stable refs for emulator state (avoid stale closures in sendMessage) ──
+  const emuDevicesRef = useRef(emuDevices)
+  useEffect(() => { emuDevicesRef.current = emuDevices }, [emuDevices])
+  const emuActiveDeviceRef = useRef(emuActiveDevice)
+  useEffect(() => { emuActiveDeviceRef.current = emuActiveDevice }, [emuActiveDevice])
+  const emuSshStateRef = useRef(emuSshState)
+  useEffect(() => { emuSshStateRef.current = emuSshState }, [emuSshState])
+  const emuPromptRef = useRef(emuPrompt)
+  useEffect(() => { emuPromptRef.current = emuPrompt }, [emuPrompt])
+  const showTerminalPanelRef = useRef(showTerminalPanel)
+  useEffect(() => { showTerminalPanelRef.current = showTerminalPanel }, [showTerminalPanel])
+
+  // Queue to run emulator commands sequentially
+  const emuCommandQueueRef = useRef(Promise.resolve())
+
+  // Set to track unique step IDs seen during the current Agent query
+  const seenStepIdsRef = useRef(new Set())
+
+  // Ref to hold the active backend LLM polling interval
+  const pollIntervalRef = useRef(null)
+
+  // emuExecuteAgentCommand: auto-SSH + typewriter-animate + execute in emulator panel
+  // Stored in a ref so sendMessage's useCallback can call it without stale closure.
+  const emuExecuteAgentCommandRef = useRef(null)
+  useEffect(() => {
+    emuExecuteAgentCommandRef.current = async (targetName, command) => {
+      if (!showTerminalPanelRef.current) return
+
+      const devices = emuDevicesRef.current
+      const device = devices.find(d =>
+        (d.name || '').toLowerCase().includes(targetName.toLowerCase()) ||
+        targetName.toLowerCase().includes((d.name || '').toLowerCase()) ||
+        (d.ip || '') === targetName
+      )
+      if (!device) {
+        setEmuHistory(prev => [...prev, { type: 'warn', text: `# [Agent] Device "${targetName}" not found in emulator` }])
+        return
+      }
+
+      // Glow the device card
+      setHighlightedDevice(device.ip)
+      setTimeout(() => setHighlightedDevice(null), 2800)
+
+      const user = emuGetSSHUser(device)
+      const ip = device.ip
+      const devName = device.name || ip
+      const devKind = emuGetDeviceKind(device)
+      const isConnected = emuActiveDeviceRef.current?.ip === ip && emuSshStateRef.current === 'connected'
+
+      // Compute prompts
+      const newPrompt = devKind === 'switch'
+        ? `${devName}:FID100:admin> `
+        : devKind === 'array'
+        ? `root@${devName}:~# `
+        : `root@${devName}:~$ `
+      const activePrompt = isConnected ? emuPromptRef.current : newPrompt
+
+      if (!isConnected) {
+        // — Animate SSH command typing —
+        const sshCmd = `ssh ${user}@${ip}`
+        setEmuHistory(prev => [...prev, { type: 'info', text: `# [Agent] Auto-connecting to ${devName}...` }])
+        for (let i = 1; i <= sshCmd.length; i++) {
+          setEmuInput(sshCmd.substring(0, i))
+          await new Promise(r => setTimeout(r, 38))
+        }
+        await new Promise(r => setTimeout(r, 220))
+        setEmuInput('')
+        setEmuHistory(prev => [...prev, { type: 'cmd', text: `console-gateway$ ${sshCmd}` }])
+        await new Promise(r => setTimeout(r, 280))
+
+        // — Host key warning —
+        setEmuHistory(prev => [...prev,
+          { type: 'warn', text: `Warning: the ECDSA host key for '${devName}' differs from key for IP '${ip}'` },
+          { type: 'out', text: '' }
+        ])
+        setEmuPrompt('Are you sure you want to continue connecting (yes/no)? ')
+        setEmuSshState('awaiting_yes_no')
+        await new Promise(r => setTimeout(r, 320))
+
+        // — Auto-type "yes" —
+        for (let i = 1; i <= 3; i++) {
+          setEmuInput('yes'.substring(0, i))
+          await new Promise(r => setTimeout(r, 85))
+        }
+        await new Promise(r => setTimeout(r, 260))
+        setEmuInput('')
+        setEmuHistory(prev => [...prev, { type: 'cmd', text: 'Are you sure you want to continue connecting (yes/no)? yes' }])
+
+        // — Password prompt (hidden) —
+        const passPrompt = `${user}@${ip}'s password: `
+        setEmuPrompt(passPrompt)
+        setEmuSshState('awaiting_password')
+        setEmuHistory(prev => [...prev, { type: 'out', text: passPrompt }])
+        
+        await new Promise(r => setTimeout(r, 150))
+        const typedPassword = window.prompt(`[HPE Terminal Gateway] Enter password for ${user}@${ip}:`, "") || "root"
+        
+        const dots = "•".repeat(Math.min(typedPassword.length || 6, 8))
+        for (let i = 1; i <= dots.length; i++) {
+          setEmuInput(dots.substring(0, i))
+          await new Promise(r => setTimeout(r, 60))
+        }
+        await new Promise(r => setTimeout(r, 220))
+        setEmuInput('')
+        setEmuHistory(prev => [...prev, { type: 'cmd', text: `${passPrompt}` }])
+        await new Promise(r => setTimeout(r, 180))
+
+        // — Login banner —
+        const loginLine = devKind === 'switch' ? `${devName}:FID100:admin> ` : `root@${devName}:~# `
+        setEmuHistory(prev => [...prev, { type: 'out', text: loginLine }])
+        setEmuActiveDevice(device)
+        setEmuSshState('connected')
+        setEmuPrompt(newPrompt)
+        emuActiveDeviceRef.current = device
+        emuSshStateRef.current = 'connected'
+        emuPromptRef.current = newPrompt
+        await new Promise(r => setTimeout(r, 300))
+      }
+
+      // — Typewriter-animate the command —
+      for (let i = 1; i <= command.length; i++) {
+        setEmuInput(command.substring(0, i))
+        await new Promise(r => setTimeout(r, 32))
+      }
+      await new Promise(r => setTimeout(r, 180))
+      setEmuInput('')
+      setEmuHistory(prev => [...prev, { type: 'cmd', text: `${activePrompt}${command}` }])
+      setEmuLoading(true)
+
+      // — Execute via simulator API —
+      try {
+        const res = await fetch(`${apiBase}/api/sim/exec`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip, command })
+        })
+        const data = await res.json()
+        const output = data.output || data.error || 'No output'
+        output.split('\n').forEach(line =>
+          setEmuHistory(prev => [...prev, { type: 'out', text: line }])
+        )
+        setEmuHistory(prev => [...prev, { type: 'out', text: '' }])
+        return output
+      } catch (err) {
+        setEmuHistory(prev => [...prev, { type: 'error', text: `Error: ${err.message}` }])
+        return `Error: ${err.message}`
+      } finally {
+        setEmuLoading(false)
+      }
+    }
+  }, [apiBase]) // apiBase is stable; all other deps read through refs
 
   const sendMessage = useCallback(async (text) => {
     const trimmed = (text || input).trim()
@@ -584,7 +1059,34 @@ export default function ChatPage({ apiBase, chatbotApi }) {
     setLastQuery(trimmed)
     setMessages(prev => [...prev, { role: 'user', text: trimmed }])
     setLoading(true)
-    if (aiMode === 'agent') setAgentResult(null)
+    setLlmCallsCount(0)
+    seenStepIdsRef.current = new Set()
+
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+
+    // Reset actual backend counter in Python
+    try {
+      fetch(`${apiBase}/api/llm/calls/reset`, { method: 'POST' }).catch(() => {})
+    } catch (e) {}
+
+    // Poll actual Groq API calls count dynamically from backend
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/llm/calls`)
+        const data = await res.json()
+        if (typeof data.count === 'number') {
+          setLlmCallsCount(data.count)
+        }
+      } catch (err) {}
+    }, 350)
+
+    if (aiMode === 'agent') {
+      setAgentResult(null)
+      emuCommandQueueRef.current = Promise.resolve()
+    }
 
     const reqId = 'req-' + Date.now()
     setCurrentRequestId(reqId)
@@ -616,23 +1118,126 @@ export default function ChatPage({ apiBase, chatbotApi }) {
           const event = JSON.parse(e.data)
           if (event.type === 'step') {
             const step = event.step
-            setAgentResult(prev => {
-              const steps = prev?.steps || []
-              if (steps.some(s => s.id === step.id)) return prev
-              return { ...(prev || {}), steps: [...steps, step] }
-            })
+            const title = step.title || ''
+            const runMatch = title.match(/^ran command on (.+)$/i)
+
+            const updateVisualSteps = () => {
+              setAgentResult(prev => {
+                const steps = prev?.steps || []
+                if (steps.some(s => s.id === step.id)) return prev
+                return { ...(prev || {}), steps: [...steps, step] }
+              })
+              setMessages(prev => {
+                if (prev.length === 0) return prev
+                const last = prev[prev.length - 1]
+                if (last && last.role === 'assistant') {
+                  const currentSteps = last.agentSteps || []
+                  if (currentSteps.some(s => s.id === step.id)) return prev
+                  return [
+                    ...prev.slice(0, -1),
+                    {
+                      ...last,
+                      agentSteps: [...currentSteps, step],
+                      text: `### Running Diagnostics...\nCurrently planning: **${step.title}**\n\n*${step.detail || ''}*`
+                    }
+                  ]
+                }
+                return prev
+              })
+
+            }
+
+            if (emuExecuteAgentCommandRef.current && showTerminalPanelRef.current) {
+              if (runMatch && step.detail) {
+                // Queue command execution + terminal playback
+                emuCommandQueueRef.current = emuCommandQueueRef.current.then(async () => {
+                  updateVisualSteps()
+                  const realOutput = await emuExecuteAgentCommandRef.current(runMatch[1].trim(), step.detail.trim())
+                  
+                  // Enhance the step object dynamically with real output from Emulator Gateway
+                  const updatedStep = {
+                    ...step,
+                    type: 'command', // Force step type to 'command' so the dropdown renders in AgentStepTimeline
+                    command: step.detail.trim(),
+                    command_output: realOutput || 'No output'
+                  }
+
+                  setAgentResult(prev => {
+                    const steps = prev?.steps || []
+                    return {
+                      ...(prev || {}),
+                      steps: steps.map(s => s.id === step.id ? updatedStep : s)
+                    }
+                  })
+
+                  setMessages(prev => {
+                    if (prev.length === 0) return prev
+                    const last = prev[prev.length - 1]
+                    if (last && last.role === 'assistant') {
+                      const currentSteps = last.agentSteps || []
+                      return [
+                        ...prev.slice(0, -1),
+                        {
+                          ...last,
+                          agentSteps: currentSteps.map(s => s.id === step.id ? updatedStep : s)
+                        }
+                      ]
+                    }
+                    return prev
+                  })
+                })
+              } else {
+                // Queue non-command steps sequentially with a short delay to simulate real-time API execution
+                emuCommandQueueRef.current = emuCommandQueueRef.current.then(async () => {
+                  updateVisualSteps()
+                  
+                  if (/^thinking$/i.test(title.trim()) && step.detail) {
+                    // Show thinking bullet as comment banner in terminal immediately during playback
+                    setEmuHistory(prev => [
+                      ...prev,
+                      { type: 'ssh', text: '# ──────────────────────────────────────' },
+                      { type: 'ssh', text: `# 🧠 Agent Thinking` },
+                      ...step.detail.split('\n').filter(l => l.trim()).map(l => ({ type: 'ssh', text: `#  ${l}` })),
+                      { type: 'ssh', text: '# ──────────────────────────────────────' },
+                    ])
+                  }
+                  
+                  // Natural pace delay for non-command actions (thinking/database updates)
+                  await new Promise(r => setTimeout(r, 650))
+                })
+              }
+            } else {
+              // Standard path if terminal mirror is closed: render immediately
+              updateVisualSteps()
+            }
+          } else if (event.type === 'synthesis') {
+            const token = event.content
+            const isThink = event.is_think
+            
             setMessages(prev => {
               if (prev.length === 0) return prev
               const last = prev[prev.length - 1]
               if (last && last.role === 'assistant') {
-                const currentSteps = last.agentSteps || []
-                if (currentSteps.some(s => s.id === step.id)) return prev
+                const isFirstToken = !last.isStreamingSynthesis
+                let newText = isFirstToken ? '' : last.text
+                
+                if (isThink) {
+                  if (!newText.includes('<think>')) {
+                    newText = '<think>' + newText
+                  }
+                } else {
+                  if (newText.includes('<think>') && !newText.includes('</think>')) {
+                    newText += '</think>\n\n'
+                  }
+                }
+                newText += token
+                
                 return [
                   ...prev.slice(0, -1),
                   {
                     ...last,
-                    agentSteps: [...currentSteps, step],
-                    text: `### Running Diagnostics...\nCurrently executing: **${step.title}**\n\n*${step.detail || ''}*`
+                    isStreamingSynthesis: true,
+                    text: newText
                   }
                 ]
               }
@@ -640,44 +1245,57 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             })
           } else if (event.type === 'final') {
             const data = event.result
-            setAgentResult(data)
-            setMessages(prev => {
-              if (prev.length === 0) return prev
-              const last = prev[prev.length - 1]
-              if (last && last.role === 'assistant') {
-                return [
-                  ...prev.slice(0, -1),
-                  {
-                    ...last,
-                    agentSteps: data.steps,
-                    text: data.answer || 'Agent completed successfully.',
-                    isStreaming: false
-                  }
-                ]
-              }
-              return prev
-            })
-            setLoading(false)
-            es.close()
 
-            // SAVE AGENT CHAT TO MONGODB HISTORY!
-            try {
-              fetch(`${chatbotApi}/chat/message`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...(user?.token ? { Authorization: `Bearer ${user.token}` } : {}) },
-                body: JSON.stringify({
-                  message: trimmed,
-                  chatId: activeChatId || undefined,
-                  customResponse: data.answer || 'Agent completed successfully.'
-                })
-              }).then(res => res.json()).then(saveData => {
-                if (saveData.chatId && !activeChatId) {
-                  setActiveChatId(saveData.chatId)
-                  fetchHistory() // Refresh sidebar to show the new chat entry
+            const handleFinalize = () => {
+              setLlmCallsCount(prev => prev + 1) // Final response summary is a real LLM call
+              setAgentResult(data)
+              setMessages(prev => {
+                if (prev.length === 0) return prev
+                const last = prev[prev.length - 1]
+                if (last && last.role === 'assistant') {
+                  return [
+                    ...prev.slice(0, -1),
+                    {
+                      ...last,
+                      agentSteps: data.steps,
+                      text: data.answer || 'Agent completed successfully.',
+                      isStreaming: false
+                    }
+                  ]
                 }
-              }).catch(err => console.error("Failed to save Agent chat to history:", err))
-            } catch (saveErr) {
-              console.error("Failed to save Agent chat to history:", saveErr)
+                return prev
+              })
+              setLoading(false)
+              es.close()
+
+              // SAVE AGENT CHAT TO MONGODB HISTORY
+              try {
+                fetch(`${chatbotApi}/chat/message`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', ...(user?.token ? { Authorization: `Bearer ${user.token}` } : {}) },
+                  body: JSON.stringify({
+                    message: trimmed,
+                    chatId: activeChatId || undefined,
+                    customResponse: data.answer || 'Agent completed successfully.'
+                  })
+                }).then(res => res.json()).then(saveData => {
+                  if (saveData.chatId && !activeChatId) {
+                    setActiveChatId(saveData.chatId)
+                    fetchHistory() // Refresh sidebar
+                  }
+                }).catch(err => console.error("Failed to save Agent chat to history:", err))
+              } catch (saveErr) {
+                console.error("Failed to save Agent chat to history:", saveErr)
+              }
+            }
+
+            if (emuExecuteAgentCommandRef.current && showTerminalPanelRef.current) {
+              // Wait for all queued commands to finish before final display
+              emuCommandQueueRef.current = emuCommandQueueRef.current.then(() => {
+                handleFinalize()
+              })
+            } else {
+              handleFinalize()
             }
           } else if (event.type === 'error') {
             const errStr = event.error || 'An unexpected error occurred.'
@@ -714,6 +1332,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       if (useOllama && (aiMode === 'graphrag' || aiMode === 'standard')) {
         // SSE Streaming for Ollama
         setMessages(prev => [...prev, { role: 'assistant', text: '', isStreaming: true, isOllama: true }])
+        setLlmCallsCount(prev => prev + 1)
         
         try {
           const res = await fetch(`${apiBase}/api/chat`, {
@@ -754,6 +1373,11 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                     if (data.type === 'think') {
                       if (!fullText.includes('<think>')) {
                         fullText = '<think>' + fullText
+                      }
+                    } else if (data.type === 'chunk') {
+                      // Close the think block if it was open
+                      if (fullText.includes('<think>') && !fullText.includes('</think>')) {
+                        fullText += '</think>\n\n'
                       }
                     }
                     fullText += content
@@ -801,6 +1425,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         }
       } else if (aiMode === 'graphrag') {
         // GraphRAG mode — uses Flask backend's Groq+Neo4j RAG engine
+        setLlmCallsCount(prev => prev + 1)
         const res = await fetch(`${apiBase}/api/chat`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: trimmed })
@@ -855,7 +1480,23 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       }
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${err.message}. Make sure the backend is running.` }])
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+      // Final fetch to synchronize the exact counter state
+      setTimeout(async () => {
+        try {
+          const res = await fetch(`${apiBase}/api/llm/calls`)
+          const data = await res.json()
+          if (typeof data.count === 'number') {
+            setLlmCallsCount(data.count)
+          }
+        } catch (e) {}
+      }, 300)
+    }
   }, [input, loading, aiMode, apiBase, chatbotApi, user, messages, activeChatId, arrayHint])
 
   // ── LLM Log Ingest Handler ────────────────────────────────────────────────
@@ -880,6 +1521,25 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       llmIngestError: null,
       llmIngestStep: 0
     }
+
+    setLlmCallsCount(0)
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+    try {
+      fetch(`${apiBase}/api/llm/calls/reset`, { method: 'POST' }).catch(() => {})
+    } catch (e) {}
+
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/llm/calls`)
+        const data = await res.json()
+        if (typeof data.count === 'number') {
+          setLlmCallsCount(data.count)
+        }
+      } catch (err) {}
+    }, 350)
 
     setMessages(prev => [...prev, userMsg, assistantMsg])
 
@@ -1012,6 +1672,21 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       addLog(`Error: ${err.message}`, 'error')
       setError(err.message)
       setPhase('error')
+    } finally {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+      // Final fetch to synchronize the exact counter state
+      setTimeout(async () => {
+        try {
+          const res = await fetch(`${apiBase}/api/llm/calls`)
+          const data = await res.json()
+          if (typeof data.count === 'number') {
+            setLlmCallsCount(data.count)
+          }
+        } catch (e) {}
+      }, 300)
     }
   }, [apiBase, useOllama])
 
@@ -1083,18 +1758,22 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         </div>
       )}
 
-      {/* Chat sidebar */}
-      <div style={{ width: 260, flexShrink: 0, background: 'var(--surface-1)', borderRight: '1px solid var(--line)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: 16, borderBottom: '1px solid var(--line)' }}>
-          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={newChat}>
-            <Plus size={16} /> New Chat
+      {/* Knowledge Base / Chat History sidebar — resizable */}
+      <div style={{ width: leftSidebarWidth, flexShrink: 0, background: 'var(--surface-1)', borderRight: 'none', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 180, maxWidth: 520 }}>
+        <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <Database size={14} style={{ color: 'var(--hpe-green)' }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--foreground)' }}>Knowledge Base</span>
+          </div>
+          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontSize: 12 }} onClick={newChat}>
+            <Plus size={14} /> New Chat
           </button>
         </div>
         <div style={{ padding: '8px 12px' }}>
           <input className="input" placeholder="Search chats..." value={sidebarSearch} onChange={e => setSidebarSearch(e.target.value)} style={{ fontSize: 12 }} />
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 8px' }}>
-          <div className="section-label" style={{ padding: '8px 8px 4px' }}>Recent History</div>
+          <div className="section-label" style={{ padding: '8px 8px 4px' }}>Chat Sessions</div>
           {filteredHistory.length === 0 && <div style={{ padding: 12, fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>No chats yet</div>}
           {filteredHistory.map(chat => (
             <div
@@ -1177,6 +1856,25 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             </div>
           </div>
 
+          {/* LLM API Calls Counter */}
+          <div style={{ 
+            marginTop: 10, 
+            padding: '6px 10px', 
+            background: 'var(--surface-3)', 
+            border: '1px solid var(--line)', 
+            borderRadius: 6, 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center' 
+          }}>
+            <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Cpu size={11} style={{ color: 'var(--hpe-green)' }} /> LLM API CALLS:
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hpe-green)', fontFamily: 'var(--font-mono)' }}>
+              {llmCallsCount}
+            </span>
+          </div>
+
           <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 11, color: 'var(--text-main)', fontWeight: 500 }}>Use Local Ollama</span>
             <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
@@ -1229,7 +1927,29 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             {aiMode === 'graphrag' && 'Groq LLM with Neo4j graph traversal queries'}
           </div>
         </div>
+
+        {/* ── Left sidebar drag handle ── */}
+        <div
+          onMouseDown={startResizingLeft}
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: 5,
+            height: '100%',
+            cursor: 'col-resize',
+            zIndex: 20,
+            background: 'transparent',
+            transition: 'background 0.2s',
+          }}
+          onMouseOver={e => e.currentTarget.style.background = 'rgba(1,169,130,0.35)'}
+          onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+          title="Drag to resize Knowledge Base sidebar"
+        />
       </div>
+
+      {/* Left sidebar border line (separate so it doesn't interfere with resize handle) */}
+      <div style={{ width: 1, background: 'var(--line)', flexShrink: 0, alignSelf: 'stretch' }} />
 
       {/* Chat main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1244,26 +1964,30 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             
             {/* Terminal Gateway connection state */}
             <span 
-              onClick={() => setShowConnectModal(true)}
+              onClick={() => {
+                if (showTerminalPanel) {
+                  setShowTerminalPanel(false)
+                } else {
+                  setShowConnectModal(true)
+                }
+              }}
               style={{
                 fontSize: 11,
                 padding: '3px 8px',
                 borderRadius: 12,
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid var(--line)',
-                color: terminalType === 'simulated' ? 'var(--text-secondary)' : 'var(--hpe-green)',
+                background: showTerminalPanel ? 'rgba(1,169,130,0.12)' : 'rgba(255,255,255,0.06)',
+                border: `1px solid ${showTerminalPanel ? 'rgba(1,169,130,0.4)' : 'var(--line)'}`,
+                color: showTerminalPanel ? 'var(--hpe-green)' : 'var(--text-secondary)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 4
+                gap: 4,
+                transition: 'all 0.2s'
               }}
-              title="Click to configure terminal gateway connection settings"
+              title={showTerminalPanel ? 'Click to hide Emulator Gateway panel' : 'Click to open Emulator Gateway panel'}
             >
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: terminalType === 'simulated' ? 'var(--muted)' : 'var(--hpe-green)', display: 'inline-block' }} />
-              {terminalType === 'simulated' && 'Simulated Env'}
-              {terminalType === 'local' && 'Local PS Core'}
-              {terminalType === 'ssh' && `SSH: ${sshHost || 'Host'}`}
-              {terminalType === 'desktop' && 'Embedded Shell'}
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: showTerminalPanel ? 'var(--hpe-green)' : 'var(--muted)', display: 'inline-block', boxShadow: showTerminalPanel ? '0 0 6px var(--hpe-green)' : 'none', transition: 'all 0.2s' }} />
+              {showTerminalPanel ? 'Emulator Live' : 'Emulator Gateway'}
               {terminalMode === 'manual' && ' (Human-in-Loop)'}
             </span>
           </div>
@@ -1288,6 +2012,30 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             >
               <Sparkles size={11} />
               Parse Log with LLM
+            </button>
+            {/* 🖥️ Emulator Gateway toggle button */}
+            <button
+              className="btn btn-sm"
+              onClick={() => setShowTerminalPanel(v => !v)}
+              style={{
+                background: showTerminalPanel
+                  ? 'linear-gradient(135deg, rgba(1,169,130,0.2) 0%, rgba(1,169,130,0.08) 100%)'
+                  : 'var(--surface-3)',
+                border: `1px solid ${showTerminalPanel ? 'rgba(1,169,130,0.5)' : 'var(--line)'}`,
+                color: showTerminalPanel ? 'var(--hpe-green)' : 'var(--foreground)',
+                fontSize: 11,
+                fontWeight: showTerminalPanel ? 600 : 400,
+                display: 'flex', alignItems: 'center', gap: 5,
+                transition: 'all 0.2s',
+                boxShadow: showTerminalPanel ? '0 0 10px rgba(1,169,130,0.15)' : 'none',
+              }}
+              title={showTerminalPanel ? 'Hide Emulator Gateway panel' : 'Show Emulator Gateway panel'}
+            >
+              <Monitor size={12} style={{ flexShrink: 0 }} />
+              {showTerminalPanel ? 'Hide Emulator' : 'Emulator'}
+              {showTerminalPanel && (
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--hpe-green)', display: 'inline-block', boxShadow: '0 0 4px var(--hpe-green)', animation: 'pulse 2s ease infinite' }} />
+              )}
             </button>
             <button 
               className="btn btn-sm"
@@ -1439,7 +2187,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingLeft: 4 }}>
                       <span className="pulse-dot blue" style={{ width: 8, height: 8 }} />
                       <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
-                        SAN Agent executing next trace step...
+                        SAN Agent planning...
                       </span>
                     </div>
                   )}
@@ -1480,41 +2228,6 @@ export default function ChatPage({ apiBase, chatbotApi }) {
           )}
           <div ref={msgEndRef} />
         </div>
-
-        {/* Embedded Terminal Panel - shown when desktop mode is active */}
-        {terminalType === 'desktop' && (
-          <div style={{
-            borderTop: '1px solid var(--line)',
-            background: '#0d1117',
-            display: 'flex',
-            flexDirection: 'column',
-            flexShrink: 0,
-            height: showTerminalPanel ? 260 : 36,
-            transition: 'height 0.25s ease',
-            overflow: 'hidden',
-          }}>
-            {/* Terminal header bar */}
-            <div
-              onClick={() => setShowTerminalPanel(v => !v)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px',
-                cursor: 'pointer', userSelect: 'none', flexShrink: 0,
-                borderBottom: showTerminalPanel ? '1px solid rgba(255,255,255,0.06)' : 'none',
-                background: 'rgba(0,0,0,0.3)',
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--hpe-green)', display: 'inline-block', boxShadow: '0 0 6px var(--hpe-green)' }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--hpe-green)', fontFamily: 'var(--font-mono)', letterSpacing: '0.5px' }}>EMBEDDED SHELL</span>
-              <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto' }}>{showTerminalPanel ? '▾ collapse' : '▸ expand'}</span>
-            </div>
-            {/* xterm.js terminal */}
-            {showTerminalPanel && (
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <EmbeddedTerminal ref={terminalRef} apiBase={apiBase} active={terminalType === 'desktop'} />
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Input */}
         <div style={{ padding: '12px 24px 20px', borderTop: '1px solid var(--line)', background: 'linear-gradient(to top, var(--background), transparent)' }}>
@@ -1624,6 +2337,266 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         </>
       )}
 
+      {/* ── Emulator Gateway Right Panel ─────────────────────────────────────── */}
+      {showTerminalPanel && (
+        <>
+          {/* Drag-to-resize handle */}
+          <div
+            onMouseDown={startResizingEmu}
+            style={{
+              width: '4px',
+              cursor: 'col-resize',
+              background: 'transparent',
+              alignSelf: 'stretch',
+              zIndex: 10,
+              transition: 'background 0.2s'
+            }}
+            onMouseOver={e => e.target.style.background = 'var(--hpe-green)'}
+            onMouseOut={e => e.target.style.background = 'transparent'}
+          />
+
+          {/* Full Emulator Panel */}
+          <div style={{
+            width: emuPanelWidth,
+            minWidth: 340,
+            maxWidth: '65%',
+            background: '#0d1117',
+            borderLeft: '1px solid var(--line)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignSelf: 'stretch',
+            color: '#c9d1d9',
+            flexShrink: 0
+          }}>
+            <style dangerouslySetInnerHTML={{__html: `
+              @keyframes deviceGlow {
+                0% { box-shadow: 0 0 0 0 rgba(1,169,130,0); border-color: rgba(1,169,130,0.5); }
+                30% { box-shadow: 0 0 18px 6px rgba(1,169,130,0.55); border-color: var(--hpe-green); }
+                70% { box-shadow: 0 0 18px 6px rgba(1,169,130,0.55); border-color: var(--hpe-green); }
+                100% { box-shadow: 0 0 0 0 rgba(1,169,130,0); border-color: rgba(1,169,130,0.5); }
+              }
+              @keyframes emuBlink {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0; }
+              }
+              .emu-cursor {
+                display: inline-block;
+                width: 8px;
+                height: 14px;
+                background: #3fb950;
+                margin-left: 2px;
+                animation: emuBlink 1s step-start infinite;
+                vertical-align: middle;
+              }
+            `}} />
+
+            {/* Panel Header */}
+            <div style={{
+              padding: '10px 14px',
+              background: '#161b22',
+              borderBottom: '1px solid rgba(1,169,130,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--hpe-green)', display: 'inline-block', boxShadow: '0 0 6px var(--hpe-green)', animation: 'pulse 2s ease infinite' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hpe-green)', fontFamily: 'var(--font-mono)', letterSpacing: '0.5px' }}>HPE SAN EMULATOR GATEWAY</span>
+                <span style={{ fontSize: 9, color: 'var(--muted)', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: 8 }}>Simulated SAN</span>
+              </div>
+              <button
+                onClick={() => setShowTerminalPanel(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 4, transition: 'color 0.15s' }}
+                onMouseOver={e => e.currentTarget.style.color = '#f85149'}
+                onMouseOut={e => e.currentTarget.style.color = 'var(--muted)'}
+              >
+                <X size={13} />
+              </button>
+            </div>
+
+            {/* Body: device sidebar + terminal */}
+            <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+
+              {/* Device List Sidebar */}
+              <div style={{ width: 170, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.15)', flexShrink: 0 }}>
+                <div style={{ padding: '10px 12px 6px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <Server size={12} style={{ color: 'var(--hpe-green)' }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground)' }}>Available Host IPs</span>
+                  <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: 8 }}>{emuDevices.length}</span>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+                  {emuDevices.length === 0 && (
+                    <div style={{ padding: 12, textAlign: 'center', color: 'var(--muted)', fontSize: 10 }}>
+                      No devices. Ensure simulation is running.
+                    </div>
+                  )}
+                  {emuDevices.map(d => {
+                    const name = d.name || d.ip
+                    const isCurrent = emuActiveDevice?.ip === d.ip
+                    const isHinted = arrayHint && (
+                      (d.name || '').toLowerCase().includes(arrayHint.toLowerCase()) ||
+                      (d.ip || '').includes(arrayHint)
+                    )
+                    const isGlowing = highlightedDevice === d.ip
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => emuHandleSidebarClick(d)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: 7,
+                          border: isCurrent
+                            ? '1px solid var(--hpe-green)'
+                            : isHinted
+                            ? '1px solid rgba(1,169,130,0.5)'
+                            : '1px solid rgba(255,255,255,0.06)',
+                          background: isCurrent
+                            ? 'rgba(1,169,130,0.12)'
+                            : isHinted
+                            ? 'rgba(1,169,130,0.06)'
+                            : 'rgba(255,255,255,0.02)',
+                          color: isCurrent ? 'var(--hpe-green)' : isHinted ? 'rgba(1,169,130,0.9)' : 'var(--foreground)',
+                          cursor: 'pointer',
+                          fontSize: 11,
+                          textAlign: 'left',
+                          transition: 'all 0.2s ease',
+                          marginBottom: 6,
+                          animation: isGlowing ? 'deviceGlow 2.5s ease' : 'none',
+                        }}
+                        onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)' }}
+                        onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.borderColor = isCurrent ? 'var(--hpe-green)' : isHinted ? 'rgba(1,169,130,0.5)' : 'rgba(255,255,255,0.06)' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600 }}>
+                          <Monitor size={11} style={{ color: isCurrent ? 'var(--hpe-green)' : 'var(--muted)', flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontSize: 10 }}>{name}</span>
+                          <span style={{ fontSize: 8, opacity: 0.7, textTransform: 'uppercase', flexShrink: 0 }}>{d.type}</span>
+                        </div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: isCurrent ? 'var(--hpe-green)' : 'var(--muted)', marginTop: 3, opacity: 0.85 }}>
+                          {emuGetSSHUser(d)}@{d.ip}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Terminal Area */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                {/* Quick Command Pills */}
+                {emuSshState === 'connected' && (
+                  <div style={{ padding: '6px 8px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {emuGetDeviceCmds(emuActiveDevice).map(c => (
+                      <button
+                        key={c.label}
+                        disabled={emuLoading}
+                        onClick={() => emuRunQuickCommand(c.label)}
+                        title={c.desc}
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 9,
+                          padding: '3px 8px',
+                          borderRadius: 5,
+                          border: '1px solid rgba(1,169,130,0.35)',
+                          background: 'rgba(1,169,130,0.06)',
+                          color: '#e6edf3',
+                          cursor: emuLoading ? 'not-allowed' : 'pointer',
+                          opacity: emuLoading ? 0.5 : 1,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: 160,
+                          transition: 'all 0.15s'
+                        }}
+                        onMouseOver={e => { if (!emuLoading) e.currentTarget.style.background = 'rgba(1,169,130,0.15)' }}
+                        onMouseOut={e => e.currentTarget.style.background = 'rgba(1,169,130,0.06)'}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Core Terminal Console */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#0d1117', minHeight: 0 }}>
+                  {/* Terminal header bar */}
+                  <div style={{ padding: '6px 12px', background: '#161b22', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f85149', display: 'inline-block' }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#e3b341', display: 'inline-block' }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3fb950', display: 'inline-block' }} />
+                    <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 6, flex: 1 }}>
+                      {emuSshState === 'connected'
+                        ? `Active SSH: ${emuActiveDevice?.name || emuActiveDevice?.ip}`
+                        : 'Universal CLI Jump Console'}
+                    </span>
+                    <button
+                      onClick={() => setEmuHistory([])}
+                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--muted)', cursor: 'pointer', fontSize: 9, padding: '2px 6px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}
+                    >
+                      <RotateCcw size={9} />Clear
+                    </button>
+                  </div>
+
+                  {/* Terminal body (output history) */}
+                  <div
+                    ref={emuTermBodyRef}
+                    onClick={() => emuInputRef.current?.focus()}
+                    style={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      padding: '12px 14px',
+                      fontSize: 12,
+                      lineHeight: 1.75,
+                      cursor: 'text',
+                      position: 'relative',
+                      fontFamily: 'var(--font-mono)'
+                    }}
+                  >
+                    {emuHistory.map((line, i) => (
+                      <div key={i} style={{ color: EMU_COL[line.type] || '#c8d6d4', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                        {line.text}
+                      </div>
+                    ))}
+
+                    {/* Current typing line */}
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', color: '#e6edf3' }}>
+                      <span style={{ color: emuSshState === 'connected' ? '#39c5cf' : '#e3b341', marginRight: 6, whiteSpace: 'pre' }}>
+                        {emuPrompt}
+                      </span>
+                      <span style={{ color: '#e6edf3', whiteSpace: 'pre' }}>
+                        {emuSshState === 'awaiting_password' ? '' : emuInput}
+                      </span>
+                      <span className="emu-cursor" />
+                    </div>
+
+                    {emuLoading && (
+                      <div style={{ color: '#58a6ff', fontSize: 10, marginTop: 4 }}>executing…</div>
+                    )}
+
+                    {/* Hidden real input */}
+                    <input
+                      ref={emuInputRef}
+                      type="text"
+                      value={emuInput}
+                      onChange={e => setEmuInput(e.target.value)}
+                      onKeyDown={emuHandleKeyDown}
+                      disabled={emuLoading}
+                      style={{
+                        position: 'absolute', left: '-9999px', top: '-9999px',
+                        width: '1px', height: '1px', opacity: 0, overflow: 'hidden',
+                        border: 'none', outline: 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+
+
       {/* Terminal Gateway Setup Modal Overlay */}
       {showConnectModal && (
         <div style={{
@@ -1654,17 +2627,32 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>Gateway Connection Protocol</label>
-              <select 
-                className="input" 
-                value={terminalType} 
-                onChange={(e) => setTerminalType(e.target.value)}
-                style={{ background: 'var(--surface-2)', color: 'var(--foreground)', border: '1px solid var(--line)', outline: 'none' }}
+              <select
+                className="input"
+                value="simulated"
+                disabled
+                style={{ background: 'var(--surface-2)', color: 'var(--foreground)', border: '1px solid var(--line)', outline: 'none', opacity: 1 }}
               >
-                <option value="simulated">Simulated Environment (Default Offline Simulator)</option>
-                <option value="local">Local Host Terminal (Windows PowerShell Core)</option>
-                <option value="ssh">Remote Host Session (Secure Shell SSH Tunnel)</option>
-                <option value="desktop">Interactive Desktop Terminal (Select Open Window)</option>
+                <option value="simulated">✅ Emulator Gateway (Simulated SAN — Active)</option>
               </select>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 4 }}>
+                {[
+                  { label: '🔒 Local Host Terminal (Windows PowerShell Core)', reason: 'Not supported — agent cannot handle failed commands' },
+                  { label: '🔒 Remote Host Session (Secure Shell SSH Tunnel)', reason: 'Not supported — manual SSH setup required' },
+                  { label: '🔒 Interactive Desktop Terminal (Select Open Window)', reason: 'Not supported — platform-specific & fragile' },
+                ].map((opt, i) => (
+                  <div key={i} style={{
+                    padding: '7px 10px', borderRadius: 6,
+                    background: 'rgba(0,0,0,0.2)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    opacity: 0.45,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8
+                  }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-sans)' }}>{opt.label}</span>
+                    <span style={{ fontSize: 9, color: 'var(--muted)', background: 'rgba(248,81,73,0.12)', border: '1px solid rgba(248,81,73,0.2)', padding: '1px 6px', borderRadius: 10, flexShrink: 0 }}>Disabled</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1699,33 +2687,18 @@ export default function ChatPage({ apiBase, chatbotApi }) {
               </div>
             )}
 
-            {terminalType === 'desktop' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'rgba(0,0,0,0.15)', padding: 14, borderRadius: 8, border: '1px solid rgba(1,169,130,0.25)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 18 }}>🖥️</span>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>Embedded Browser Terminal</div>
-                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Powered by xterm.js · Works on Windows, Linux &amp; macOS</div>
-                  </div>
-                  <span style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 8px', borderRadius: 8, background: 'rgba(1,169,130,0.15)', color: 'var(--hpe-green)', border: '1px solid rgba(1,169,130,0.3)' }}>No setup required</span>
+            {/* Emulator Gateway info card */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'rgba(1,169,130,0.04)', padding: 14, borderRadius: 8, border: '1px solid rgba(1,169,130,0.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>🖥️</span>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>Emulator Gateway (Simulated SAN)</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Full HPE SAN simulated environment · No real hardware needed</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Full HPE SAN simulated environment active</div>
                 </div>
-
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7, padding: '8px 0' }}>
-                  Clicking <b style={{ color: 'var(--foreground)' }}>Apply &amp; Connect</b> will:
-                  <ol style={{ margin: '6px 0 0 16px', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <li>Spawn a live <b>PowerShell</b> (Windows) or <b>bash</b> (Linux/macOS) process on the server</li>
-                    <li>Open an <b>embedded terminal panel</b> at the bottom of the chat page</li>
-                    <li>Stream all command output <b>live into the browser terminal</b></li>
-                    <li>Let the SAN Agent run diagnostics — you'll see each command execute in real time</li>
-                  </ol>
-                </div>
-
-                <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(1,169,130,0.06)', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(1,169,130,0.15)' }}>
-                  <span style={{ color: 'var(--hpe-green)', fontSize: 14 }}>✓</span>
-                  <span>The mock CLI commands (<code style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>showsys</code>, <code style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>showhost</code>, etc.) are automatically added to the shell PATH.</span>
-                </div>
+                <span style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 8px', borderRadius: 8, background: 'rgba(1,169,130,0.15)', color: 'var(--hpe-green)', border: '1px solid rgba(1,169,130,0.3)' }}>Active</span>
               </div>
-            )}
+            </div>
 
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
@@ -1734,7 +2707,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
               </button>
               <button 
                 className="btn btn-primary" 
-                onClick={() => handleTerminalConnect(terminalType, terminalMode, sshHost, sshUser, sshPass, selectedHwnd)}
+                onClick={() => handleTerminalConnect('simulated', terminalMode, '', '', '', '')}
                 style={{ background: 'var(--hpe-green)', borderColor: 'var(--hpe-green)', color: 'white' }}
               >
                 Apply & Connect

@@ -2,28 +2,66 @@
   "array_id": "0x1001",
   "name": "PROD-A",
   "model": "HPE Alletra Storage MP",
+<<<<<<< HEAD
   "serial": "HPE54225833",
   "release_version": "10.6.0.0",
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+  "serial": "HPE43758419",
+  "release_version": "9.2.4.0",
+=======
+  "serial": "HPE25760856",
+  "release_version": "10.2.4.0",
+>>>>>>> origin/prototype
+=======
+  "serial": "HPE91922937",
+  "release_version": "9.3.3.0",
+>>>>>>> origin/prototype
+>>>>>>> main
   "release_type": null,
   "node_count": 4,
   "master_node": 0,
   "total_cap_mib": 773094113,
+<<<<<<< HEAD
   "alloc_cap_mib": 410040323,
   "free_cap_mib": 363053790,
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+  "alloc_cap_mib": 436628979,
+  "free_cap_mib": 336465134,
+=======
+  "alloc_cap_mib": 434593244,
+  "free_cap_mib": 338500868,
+>>>>>>> origin/prototype
+=======
+  "alloc_cap_mib": 458173771,
+  "free_cap_mib": 314920341,
+>>>>>>> origin/prototype
+>>>>>>> main
   "failed_cap_mib": 0,
   "config_type": "switchless",
   "protocols_supported": [
-    "FC",
-    "NVMe"
+    "NVMe",
+    "FC"
   ],
   "components": [
     {
       "name": "Kernel",
+<<<<<<< HEAD
       "version": "5.14.3-hpe"
     },
     {
       "name": "IO_Stack",
       "version": "6.1.1"
+=======
+      "version": "5.10.10-hpe"
+    },
+    {
+      "name": "IO_Stack",
+      "version": "6.0.7"
+>>>>>>> main
     }
   ],
   "nodes": [
@@ -33,8 +71,13 @@
       "encl_bay": "1:1",
       "is_master": true,
       "in_cluster": true,
+<<<<<<< HEAD
       "memory_mib": 1048576,
       "up_since": "2026-06-12 21:30:26 PDT"
+=======
+      "memory_mib": 524288,
+      "up_since": "2026-02-09 23:31:11 PDT"
+>>>>>>> main
     },
     {
       "node_id": 1,
@@ -42,8 +85,13 @@
       "encl_bay": "1:2",
       "is_master": false,
       "in_cluster": true,
+<<<<<<< HEAD
       "memory_mib": 262144,
       "up_since": "2026-05-27 21:30:26 PDT"
+=======
+      "memory_mib": 524288,
+      "up_since": "2026-03-08 23:31:11 PDT"
+>>>>>>> main
     },
     {
       "node_id": 2,
@@ -51,8 +99,13 @@
       "encl_bay": "1:3",
       "is_master": false,
       "in_cluster": true,
+<<<<<<< HEAD
       "memory_mib": 1048576,
       "up_since": "2026-06-18 21:30:26 PDT"
+=======
+      "memory_mib": 524288,
+      "up_since": "2026-02-04 23:31:11 PDT"
+>>>>>>> main
     },
     {
       "node_id": 3,
@@ -60,12 +113,18 @@
       "encl_bay": "1:4",
       "is_master": false,
       "in_cluster": true,
+<<<<<<< HEAD
       "memory_mib": 262144,
       "up_since": "2026-03-08 21:30:26 PDT"
+=======
+      "memory_mib": 524288,
+      "up_since": "2026-03-05 23:31:11 PDT"
+>>>>>>> main
     }
   ],
   "ports": [
     {
+<<<<<<< HEAD
       "port_id": "0:1:2",
       "node": 0,
       "slot": 1,
@@ -77,6 +136,32 @@
       "type": "host",
       "protocol": "FC",
       "label": "P012   32G"
+=======
+      "port_id": "0:1:1",
+      "node": 0,
+      "slot": 1,
+      "port_num": 1,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "DB:97:8D:47:8F:29:19:32",
+      "port_wwn_hw": "70:B4:9A:BD:7D:CF:3D:6C",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P011   32G"
+    },
+    {
+      "port_id": "0:1:3",
+      "node": 0,
+      "slot": 1,
+      "port_num": 3,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "7B:FE:F2:20:11:D9:95:5B",
+      "port_wwn_hw": "B2:10:36:89:08:A3:38:6D",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P013   32G"
+>>>>>>> main
     },
     {
       "port_id": "0:1:4",
@@ -85,8 +170,13 @@
       "port_num": 4,
       "mode": "target",
       "state": "ready",
+<<<<<<< HEAD
       "node_wwn_ip": "5C:CE:CB:14:7D:F4:BB:D9",
       "port_wwn_hw": "83:DC:51:7A:5E:F1:6B:9B",
+=======
+      "node_wwn_ip": "AA:62:BB:41:63:6C:C2:C6",
+      "port_wwn_hw": "DF:4C:46:7A:F4:45:DE:A2",
+>>>>>>> main
       "type": "host",
       "protocol": "FC",
       "label": "P014   32G"
@@ -97,9 +187,15 @@
       "slot": 2,
       "port_num": 1,
       "mode": "target",
+<<<<<<< HEAD
       "state": "loss_sync",
       "node_wwn_ip": "31:9E:9E:F2:1A:0F:4D:CE",
       "port_wwn_hw": "A6:EF:D4:6A:C2:51",
+=======
+      "state": "ready",
+      "node_wwn_ip": "B5:BA:86:46:B7:FD:E6:89",
+      "port_wwn_hw": "8C:D3:64:7E:D4:95",
+>>>>>>> main
       "type": "host",
       "protocol": "NVMe",
       "label": "P021   25G"
@@ -110,20 +206,66 @@
       "slot": 2,
       "port_num": 2,
       "mode": "target",
+<<<<<<< HEAD
       "state": "loss_sync",
       "node_wwn_ip": "E8:7A:28:D8:F5:F7:F4:93",
       "port_wwn_hw": "04:99:AD:BF:C1:89:28:31",
+=======
+      "state": "ready",
+      "node_wwn_ip": "7B:05:94:52:55:25:AB:23",
+      "port_wwn_hw": "C5:25:C6:6B:3D:A4:5B:08",
+>>>>>>> main
       "type": "host",
       "protocol": "FC",
       "label": "P022   32G"
     },
     {
-      "port_id": "0:2:3",
+      "port_id": "0:2:4",
       "node": 0,
       "slot": 2,
+      "port_num": 4,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "F5:34:5B:91:E9:CA:13:93",
+      "port_wwn_hw": "C6:7B:62:83:3A:7E:1A:29",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P024   32G"
+    },
+    {
+      "port_id": "0:3:1",
+      "node": 0,
+      "slot": 3,
+      "port_num": 1,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "B3:68:C2:12:C1:EC:C2:F6",
+      "port_wwn_hw": "BE:63:BA:45:A1:C2:21:0D",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P031   32G"
+    },
+    {
+      "port_id": "0:3:2",
+      "node": 0,
+      "slot": 3,
+      "port_num": 2,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "1F:1D:F0:47:75:CA:26:59",
+      "port_wwn_hw": "EB:C0:3D:2E:68:69:EE:A8",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P032   32G"
+    },
+    {
+      "port_id": "0:3:3",
+      "node": 0,
+      "slot": 3,
       "port_num": 3,
       "mode": "target",
       "state": "ready",
+<<<<<<< HEAD
       "node_wwn_ip": "FC:17:42:5A:80:7C:02:07",
       "port_wwn_hw": "E2:38:55:86:A1:D8",
       "type": "host",
@@ -168,6 +310,26 @@
       "type": "host",
       "protocol": "FC",
       "label": "P033   32G"
+=======
+      "node_wwn_ip": "95:1F:1F:1E:B4:26:DD:5F",
+      "port_wwn_hw": "D2:24:3E:58:69:1C",
+      "type": "host",
+      "protocol": "NVMe",
+      "label": "P033   25G"
+    },
+    {
+      "port_id": "0:3:4",
+      "node": 0,
+      "slot": 3,
+      "port_num": 4,
+      "mode": "target",
+      "state": "loss_sync",
+      "node_wwn_ip": "5A:0E:4E:07:47:94:22:23",
+      "port_wwn_hw": "6D:D9:84:50:B4:8E",
+      "type": "host",
+      "protocol": "NVMe",
+      "label": "P034   25G"
+>>>>>>> main
     },
     {
       "port_id": "1:1:1",
@@ -175,6 +337,7 @@
       "slot": 1,
       "port_num": 1,
       "mode": "target",
+<<<<<<< HEAD
       "state": "ready",
       "node_wwn_ip": "B2:E2:B6:FA:B2:DE:14:3F",
       "port_wwn_hw": "1F:79:D9:8B:23:D4",
@@ -246,6 +409,14 @@
       "type": "host",
       "protocol": "FC",
       "label": "P124   32G"
+=======
+      "state": "loss_sync",
+      "node_wwn_ip": "B4:32:A9:BE:CA:F5:9B:5E",
+      "port_wwn_hw": "A5:A1:BB:70:2D:D4:BA:0D",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P111   32G"
+>>>>>>> main
     },
     {
       "port_id": "1:3:1",
@@ -253,9 +424,15 @@
       "slot": 3,
       "port_num": 1,
       "mode": "target",
+<<<<<<< HEAD
       "state": "ready",
       "node_wwn_ip": "F3:A4:7F:A4:7E:11:5E:49",
       "port_wwn_hw": "67:31:D9:BC:EB:B1:2F:EE",
+=======
+      "state": "loss_sync",
+      "node_wwn_ip": "98:77:5F:EF:83:09:01:C3",
+      "port_wwn_hw": "94:63:3C:2D:3C:F7",
+>>>>>>> main
       "type": "host",
       "protocol": "FC",
       "label": "P131   32G"
@@ -267,13 +444,19 @@
       "port_num": 3,
       "mode": "target",
       "state": "ready",
+<<<<<<< HEAD
       "node_wwn_ip": "84:DD:AA:18:91:C5:2B:A8",
       "port_wwn_hw": "AF:22:EB:A4:2D:9E",
+=======
+      "node_wwn_ip": "4C:75:CD:37:5B:B0:62:35",
+      "port_wwn_hw": "F6:05:30:59:8C:9C:DA:2B",
+>>>>>>> main
       "type": "host",
       "protocol": "NVMe",
       "label": "P133   25G"
     },
     {
+<<<<<<< HEAD
       "port_id": "1:3:4",
       "node": 1,
       "slot": 3,
@@ -287,12 +470,15 @@
       "label": "P134   25G"
     },
     {
+=======
+>>>>>>> main
       "port_id": "2:1:1",
       "node": 2,
       "slot": 1,
       "port_num": 1,
       "mode": "target",
       "state": "loss_sync",
+<<<<<<< HEAD
       "node_wwn_ip": "FD:78:13:20:22:C2:69:56",
       "port_wwn_hw": "51:30:B3:10:D0:E9:5E:9C",
       "type": "host",
@@ -321,22 +507,31 @@
       "state": "ready",
       "node_wwn_ip": "43:CD:E2:B7:46:3F:54:EB",
       "port_wwn_hw": "1F:E1:D1:06:1D:21",
+=======
+      "node_wwn_ip": "18:AD:96:1F:C4:F8:48:EE",
+      "port_wwn_hw": "70:62:AC:F6:60:33",
+>>>>>>> main
       "type": "host",
       "protocol": "NVMe",
-      "label": "P214   25G"
+      "label": "P211   25G"
     },
     {
-      "port_id": "2:2:1",
+      "port_id": "2:1:2",
       "node": 2,
-      "slot": 2,
-      "port_num": 1,
+      "slot": 1,
+      "port_num": 2,
       "mode": "target",
       "state": "ready",
+<<<<<<< HEAD
       "node_wwn_ip": "0A:0D:D3:2D:9E:CB:13:8E",
       "port_wwn_hw": "7F:C0:8A:49:CC:7E:74:2A",
+=======
+      "node_wwn_ip": "4D:9C:94:A0:F1:67:3B:27",
+      "port_wwn_hw": "E9:85:B0:B6:CE:B6",
+>>>>>>> main
       "type": "host",
-      "protocol": "FC",
-      "label": "P221   32G"
+      "protocol": "NVMe",
+      "label": "P212   25G"
     },
     {
       "port_id": "2:2:2",
@@ -345,8 +540,13 @@
       "port_num": 2,
       "mode": "target",
       "state": "ready",
+<<<<<<< HEAD
       "node_wwn_ip": "54:55:FE:AB:E2:C9:F2:22",
       "port_wwn_hw": "26:BA:94:2C:B2:42",
+=======
+      "node_wwn_ip": "03:04:EC:83:11:85:A1:23",
+      "port_wwn_hw": "C3:2D:7A:C7:DE:C6",
+>>>>>>> main
       "type": "host",
       "protocol": "NVMe",
       "label": "P222   25G"
@@ -357,6 +557,7 @@
       "slot": 2,
       "port_num": 3,
       "mode": "target",
+<<<<<<< HEAD
       "state": "ready",
       "node_wwn_ip": "69:46:34:2E:BD:69:8B:4D",
       "port_wwn_hw": "F0:86:52:CF:31:3B:33:95",
@@ -376,6 +577,14 @@
       "type": "host",
       "protocol": "FC",
       "label": "P224   32G"
+=======
+      "state": "loss_sync",
+      "node_wwn_ip": "16:D1:1B:84:47:19:E3:E6",
+      "port_wwn_hw": "F8:D1:CF:23:DB:16:E6:04",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P223   32G"
+>>>>>>> main
     },
     {
       "port_id": "2:3:2",
@@ -384,8 +593,13 @@
       "port_num": 2,
       "mode": "target",
       "state": "ready",
+<<<<<<< HEAD
       "node_wwn_ip": "0B:1E:7A:4F:60:98:84:65",
       "port_wwn_hw": "86:CD:A2:5A:D4:3B:28:E9",
+=======
+      "node_wwn_ip": "B6:AC:77:F7:31:BD:12:24",
+      "port_wwn_hw": "A1:0F:B3:30:0A:28:14:62",
+>>>>>>> main
       "type": "host",
       "protocol": "FC",
       "label": "P232   32G"
@@ -397,11 +611,29 @@
       "port_num": 4,
       "mode": "target",
       "state": "ready",
+<<<<<<< HEAD
       "node_wwn_ip": "70:19:E4:CA:73:63:73:57",
       "port_wwn_hw": "9D:97:CD:C6:4A:89",
+=======
+      "node_wwn_ip": "CB:0F:CD:83:D4:7C:A2:E3",
+      "port_wwn_hw": "4C:6C:A5:65:ED:6D:19:FB",
+>>>>>>> main
       "type": "host",
       "protocol": "NVMe",
       "label": "P234   25G"
+    },
+    {
+      "port_id": "3:1:1",
+      "node": 3,
+      "slot": 1,
+      "port_num": 1,
+      "mode": "target",
+      "state": "loss_sync",
+      "node_wwn_ip": "84:FC:58:74:BD:D8:1A:47",
+      "port_wwn_hw": "88:2E:DA:8E:7F:74",
+      "type": "host",
+      "protocol": "NVMe",
+      "label": "P311   25G"
     },
     {
       "port_id": "3:1:2",
@@ -410,13 +642,19 @@
       "port_num": 2,
       "mode": "target",
       "state": "ready",
+<<<<<<< HEAD
       "node_wwn_ip": "36:13:E5:8D:12:79:2C:55",
       "port_wwn_hw": "6E:43:6F:43:85:67",
+=======
+      "node_wwn_ip": "DB:CC:EB:27:78:C5:1B:0A",
+      "port_wwn_hw": "A6:AE:87:0F:77:F0",
+>>>>>>> main
       "type": "host",
       "protocol": "NVMe",
       "label": "P312   25G"
     },
     {
+<<<<<<< HEAD
       "port_id": "3:1:3",
       "node": 3,
       "slot": 1,
@@ -443,17 +681,25 @@
       "label": "P314   32G"
     },
     {
+=======
+>>>>>>> main
       "port_id": "3:2:2",
       "node": 3,
       "slot": 2,
       "port_num": 2,
       "mode": "target",
+<<<<<<< HEAD
       "state": "ready",
       "node_wwn_ip": "88:0C:D9:33:62:5F:2D:99",
       "port_wwn_hw": "D3:D4:A9:2E:F4:8B:60:F7",
+=======
+      "state": "loss_sync",
+      "node_wwn_ip": "F1:8C:FC:19:B9:51:75:85",
+      "port_wwn_hw": "B3:F2:AF:DD:10:06",
+>>>>>>> main
       "type": "host",
-      "protocol": "FC",
-      "label": "P322   32G"
+      "protocol": "NVMe",
+      "label": "P322   25G"
     },
     {
       "port_id": "3:2:3",
@@ -462,6 +708,7 @@
       "port_num": 3,
       "mode": "target",
       "state": "ready",
+<<<<<<< HEAD
       "node_wwn_ip": "4C:BC:64:68:6A:C3:C1:A0",
       "port_wwn_hw": "33:61:9E:B9:CB:E8",
       "type": "host",
@@ -493,19 +740,45 @@
       "type": "host",
       "protocol": "FC",
       "label": "P333   32G"
+=======
+      "node_wwn_ip": "5D:D2:64:07:DC:33:F4:B3",
+      "port_wwn_hw": "59:B9:24:82:92:CC",
+      "type": "host",
+      "protocol": "NVMe",
+      "label": "P323   25G"
+>>>>>>> main
     },
     {
-      "port_id": "3:3:4",
+      "port_id": "3:2:4",
       "node": 3,
-      "slot": 3,
+      "slot": 2,
       "port_num": 4,
       "mode": "target",
+<<<<<<< HEAD
       "state": "loss_sync",
       "node_wwn_ip": "7B:10:5C:E5:65:C8:56:74",
       "port_wwn_hw": "43:B6:2B:BB:A1:0E:56:D3",
+=======
+      "state": "ready",
+      "node_wwn_ip": "88:69:EC:96:69:A3:78:95",
+      "port_wwn_hw": "5E:31:CD:43:8D:F5:6D:98",
+>>>>>>> main
       "type": "host",
       "protocol": "FC",
-      "label": "P334   32G"
+      "label": "P324   32G"
+    },
+    {
+      "port_id": "3:3:2",
+      "node": 3,
+      "slot": 3,
+      "port_num": 2,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "F0:64:80:56:87:66:9E:BF",
+      "port_wwn_hw": "91:06:73:DA:0E:07:1A:9E",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P332   32G"
     }
   ],
   "switches": [],
@@ -517,6 +790,7 @@
       "cage_pos": "0:0",
       "cage_id": 0,
       "slot": 0,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -530,6 +804,21 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 1397115,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV48572688",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -537,6 +826,7 @@
       "cage_pos": "0:1",
       "cage_id": 0,
       "slot": 1,
+<<<<<<< HEAD
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
@@ -550,6 +840,21 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 1837843,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV31244565",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -560,6 +865,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 4669531,
       "capacity_gb": 16000,
@@ -570,6 +876,18 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 108133,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV72682260",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -580,6 +898,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 6853773,
       "capacity_gb": 16000,
@@ -588,6 +907,16 @@
       "model": "ST16000NM001G",
       "serial": "DRV48330761",
       "fw_rev": "SN04",
+=======
+      "total_mib": 1966080,
+      "free_mib": 691520,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV55481639",
+      "fw_rev": "0002",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -597,9 +926,10 @@
       "cage_pos": "0:4",
       "cage_id": 0,
       "slot": 4,
-      "type": "HDD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 4598792,
       "capacity_gb": 16000,
@@ -610,6 +940,18 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1766986,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV54427989",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -621,6 +963,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1488862,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -628,6 +971,15 @@
       "model": "KCD6XLUL3T84",
       "serial": "DRV42315829",
       "fw_rev": "1IAGD102",
+=======
+      "free_mib": 892527,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV99256332",
+      "fw_rev": "GXA7A01Q",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -637,6 +989,7 @@
       "cage_pos": "0:6",
       "cage_id": 0,
       "slot": 6,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -650,6 +1003,21 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 810373,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV11657000",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -661,12 +1029,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1936908,
+=======
+      "free_mib": 1175969,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV95525717",
+=======
+      "serial": "DRV93239947",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -677,6 +1053,7 @@
       "cage_pos": "0:8",
       "cage_id": 0,
       "slot": 8,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -690,6 +1067,21 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 6379352,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV10826957",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -697,6 +1089,7 @@
       "cage_pos": "0:9",
       "cage_id": 0,
       "slot": 9,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -710,6 +1103,21 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "SSD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 1966080,
+      "free_mib": 476725,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV17441737",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -717,9 +1125,10 @@
       "cage_pos": "0:10",
       "cage_id": 0,
       "slot": 10,
-      "type": "SSD",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 45152,
       "capacity_gb": 1920,
@@ -728,8 +1137,18 @@
       "model": "AELN30T7P5xn",
       "serial": "DRV62715739",
       "fw_rev": "MSB4",
+=======
+      "total_mib": 16384000,
+      "free_mib": 546310,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV26422914",
+      "fw_rev": "82.0",
+>>>>>>> main
       "protocol": "SAS",
-      "disk_type": "SSD",
+      "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -741,12 +1160,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 4246,
+=======
+      "free_mib": 792926,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV26463816",
+=======
+      "serial": "DRV01992993",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -761,6 +1188,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 174735,
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
@@ -768,6 +1196,15 @@
       "model": "ST16000NM001G",
       "serial": "DRV77234202",
       "fw_rev": "SN04",
+=======
+      "free_mib": 492999,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV34132396",
+      "fw_rev": "82.0",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -777,9 +1214,10 @@
       "cage_pos": "0:13",
       "cage_id": 0,
       "slot": 13,
-      "type": "SSD",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 692671,
       "capacity_gb": 1920,
@@ -788,8 +1226,18 @@
       "model": "AELN30T7P5xn",
       "serial": "DRV34166823",
       "fw_rev": "MSB4",
+=======
+      "total_mib": 16384000,
+      "free_mib": 1725015,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV08405335",
+      "fw_rev": "SN04",
+>>>>>>> main
       "protocol": "SAS",
-      "disk_type": "SSD",
+      "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -800,6 +1248,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1076162,
       "capacity_gb": 3840,
@@ -810,6 +1259,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 4835306,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV68863979",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -817,9 +1278,10 @@
       "cage_pos": "0:15",
       "cage_id": 0,
       "slot": 15,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 236846,
       "capacity_gb": 3840,
@@ -830,6 +1292,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 971959,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV05969966",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -841,12 +1315,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 493443,
+=======
+      "free_mib": 1517356,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV03192911",
+=======
+      "serial": "DRV26339349",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -861,6 +1343,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 1669153,
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
@@ -868,6 +1351,15 @@
       "model": "ST16000NM001G",
       "serial": "DRV26624911",
       "fw_rev": "SN04",
+=======
+      "free_mib": 7167061,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV18635521",
+      "fw_rev": "82.0",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -880,6 +1372,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 805968,
       "capacity_gb": 3840,
@@ -890,6 +1383,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 544001,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV69219162",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -897,6 +1402,7 @@
       "cage_pos": "0:19",
       "cage_id": 0,
       "slot": 19,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -910,6 +1416,21 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 617228,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV23190295",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -920,6 +1441,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 5616912,
       "capacity_gb": 16000,
@@ -928,6 +1450,16 @@
       "model": "WD161KRYZ-01U",
       "serial": "DRV11382291",
       "fw_rev": "82.0",
+=======
+      "total_mib": 1966080,
+      "free_mib": 856321,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV55742191",
+      "fw_rev": "MSB4",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -937,9 +1469,10 @@
       "cage_pos": "0:21",
       "cage_id": 0,
       "slot": 21,
-      "type": "NVMe",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1722532,
       "capacity_gb": 3840,
@@ -950,6 +1483,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 5170070,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV32369901",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -961,12 +1506,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1171010,
+=======
+      "free_mib": 1596238,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV45563284",
+=======
+      "serial": "DRV05393849",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -980,6 +1533,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1691617,
       "capacity_gb": 3840,
@@ -990,6 +1544,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 724307,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV46296274",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -997,6 +1563,7 @@
       "cage_pos": "1:0",
       "cage_id": 1,
       "slot": 0,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -1010,6 +1577,21 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 1404274,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV51752886",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1021,6 +1603,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1168024,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -1028,6 +1611,15 @@
       "model": "MZWLR3T8HBLS",
       "serial": "DRV29156459",
       "fw_rev": "GXA7A01Q",
+=======
+      "free_mib": 1525426,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV21879060",
+      "fw_rev": "1IAGD102",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -1037,9 +1629,10 @@
       "cage_pos": "1:2",
       "cage_id": 1,
       "slot": 2,
-      "type": "HDD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 7543628,
       "capacity_gb": 16000,
@@ -1050,6 +1643,18 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1301475,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV70286369",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1057,6 +1662,7 @@
       "cage_pos": "1:3",
       "cage_id": 1,
       "slot": 3,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -1070,6 +1676,21 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 7771,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV40977572",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1081,6 +1702,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 314975,
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
@@ -1088,6 +1710,15 @@
       "model": "AELN30T7P5xn",
       "serial": "DRV76939692",
       "fw_rev": "MSB4",
+=======
+      "free_mib": 254740,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV23996642",
+      "fw_rev": "0002",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "SSD",
       "admission_time": "2026-05-18_13:12:33"
@@ -1097,9 +1728,10 @@
       "cage_pos": "1:5",
       "cage_id": 1,
       "slot": 5,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 539814,
       "capacity_gb": 3840,
@@ -1110,6 +1742,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 480889,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV98396501",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1121,12 +1765,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 768732,
+=======
+      "free_mib": 1303897,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV16844483",
+=======
+      "serial": "DRV42506381",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -1137,6 +1789,7 @@
       "cage_pos": "1:7",
       "cage_id": 1,
       "slot": 7,
+<<<<<<< HEAD
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
@@ -1150,6 +1803,21 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 853274,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV26949740",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1160,6 +1828,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 4169737,
       "capacity_gb": 16000,
@@ -1170,6 +1839,18 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 756579,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV78951134",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1180,6 +1861,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 15212,
       "capacity_gb": 1920,
@@ -1190,6 +1872,18 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 683097,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV28705061",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1201,6 +1895,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 114095,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -1208,6 +1903,15 @@
       "model": "MZWLR3T8HBLS",
       "serial": "DRV83371196",
       "fw_rev": "GXA7A01Q",
+=======
+      "free_mib": 1914072,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV57024679",
+      "fw_rev": "1IAGD102",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -1217,6 +1921,7 @@
       "cage_pos": "1:11",
       "cage_id": 1,
       "slot": 11,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -1230,6 +1935,21 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 1181620,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV03971722",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1241,6 +1961,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1793502,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -1248,6 +1969,15 @@
       "model": "KCD6XLUL3T84",
       "serial": "DRV14211480",
       "fw_rev": "1IAGD102",
+=======
+      "free_mib": 1929214,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV41217319",
+      "fw_rev": "GXA7A01Q",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -1260,6 +1990,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 3313560,
       "capacity_gb": 16000,
@@ -1270,6 +2001,18 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 427879,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV24122016",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1277,9 +2020,10 @@
       "cage_pos": "1:14",
       "cage_id": 1,
       "slot": 14,
-      "type": "NVMe",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 31979,
       "capacity_gb": 3840,
@@ -1290,6 +2034,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 5287056,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV20966340",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1300,6 +2056,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 5498237,
       "capacity_gb": 16000,
@@ -1308,6 +2065,16 @@
       "model": "WD161KRYZ-01U",
       "serial": "DRV97835763",
       "fw_rev": "82.0",
+=======
+      "total_mib": 1966080,
+      "free_mib": 713829,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV44296977",
+      "fw_rev": "MSB4",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -1317,9 +2084,10 @@
       "cage_pos": "1:16",
       "cage_id": 1,
       "slot": 16,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 982734,
       "capacity_gb": 3840,
@@ -1330,6 +2098,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 871092,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV84758869",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1341,6 +2121,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1160442,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -1348,6 +2129,15 @@
       "model": "KCD6XLUL3T84",
       "serial": "DRV05563476",
       "fw_rev": "1IAGD102",
+=======
+      "free_mib": 1789312,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV13883601",
+      "fw_rev": "GXA7A01Q",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -1357,9 +2147,10 @@
       "cage_pos": "1:18",
       "cage_id": 1,
       "slot": 18,
-      "type": "NVMe",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 911279,
       "capacity_gb": 3840,
@@ -1370,6 +2161,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 4372321,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV40322680",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1381,12 +2184,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 749180,
+=======
+      "free_mib": 884108,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV46319957",
+=======
+      "serial": "DRV82653155",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -1397,9 +2208,10 @@
       "cage_pos": "1:20",
       "cage_id": 1,
       "slot": 20,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1434359,
       "capacity_gb": 3840,
@@ -1410,6 +2222,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 523570,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV25515465",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1420,6 +2244,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 7343860,
       "capacity_gb": 16000,
@@ -1430,6 +2255,18 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1923706,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV07060584",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1441,12 +2278,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1842079,
+=======
+      "free_mib": 1857557,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV54995068",
+=======
+      "serial": "DRV03552899",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -1460,6 +2305,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 636605,
       "capacity_gb": 1920,
@@ -1470,6 +2316,18 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1240109,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV76079083",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1480,6 +2338,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 522293,
       "capacity_gb": 16000,
@@ -1488,6 +2347,16 @@
       "model": "WD161KRYZ-01U",
       "serial": "DRV50424282",
       "fw_rev": "82.0",
+=======
+      "total_mib": 1966080,
+      "free_mib": 320100,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV86305669",
+      "fw_rev": "MSB4",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -1501,6 +2370,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 906753,
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
@@ -1508,6 +2378,15 @@
       "model": "WD161KRYZ-01U",
       "serial": "DRV90002419",
       "fw_rev": "82.0",
+=======
+      "free_mib": 3716125,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV86939199",
+      "fw_rev": "SN04",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -1517,9 +2396,10 @@
       "cage_pos": "2:2",
       "cage_id": 2,
       "slot": 2,
-      "type": "SSD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 326133,
       "capacity_gb": 1920,
@@ -1530,6 +2410,18 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 652923,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV41494913",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1537,6 +2429,7 @@
       "cage_pos": "2:3",
       "cage_id": 2,
       "slot": 3,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -1550,6 +2443,21 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "SSD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 1966080,
+      "free_mib": 473457,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV03636675",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1561,12 +2469,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 953583,
+=======
+      "free_mib": 959899,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV98595469",
+=======
+      "serial": "DRV39506054",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -1580,6 +2496,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 2375006,
       "capacity_gb": 16000,
@@ -1588,6 +2505,16 @@
       "model": "WD161KRYZ-01U",
       "serial": "DRV62296917",
       "fw_rev": "82.0",
+=======
+      "total_mib": 1966080,
+      "free_mib": 237929,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV13118213",
+      "fw_rev": "0002",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -1600,6 +2527,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1606604,
       "capacity_gb": 3840,
@@ -1610,6 +2538,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 7094838,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV89202636",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1621,12 +2561,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 300889,
+=======
+      "free_mib": 1917675,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV64106014",
+=======
+      "serial": "DRV90743739",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -1637,9 +2585,10 @@
       "cage_pos": "2:8",
       "cage_id": 2,
       "slot": 8,
-      "type": "HDD",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 7134400,
       "capacity_gb": 16000,
@@ -1648,8 +2597,18 @@
       "model": "WD161KRYZ-01U",
       "serial": "DRV15571938",
       "fw_rev": "82.0",
+=======
+      "total_mib": 1966080,
+      "free_mib": 384158,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV25858096",
+      "fw_rev": "MSB4",
+>>>>>>> main
       "protocol": "SAS",
-      "disk_type": "HDD",
+      "disk_type": "SSD",
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1657,6 +2616,7 @@
       "cage_pos": "2:9",
       "cage_id": 2,
       "slot": 9,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -1670,6 +2630,21 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 1676521,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV08469061",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1681,6 +2656,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 485971,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -1688,6 +2664,15 @@
       "model": "MZWLR3T8HBLS",
       "serial": "DRV37764541",
       "fw_rev": "GXA7A01Q",
+=======
+      "free_mib": 1748467,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV65042261",
+      "fw_rev": "1IAGD102",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -1700,6 +2685,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 292633,
       "capacity_gb": 1920,
@@ -1710,6 +2696,18 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1262778,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV98502194",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1721,12 +2719,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 694040,
+=======
+      "free_mib": 928294,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV19237822",
+=======
+      "serial": "DRV26929015",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -1741,12 +2747,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1302747,
+=======
+      "free_mib": 1788861,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV60447979",
+=======
+      "serial": "DRV61572017",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -1757,9 +2771,10 @@
       "cage_pos": "2:14",
       "cage_id": 2,
       "slot": 14,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 282316,
       "capacity_gb": 3840,
@@ -1770,6 +2785,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 341851,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV31839356",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1780,6 +2807,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 175120,
       "capacity_gb": 3840,
@@ -1790,6 +2818,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 3795575,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV60427384",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1797,6 +2837,7 @@
       "cage_pos": "2:16",
       "cage_id": 2,
       "slot": 16,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -1810,6 +2851,21 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 7598783,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV45587596",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1817,6 +2873,7 @@
       "cage_pos": "2:17",
       "cage_id": 2,
       "slot": 17,
+<<<<<<< HEAD
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
@@ -1830,6 +2887,21 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "type": "SSD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 1966080,
+      "free_mib": 497227,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV96407590",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1840,6 +2912,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 7819616,
       "capacity_gb": 16000,
@@ -1850,6 +2923,18 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1613025,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV45894300",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1861,12 +2946,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 301706,
+=======
+      "free_mib": 221418,
+>>>>>>> main
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SEAGATE",
       "model": "XS3840SE70084",
+<<<<<<< HEAD
       "serial": "DRV63772536",
+=======
+      "serial": "DRV01852333",
+>>>>>>> main
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
@@ -1881,12 +2974,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1138585,
+=======
+      "free_mib": 1325186,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV54155153",
+=======
+      "serial": "DRV91797812",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -1897,9 +2998,10 @@
       "cage_pos": "2:21",
       "cage_id": 2,
       "slot": 21,
-      "type": "SSD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 85768,
       "capacity_gb": 1920,
@@ -1910,6 +3012,18 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1032971,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV00211443",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1917,6 +3031,7 @@
       "cage_pos": "2:22",
       "cage_id": 2,
       "slot": 22,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -1930,6 +3045,21 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 8131421,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV58470847",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1940,6 +3070,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 6974715,
       "capacity_gb": 16000,
@@ -1948,6 +3079,16 @@
       "model": "WD161KRYZ-01U",
       "serial": "DRV67599120",
       "fw_rev": "82.0",
+=======
+      "total_mib": 1966080,
+      "free_mib": 797830,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV65526269",
+      "fw_rev": "MSB4",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -1957,6 +3098,7 @@
       "cage_pos": "3:0",
       "cage_id": 3,
       "slot": 0,
+<<<<<<< HEAD
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
@@ -1970,6 +3112,21 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "type": "SSD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 1966080,
+      "free_mib": 867015,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV07835302",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -1981,12 +3138,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 557423,
+=======
+      "free_mib": 1721983,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV73100498",
+=======
+      "serial": "DRV51532696",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2001,12 +3166,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1032729,
+=======
+      "free_mib": 204094,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV20444414",
+=======
+      "serial": "DRV95446291",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2020,6 +3193,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1817855,
       "capacity_gb": 3840,
@@ -2030,6 +3204,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 4296687,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV29340016",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2041,6 +3227,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 5746572,
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
@@ -2048,6 +3235,15 @@
       "model": "WD161KRYZ-01U",
       "serial": "DRV34338094",
       "fw_rev": "82.0",
+=======
+      "free_mib": 89635,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV47132682",
+      "fw_rev": "SN04",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -2057,9 +3253,10 @@
       "cage_pos": "3:5",
       "cage_id": 3,
       "slot": 5,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1071752,
       "capacity_gb": 3840,
@@ -2070,6 +3267,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 126499,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV99462188",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2081,12 +3290,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 732800,
+=======
+      "free_mib": 731922,
+>>>>>>> main
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SEAGATE",
       "model": "XS3840SE70084",
+<<<<<<< HEAD
       "serial": "DRV04294524",
+=======
+      "serial": "DRV68373910",
+>>>>>>> main
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
@@ -2097,6 +3314,7 @@
       "cage_pos": "3:7",
       "cage_id": 3,
       "slot": 7,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -2110,6 +3328,21 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 4482441,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV75631086",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2120,6 +3353,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 607407,
       "capacity_gb": 1920,
@@ -2130,6 +3364,18 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1051559,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV28163445",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2140,6 +3386,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1309534,
       "capacity_gb": 3840,
@@ -2150,6 +3397,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 8070826,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV71937150",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2160,6 +3419,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 6302793,
       "capacity_gb": 16000,
@@ -2170,6 +3430,18 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1003275,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV32164870",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2181,12 +3453,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1188233,
+=======
+      "free_mib": 1518090,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV97633744",
+=======
+      "serial": "DRV96902743",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2197,9 +3477,10 @@
       "cage_pos": "3:12",
       "cage_id": 3,
       "slot": 12,
-      "type": "SSD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 128149,
       "capacity_gb": 1920,
@@ -2210,6 +3491,18 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1411159,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV52155434",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2221,12 +3514,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1168891,
+=======
+      "free_mib": 108803,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV60284391",
+=======
+      "serial": "DRV77474984",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2237,6 +3538,7 @@
       "cage_pos": "3:14",
       "cage_id": 3,
       "slot": 14,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -2250,6 +3552,21 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 287670,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV52827939",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2257,6 +3574,7 @@
       "cage_pos": "3:15",
       "cage_id": 3,
       "slot": 15,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -2270,6 +3588,21 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 3217726,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV12136449",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2281,12 +3614,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 410191,
+=======
+      "free_mib": 730219,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV54312872",
+=======
+      "serial": "DRV69038929",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2300,6 +3641,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 4241821,
       "capacity_gb": 16000,
@@ -2308,6 +3650,16 @@
       "model": "WD161KRYZ-01U",
       "serial": "DRV24715866",
       "fw_rev": "82.0",
+=======
+      "total_mib": 1966080,
+      "free_mib": 10890,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV49682093",
+      "fw_rev": "0002",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -2317,6 +3669,7 @@
       "cage_pos": "3:18",
       "cage_id": 3,
       "slot": 18,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -2330,6 +3683,21 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 140013,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV21630364",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2340,6 +3708,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 4421474,
       "capacity_gb": 16000,
@@ -2350,6 +3719,18 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1045488,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV95170703",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2361,12 +3742,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 276527,
+=======
+      "free_mib": 795277,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV41745888",
+=======
+      "serial": "DRV89619936",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2377,9 +3766,10 @@
       "cage_pos": "3:21",
       "cage_id": 3,
       "slot": 21,
-      "type": "SSD",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 482579,
       "capacity_gb": 1920,
@@ -2388,8 +3778,18 @@
       "model": "AELN30T7P5xn",
       "serial": "DRV41863507",
       "fw_rev": "MSB4",
+=======
+      "total_mib": 16384000,
+      "free_mib": 2132576,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV40216304",
+      "fw_rev": "82.0",
+>>>>>>> main
       "protocol": "SAS",
-      "disk_type": "SSD",
+      "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2401,12 +3801,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1310032,
+=======
+      "free_mib": 39158,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV69412732",
+=======
+      "serial": "DRV88742826",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2421,12 +3829,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 2884228,
+=======
+      "free_mib": 5103376,
+>>>>>>> main
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SEAGATE",
       "model": "ST16000NM001G",
+<<<<<<< HEAD
       "serial": "DRV57654831",
+=======
+      "serial": "DRV07889454",
+>>>>>>> main
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
@@ -2437,9 +3853,10 @@
       "cage_pos": "4:0",
       "cage_id": 4,
       "slot": 0,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1792522,
       "capacity_gb": 3840,
@@ -2450,6 +3867,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 12000,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV04630534",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2460,6 +3889,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 114483,
       "capacity_gb": 1920,
@@ -2470,6 +3900,18 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 189042,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV30422985",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2481,12 +3923,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 1233578,
+=======
+      "free_mib": 7505704,
+>>>>>>> main
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "WD",
       "model": "WD161KRYZ-01U",
+<<<<<<< HEAD
       "serial": "DRV68632910",
+=======
+      "serial": "DRV98754251",
+>>>>>>> main
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
@@ -2501,12 +3951,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 266345,
+=======
+      "free_mib": 1347874,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV89827285",
+=======
+      "serial": "DRV39517412",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2521,6 +3979,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 467629,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -2528,6 +3987,15 @@
       "model": "KCD6XLUL3T84",
       "serial": "DRV25806742",
       "fw_rev": "1IAGD102",
+=======
+      "free_mib": 1094033,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV97681078",
+      "fw_rev": "GXA7A01Q",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -2541,6 +4009,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 402732,
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
@@ -2548,6 +4017,15 @@
       "model": "XS3840SE70084",
       "serial": "DRV73150330",
       "fw_rev": "0002",
+=======
+      "free_mib": 343383,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV31904776",
+      "fw_rev": "MSB4",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "SSD",
       "admission_time": "2026-05-18_13:12:33"
@@ -2561,6 +4039,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 45226,
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
@@ -2568,6 +4047,15 @@
       "model": "AELN30T7P5xn",
       "serial": "DRV47900217",
       "fw_rev": "MSB4",
+=======
+      "free_mib": 103959,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV73499434",
+      "fw_rev": "0002",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "SSD",
       "admission_time": "2026-05-18_13:12:33"
@@ -2581,12 +4069,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 412489,
+=======
+      "free_mib": 862711,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV42980634",
+=======
+      "serial": "DRV20583737",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2597,9 +4093,10 @@
       "cage_pos": "4:8",
       "cage_id": 4,
       "slot": 8,
-      "type": "SSD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 645578,
       "capacity_gb": 1920,
@@ -2610,6 +4107,18 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1079439,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV68451562",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2617,6 +4126,7 @@
       "cage_pos": "4:9",
       "cage_id": 4,
       "slot": 9,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -2630,6 +4140,21 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 1559149,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV97673079",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2637,6 +4162,7 @@
       "cage_pos": "4:10",
       "cage_id": 4,
       "slot": 10,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -2650,6 +4176,21 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 5089352,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV84319858",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2661,12 +4202,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 7836769,
+=======
+      "free_mib": 2135483,
+>>>>>>> main
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "WD",
       "model": "WD161KRYZ-01U",
+<<<<<<< HEAD
       "serial": "DRV91964895",
+=======
+      "serial": "DRV21882225",
+>>>>>>> main
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
@@ -2680,6 +4229,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 2243034,
       "capacity_gb": 16000,
@@ -2690,6 +4240,18 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 865552,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV59891308",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2700,6 +4262,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 356842,
       "capacity_gb": 1920,
@@ -2710,6 +4273,18 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 337119,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV32288855",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2717,6 +4292,7 @@
       "cage_pos": "4:14",
       "cage_id": 4,
       "slot": 14,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -2730,6 +4306,21 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 4801803,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV53391132",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2741,6 +4332,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 1554419,
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
@@ -2748,6 +4340,15 @@
       "model": "ST16000NM001G",
       "serial": "DRV55397911",
       "fw_rev": "SN04",
+=======
+      "free_mib": 4130309,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV30674194",
+      "fw_rev": "82.0",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -2761,6 +4362,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1965138,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -2768,6 +4370,15 @@
       "model": "KCD6XLUL3T84",
       "serial": "DRV79084577",
       "fw_rev": "1IAGD102",
+=======
+      "free_mib": 1560131,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV49774476",
+      "fw_rev": "GXA7A01Q",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -2777,6 +4388,7 @@
       "cage_pos": "4:17",
       "cage_id": 4,
       "slot": 17,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -2790,6 +4402,21 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "SSD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 1966080,
+      "free_mib": 531410,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV43122139",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2801,12 +4428,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 379044,
+=======
+      "free_mib": 523431,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV65380969",
+=======
+      "serial": "DRV23151687",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2821,6 +4456,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 133950,
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
@@ -2828,6 +4464,15 @@
       "model": "XS3840SE70084",
       "serial": "DRV21484505",
       "fw_rev": "0002",
+=======
+      "free_mib": 432502,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV07163071",
+      "fw_rev": "MSB4",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "SSD",
       "admission_time": "2026-05-18_13:12:33"
@@ -2837,9 +4482,10 @@
       "cage_pos": "4:20",
       "cage_id": 4,
       "slot": 20,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 382157,
       "capacity_gb": 3840,
@@ -2850,6 +4496,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 358809,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV84463841",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2860,6 +4518,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 748163,
       "capacity_gb": 1920,
@@ -2870,6 +4529,18 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 467530,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV59582039",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2881,6 +4552,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1796871,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -2888,6 +4560,15 @@
       "model": "MZWLR3T8HBLS",
       "serial": "DRV48384549",
       "fw_rev": "GXA7A01Q",
+=======
+      "free_mib": 127450,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV22487445",
+      "fw_rev": "1IAGD102",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -2897,6 +4578,7 @@
       "cage_pos": "4:23",
       "cage_id": 4,
       "slot": 23,
+<<<<<<< HEAD
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
@@ -2910,6 +4592,21 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "type": "SSD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 1966080,
+      "free_mib": 823616,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV43600682",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2917,6 +4614,7 @@
       "cage_pos": "5:0",
       "cage_id": 5,
       "slot": 0,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -2930,6 +4628,21 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 316289,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV99904253",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2941,12 +4654,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1693483,
+=======
+      "free_mib": 1661305,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV41524501",
+=======
+      "serial": "DRV82542065",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -2957,6 +4678,7 @@
       "cage_pos": "5:2",
       "cage_id": 5,
       "slot": 2,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -2970,6 +4692,21 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 4239355,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV38150255",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -2981,6 +4718,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 1692886,
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
@@ -2988,6 +4726,15 @@
       "model": "ST16000NM001G",
       "serial": "DRV62124490",
       "fw_rev": "SN04",
+=======
+      "free_mib": 491618,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV43262455",
+      "fw_rev": "82.0",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -2997,9 +4744,10 @@
       "cage_pos": "5:4",
       "cage_id": 5,
       "slot": 4,
-      "type": "NVMe",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 626278,
       "capacity_gb": 3840,
@@ -3010,6 +4758,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 6921993,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV72928104",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3017,6 +4777,7 @@
       "cage_pos": "5:5",
       "cage_id": 5,
       "slot": 5,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -3030,6 +4791,21 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 6715642,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV84462662",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3040,6 +4816,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1199519,
       "capacity_gb": 3840,
@@ -3050,6 +4827,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 832937,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV11533790",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3057,9 +4846,10 @@
       "cage_pos": "5:7",
       "cage_id": 5,
       "slot": 7,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 124191,
       "capacity_gb": 3840,
@@ -3070,6 +4860,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 56654,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV30413819",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3077,6 +4879,7 @@
       "cage_pos": "5:8",
       "cage_id": 5,
       "slot": 8,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -3090,6 +4893,21 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "SSD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 1966080,
+      "free_mib": 149759,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV40705268",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3100,6 +4918,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 54465,
       "capacity_gb": 1920,
@@ -3110,6 +4929,18 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1003495,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV35572645",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3121,12 +4952,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 495577,
+=======
+      "free_mib": 631908,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV63414173",
+=======
+      "serial": "DRV91220445",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -3141,12 +4980,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 7163292,
+=======
+      "free_mib": 7399401,
+>>>>>>> main
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "WD",
       "model": "WD161KRYZ-01U",
+<<<<<<< HEAD
       "serial": "DRV47096735",
+=======
+      "serial": "DRV69999528",
+>>>>>>> main
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
@@ -3157,9 +5004,10 @@
       "cage_pos": "5:12",
       "cage_id": 5,
       "slot": 12,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 360238,
       "capacity_gb": 3840,
@@ -3170,6 +5018,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 454809,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV52565608",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3181,12 +5041,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 102047,
+=======
+      "free_mib": 332565,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV52606728",
+=======
+      "serial": "DRV39968338",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -3197,6 +5065,7 @@
       "cage_pos": "5:14",
       "cage_id": 5,
       "slot": 14,
+<<<<<<< HEAD
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
@@ -3210,6 +5079,21 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "type": "SSD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 1966080,
+      "free_mib": 51922,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV16732888",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3217,6 +5101,7 @@
       "cage_pos": "5:15",
       "cage_id": 5,
       "slot": 15,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -3230,6 +5115,21 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 4777844,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV91453657",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3241,12 +5141,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 983597,
+=======
+      "free_mib": 726902,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV80976618",
+=======
+      "serial": "DRV12055578",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -3257,6 +5165,7 @@
       "cage_pos": "5:17",
       "cage_id": 5,
       "slot": 17,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -3270,6 +5179,21 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 389895,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV73890060",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3281,12 +5205,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 432410,
+=======
+      "free_mib": 120371,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV81703756",
+=======
+      "serial": "DRV93966280",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -3297,6 +5229,7 @@
       "cage_pos": "5:19",
       "cage_id": 5,
       "slot": 19,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -3310,6 +5243,21 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 1266824,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV14263525",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3321,6 +5269,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 352864,
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
@@ -3328,6 +5277,15 @@
       "model": "AELN30T7P5xn",
       "serial": "DRV49569839",
       "fw_rev": "MSB4",
+=======
+      "free_mib": 598332,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV99109790",
+      "fw_rev": "0002",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "SSD",
       "admission_time": "2026-05-18_13:12:33"
@@ -3341,6 +5299,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 399048,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -3348,6 +5307,15 @@
       "model": "KCD6XLUL3T84",
       "serial": "DRV25704965",
       "fw_rev": "1IAGD102",
+=======
+      "free_mib": 690108,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV60228969",
+      "fw_rev": "GXA7A01Q",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -3360,6 +5328,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 6207890,
       "capacity_gb": 16000,
@@ -3370,6 +5339,18 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 118754,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV53936601",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3381,6 +5362,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 939953,
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
@@ -3388,6 +5370,15 @@
       "model": "XS3840SE70084",
       "serial": "DRV23098736",
       "fw_rev": "0002",
+=======
+      "free_mib": 621109,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV60447083",
+      "fw_rev": "MSB4",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "SSD",
       "admission_time": "2026-05-18_13:12:33"
@@ -3397,9 +5388,10 @@
       "cage_pos": "6:0",
       "cage_id": 6,
       "slot": 0,
-      "type": "NVMe",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1229873,
       "capacity_gb": 3840,
@@ -3410,6 +5402,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 4152256,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV85426015",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3420,6 +5424,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1763664,
       "capacity_gb": 3840,
@@ -3430,6 +5435,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 396343,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV65597352",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3441,12 +5458,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1179204,
+=======
+      "free_mib": 1015319,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV05003998",
+=======
+      "serial": "DRV85797109",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -3461,6 +5486,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1712114,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -3468,6 +5494,15 @@
       "model": "KCD6XLUL3T84",
       "serial": "DRV73818032",
       "fw_rev": "1IAGD102",
+=======
+      "free_mib": 424159,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV14395341",
+      "fw_rev": "GXA7A01Q",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -3480,6 +5515,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 7682035,
       "capacity_gb": 16000,
@@ -3490,6 +5526,18 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1205023,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV27114022",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3497,9 +5545,10 @@
       "cage_pos": "6:5",
       "cage_id": 6,
       "slot": 5,
-      "type": "HDD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 195781,
       "capacity_gb": 16000,
@@ -3510,6 +5559,18 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1553425,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV85556649",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3520,6 +5581,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 350748,
       "capacity_gb": 1920,
@@ -3530,6 +5592,18 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1078892,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV93787495",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3540,6 +5614,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1111439,
       "capacity_gb": 3840,
@@ -3550,6 +5625,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 235675,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV83074342",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3557,9 +5644,10 @@
       "cage_pos": "6:8",
       "cage_id": 6,
       "slot": 8,
-      "type": "NVMe",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1883617,
       "capacity_gb": 3840,
@@ -3570,6 +5658,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 6706726,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV44949149",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3577,9 +5677,10 @@
       "cage_pos": "6:9",
       "cage_id": 6,
       "slot": 9,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 802895,
       "capacity_gb": 3840,
@@ -3590,6 +5691,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 660048,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV54864452",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3601,12 +5714,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
+<<<<<<< HEAD
       "free_mib": 585463,
+=======
+      "free_mib": 6503997,
+>>>>>>> main
       "capacity_gb": 16000,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SEAGATE",
       "model": "ST16000NM001G",
+<<<<<<< HEAD
       "serial": "DRV58961488",
+=======
+      "serial": "DRV45303903",
+>>>>>>> main
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
@@ -3617,6 +5738,7 @@
       "cage_pos": "6:11",
       "cage_id": 6,
       "slot": 11,
+<<<<<<< HEAD
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
@@ -3630,6 +5752,21 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 552054,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV17756441",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3637,6 +5774,7 @@
       "cage_pos": "6:12",
       "cage_id": 6,
       "slot": 12,
+<<<<<<< HEAD
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
@@ -3650,6 +5788,21 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "type": "SSD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 1966080,
+      "free_mib": 308340,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV04832016",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3661,12 +5814,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 991296,
+=======
+      "free_mib": 861072,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV24979017",
+=======
+      "serial": "DRV36218362",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -3677,6 +5838,7 @@
       "cage_pos": "6:14",
       "cage_id": 6,
       "slot": 14,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -3690,6 +5852,21 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 682171,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV82410230",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3697,9 +5874,10 @@
       "cage_pos": "6:15",
       "cage_id": 6,
       "slot": 15,
-      "type": "HDD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 2180468,
       "capacity_gb": 16000,
@@ -3710,6 +5888,18 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1522734,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV53723407",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3721,6 +5911,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1156262,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -3728,6 +5919,15 @@
       "model": "MZWLR3T8HBLS",
       "serial": "DRV99945694",
       "fw_rev": "GXA7A01Q",
+=======
+      "free_mib": 1886074,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV15145979",
+      "fw_rev": "1IAGD102",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -3741,12 +5941,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1774402,
+=======
+      "free_mib": 456663,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV59064476",
+=======
+      "serial": "DRV83078972",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -3757,6 +5965,7 @@
       "cage_pos": "6:18",
       "cage_id": 6,
       "slot": 18,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -3770,6 +5979,21 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 3831885,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV40518367",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3781,6 +6005,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 284429,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -3788,6 +6013,15 @@
       "model": "KCD6XLUL3T84",
       "serial": "DRV88808474",
       "fw_rev": "1IAGD102",
+=======
+      "free_mib": 259599,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV07752940",
+      "fw_rev": "GXA7A01Q",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -3800,6 +6034,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1601304,
       "capacity_gb": 3840,
@@ -3810,6 +6045,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 343581,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV44953404",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3817,9 +6064,10 @@
       "cage_pos": "6:21",
       "cage_id": 6,
       "slot": 21,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 887614,
       "capacity_gb": 3840,
@@ -3830,6 +6078,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 672345,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV39898987",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3837,9 +6097,10 @@
       "cage_pos": "6:22",
       "cage_id": 6,
       "slot": 22,
-      "type": "SSD",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 883026,
       "capacity_gb": 1920,
@@ -3848,8 +6109,18 @@
       "model": "XS3840SE70084",
       "serial": "DRV69065895",
       "fw_rev": "0002",
+=======
+      "total_mib": 16384000,
+      "free_mib": 4176192,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV01119607",
+      "fw_rev": "SN04",
+>>>>>>> main
       "protocol": "SAS",
-      "disk_type": "SSD",
+      "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3857,6 +6128,7 @@
       "cage_pos": "6:23",
       "cage_id": 6,
       "slot": 23,
+<<<<<<< HEAD
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -3870,6 +6142,21 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "type": "HDD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 16384000,
+      "free_mib": 3655445,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "ST16000NM001G",
+      "serial": "DRV48768078",
+      "fw_rev": "SN04",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3881,6 +6168,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 237691,
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
@@ -3888,6 +6176,15 @@
       "model": "AELN30T7P5xn",
       "serial": "DRV54963518",
       "fw_rev": "MSB4",
+=======
+      "free_mib": 126894,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV97220707",
+      "fw_rev": "0002",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "SSD",
       "admission_time": "2026-05-18_13:12:33"
@@ -3897,6 +6194,7 @@
       "cage_pos": "7:1",
       "cage_id": 7,
       "slot": 1,
+<<<<<<< HEAD
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
@@ -3910,6 +6208,21 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "type": "NVMe",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 3932160,
+      "free_mib": 1121456,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV78476462",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3921,12 +6234,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1668448,
+=======
+      "free_mib": 426794,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV19783426",
+=======
+      "serial": "DRV61541558",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -3941,12 +6262,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 659959,
+=======
+      "free_mib": 446537,
+>>>>>>> main
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "AELN30T7P5xn",
+<<<<<<< HEAD
       "serial": "DRV84096908",
+=======
+      "serial": "DRV97567288",
+>>>>>>> main
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
@@ -3960,6 +6289,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 2728306,
       "capacity_gb": 16000,
@@ -3970,6 +6300,18 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 535478,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV05770413",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -3981,12 +6323,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 714513,
+=======
+      "free_mib": 1310550,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV33587194",
+=======
+      "serial": "DRV43522157",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -4001,12 +6351,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 754031,
+=======
+      "free_mib": 1754606,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV61043917",
+=======
+      "serial": "DRV76584291",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -4020,6 +6378,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 90451,
       "capacity_gb": 1920,
@@ -4030,6 +6389,18 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1906124,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV30864909",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -4041,12 +6412,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 515051,
+=======
+      "free_mib": 189679,
+>>>>>>> main
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "AELN30T7P5xn",
+<<<<<<< HEAD
       "serial": "DRV45213978",
+=======
+      "serial": "DRV55847869",
+>>>>>>> main
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
@@ -4061,12 +6440,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1321291,
+=======
+      "free_mib": 996988,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV07365875",
+=======
+      "serial": "DRV28890157",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -4080,6 +6467,7 @@
       "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 587132,
       "capacity_gb": 1920,
@@ -4090,6 +6478,18 @@
       "fw_rev": "MSB4",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 279468,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV26254299",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -4100,6 +6500,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 4559276,
       "capacity_gb": 16000,
@@ -4110,6 +6511,18 @@
       "fw_rev": "SN04",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 1167527,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV74748415",
+      "fw_rev": "GXA7A01Q",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -4117,9 +6530,10 @@
       "cage_pos": "7:12",
       "cage_id": 7,
       "slot": 12,
-      "type": "SSD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 1966080,
       "free_mib": 214873,
       "capacity_gb": 1920,
@@ -4130,6 +6544,18 @@
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
+=======
+      "total_mib": 3932160,
+      "free_mib": 979392,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV42253998",
+      "fw_rev": "1IAGD102",
+      "protocol": "NVMe",
+      "disk_type": "NVMe",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -4141,6 +6567,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1605041,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -4148,6 +6575,15 @@
       "model": "MZWLR3T8HBLS",
       "serial": "DRV92493444",
       "fw_rev": "GXA7A01Q",
+=======
+      "free_mib": 1658054,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "KIOXIA",
+      "model": "KCD6XLUL3T84",
+      "serial": "DRV48489368",
+      "fw_rev": "1IAGD102",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -4160,6 +6596,7 @@
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1544738,
       "capacity_gb": 3840,
@@ -4170,6 +6607,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 750795,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV76336076",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -4181,12 +6630,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1096759,
+=======
+      "free_mib": 981125,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SAMSUNG",
       "model": "MZWLR3T8HBLS",
+<<<<<<< HEAD
       "serial": "DRV39544852",
+=======
+      "serial": "DRV45479939",
+>>>>>>> main
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
@@ -4197,6 +6654,7 @@
       "cage_pos": "7:16",
       "cage_id": 7,
       "slot": 16,
+<<<<<<< HEAD
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
@@ -4210,6 +6668,21 @@
       "fw_rev": "82.0",
       "protocol": "SAS",
       "disk_type": "HDD",
+=======
+      "type": "SSD",
+      "rpm": "N/A",
+      "state": "normal",
+      "total_mib": 1966080,
+      "free_mib": 447343,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV31382755",
+      "fw_rev": "MSB4",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -4221,6 +6694,7 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1585473,
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
@@ -4228,6 +6702,15 @@
       "model": "KCD6XLUL3T84",
       "serial": "DRV69330809",
       "fw_rev": "1IAGD102",
+=======
+      "free_mib": 1886613,
+      "capacity_gb": 3840,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "MZWLR3T8HBLS",
+      "serial": "DRV09392221",
+      "fw_rev": "GXA7A01Q",
+>>>>>>> main
       "protocol": "NVMe",
       "disk_type": "NVMe",
       "admission_time": "2026-05-18_13:12:33"
@@ -4237,9 +6720,10 @@
       "cage_pos": "7:18",
       "cage_id": 7,
       "slot": 18,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 560213,
       "capacity_gb": 3840,
@@ -4250,6 +6734,18 @@
       "fw_rev": "GXA7A01Q",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 1966080,
+      "free_mib": 487230,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SEAGATE",
+      "model": "XS3840SE70084",
+      "serial": "DRV13572525",
+      "fw_rev": "0002",
+      "protocol": "SAS",
+      "disk_type": "SSD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -4257,9 +6753,10 @@
       "cage_pos": "7:19",
       "cage_id": 7,
       "slot": 19,
-      "type": "NVMe",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1710106,
       "capacity_gb": 3840,
@@ -4270,6 +6767,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 3946543,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV42895847",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -4280,6 +6789,7 @@
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 16384000,
       "free_mib": 1492127,
       "capacity_gb": 16000,
@@ -4288,6 +6798,16 @@
       "model": "ST16000NM001G",
       "serial": "DRV51632882",
       "fw_rev": "SN04",
+=======
+      "total_mib": 1966080,
+      "free_mib": 791565,
+      "capacity_gb": 1920,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "SAMSUNG",
+      "model": "AELN30T7P5xn",
+      "serial": "DRV29884445",
+      "fw_rev": "MSB4",
+>>>>>>> main
       "protocol": "SAS",
       "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
@@ -4301,12 +6821,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
+<<<<<<< HEAD
       "free_mib": 37710,
+=======
+      "free_mib": 232935,
+>>>>>>> main
       "capacity_gb": 1920,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "SEAGATE",
       "model": "XS3840SE70084",
+<<<<<<< HEAD
       "serial": "DRV29850349",
+=======
+      "serial": "DRV48641973",
+>>>>>>> main
       "fw_rev": "0002",
       "protocol": "SAS",
       "disk_type": "SSD",
@@ -4317,9 +6845,10 @@
       "cage_pos": "7:22",
       "cage_id": 7,
       "slot": 22,
-      "type": "NVMe",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
+<<<<<<< HEAD
       "total_mib": 3932160,
       "free_mib": 1167880,
       "capacity_gb": 3840,
@@ -4330,6 +6859,18 @@
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",
+=======
+      "total_mib": 16384000,
+      "free_mib": 6239501,
+      "capacity_gb": 16000,
+      "node_wwn": "2FF70002AC07F065",
+      "manufacturer": "WD",
+      "model": "WD161KRYZ-01U",
+      "serial": "DRV72020247",
+      "fw_rev": "82.0",
+      "protocol": "SAS",
+      "disk_type": "HDD",
+>>>>>>> main
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -4341,12 +6882,20 @@
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
+<<<<<<< HEAD
       "free_mib": 1197311,
+=======
+      "free_mib": 1524731,
+>>>>>>> main
       "capacity_gb": 3840,
       "node_wwn": "2FF70002AC07F065",
       "manufacturer": "KIOXIA",
       "model": "KCD6XLUL3T84",
+<<<<<<< HEAD
       "serial": "DRV59707862",
+=======
+      "serial": "DRV94500070",
+>>>>>>> main
       "fw_rev": "1IAGD102",
       "protocol": "NVMe",
       "disk_type": "NVMe",

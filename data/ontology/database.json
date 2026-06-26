@@ -2220,6 +2220,7 @@
       "edgeCount": 0
     },
     {
+<<<<<<< HEAD
       "from": "ARR-01",
       "to": "SW-ETH-01",
       "label": "iSCSI 10G"
@@ -2258,6 +2259,48 @@
       "from": "SW-FCOE-01",
       "to": "HOST-03",
       "label": "FCoE 10G"
+=======
+      "id": "src_llm_ingest_m1_array_proxy_txt_20260521_142922",
+      "label": "\u2728 LLM Ingest: m1-array_proxy.txt",
+      "timestamp": "2026-05-21T14:29:22.662029",
+      "nodeCount": 0,
+      "edgeCount": 0
+    },
+    {
+      "id": "src_llm_ingest_m1_array_proxy_txt_20260521_143034",
+      "label": "\u2728 LLM Ingest: m1-array_proxy.txt",
+      "timestamp": "2026-05-21T14:30:34.764478",
+      "nodeCount": 0,
+      "edgeCount": 0
+    },
+    {
+      "id": "src_llm_ingest_m1_array_proxy_txt_20260521_143229",
+      "label": "\u2728 LLM Ingest: m1-array_proxy.txt",
+      "timestamp": "2026-05-21T14:32:29.544659",
+      "nodeCount": 0,
+      "edgeCount": 0
+    },
+    {
+      "id": "src_llm_ingest_m1_array_proxy_txt_20260521_143238",
+      "label": "\u2728 LLM Ingest: m1-array_proxy.txt",
+      "timestamp": "2026-05-21T14:32:38.812858",
+      "nodeCount": 0,
+      "edgeCount": 0
+    },
+    {
+      "id": "src_llm_ingest_m1_array_proxy_txt_20260521_143638",
+      "label": "\u2728 LLM Ingest: m1-array_proxy.txt",
+      "timestamp": "2026-05-21T14:36:38.062535",
+      "nodeCount": 0,
+      "edgeCount": 0
+    },
+    {
+      "id": "src_llm_ingest_m1_array_proxy_txt_20260521_150639",
+      "label": "\u2728 LLM Ingest: m1-array_proxy.txt",
+      "timestamp": "2026-05-21T15:06:39.431526",
+      "nodeCount": 0,
+      "edgeCount": 0
+>>>>>>> origin/prototype
     }
   ]
 }

@@ -1,0 +1,177 @@
+############################################################
+HPE ARCUS DEPLOYMENT / READINESS DATASET (RAG STRUCTURED)
+############################################################
+
+[MASTER INDEX]
+
+01. PROGRAM OVERVIEW
+    - Readiness Plan
+    - Use Case
+    - Config Type
+
+02. ARRAY INVENTORY
+    - Array Name
+    - Node Count
+    - FC Port Count
+    - Supported Protocols
+
+03. ARRAY HARDWARE
+    - Array HBAs
+    - Raider Head Information
+    - JBOF Information
+    - Internal/External Connectivity
+
+04. NETWORK TOPOLOGY
+    - FC Switches
+    - NVMeoFC Switches
+    - iSCSI Switches
+    - NVMeoTCP Switches
+    - Inter-switch Links
+
+05. HOST INVENTORY
+    - Host Names
+    - Rack Locations
+    - Management IPs
+    - OS Versions
+
+06. HOST CAPABILITIES
+    - FC Support
+    - NVMeoFC Support
+    - NVMeoTCP Support
+    - HBA Inventory
+
+07. CPU AND MEMORY
+    - CPU Models
+    - Core Counts
+    - Memory Configuration
+
+08. CABLE MAPPINGS
+    - Array-to-Switch
+    - Host-to-Switch
+    - Port-to-Port Links
+
+09. RACK PLACEMENT
+    - Array Locations
+    - Host Locations
+    - Switch Locations
+    - JBOF Locations
+
+10. DEPLOYMENT REMARKS
+    - Migration Notes
+    - Source Arrays
+    - Special Requirements
+
+11. OBJECT EXTRACTION TARGETS
+
+[ARRAY_OBJECT]
+ArrayName
+NodeCount
+FCPorts
+Protocols
+HBAs
+Switches
+Hosts
+RackLocation
+
+[HOST_OBJECT]
+HostName
+OS
+IPAddress
+FCSupport
+NVMeoFCSupport
+NVMeoTCPSupport
+CPU
+Memory
+
+[CABLING_OBJECT]
+SourceDevice
+SourcePort
+DestinationDevice
+DestinationPort
+Protocol
+
+############################################################
+ORIGINAL CONTENT (PRESERVED BELOW)
+############################################################
+
+,STAOE- 16C/32C Arcus HW Config - Arcus 10.5.60 Readiness Plan for STAOE UseCase,,,,,,,,,,,,,,,,,,,,,,,,,,
+,Array Name,No. of nodes,No. of FC ports,Config Type,Proposed Rack Location,FE Protocol Supports in Array/RC Array Pairs,No. of Raider/SeaEagle JBOF,Raider / SeaEagle JBOF  Rack Location,Array HBAs Installed,No. of Raider/SeaEagle JBOF,Raider / SeaEagle JBOF  Rack Location,"FC, NVMeoFC SWitches ",Array nodes iSCSI & NVMeoTCP Switches,No. of Hosts,Host Names,Current Hosts Rack Location,Host ILO/OS IP Address,Host Side FC Switches,Host Side iSCSI/NVMeoTCP switch,Host  OS Name,Does Host support FC? (16/32G/64),Does Host support NMVeoFC?,Does Host support NVMeoTCP?,Host CPU Details,Host Memory Details,Remarks,
+,Given vvol/VME,2,,,,FC,,,,,,Need 1 - HPE SN2700M switch (100GbE),SLS-12212,5-Fixed Hosts & 1 flexi host * (iSCSI/NVMeoTCP),c3-dl380g9-349,"
+2953 at U20-U21","10.157.186.148/
+10.157.186.147","SLS-43034
+c3-sn3600b-24 P23",,RHEL8.6,"PCI-E Slot 2 --> SN1600E(32G)
+PCI-E Slot 3 --> SN1100E(16G) ",Yes,PCI-E Slot 1 Eth 10/25Gb 2p 640SFP28 Adptr,"1CPU, 16Cores, 
+Intel(R) Xeon(R) CPU E5-2630 v3 @ 2.40GHz",,Host from s2110,
+,Raider Head - 2U,,,Switchless,CXO3-L2 2956,,,,"Marvel -
+HPE64004-M ",,,"
+c3-sn3600b-24
+SLS-43034","s4378:0:4:1 <--> c3-hp5945-02:P10
+s4378:0:4:3 <--> c3-hp5945-02:P12
+
+s4378:1:4:1 <--> c3-hp5950-03:P10
+s4378:1:4:3 <--> c3-hp5950-03:P12
+",,"c3-dl360g9-16 --> 
+Not pinging","CXO3_L2,3254","10.157.175.36/
+10.157.175.35",,,RHEL8.6,SN1100E*2,,,,64GB,From vVOL,
+,S4378,,,,,,,,"E810-Slot4
+ (iSCSI/NVMeoTCP/
+RCIP)",,,"s4378 0:1:1 --< --> c3-sn3600b-24 P3
+s4378 1:1:1 -<> c3-sn3600b-24 P4
+s4378 0:1:2 -<> c3-sn3600b-24 P5
+s4378 1:1:2 -<> c3-sn3600b-24 P6
+s4378 0:1:3 -<> c3-sn3600b-24 P7
+s4378 1:1:3 -<> c3-sn3600b-24 P8
+
+s4378 0:3:1 -<> c3-sn3600b-24 P9
+s4378 1:3:1 -<> c3-sn3600b-24 P10
+s4378 0:3:3 -<> c3-sn3600b-24 P11
+s4378 1:3:3 -<> c3-sn3600b-24 P12",,,"c3-dl360g10-84 
+(iSCSI/NVMeoTCP)","
+2954 at U25","10.157.164.129/
+10.157.164.128","SLS-43034
+c3-sn3600b-24 P21; P22","SLS-12476
+c3-dl360g10-84 0:2:1 <->  c3-hp5900-29 Port 8
+c3-dl360g10-84 0:2:2 <->  c3-hp5900-29 Port 9",RHEL8.6,1 * HPE SN1200E 16Gb 2p FC HBA --> Slot1,Yes,1 * HPE Eth 10/25Gb 2p 631SFP28 Adptr & Slot2,16 Cores - 2CPUs  (Xeon(R) Silver 4110 CPU @ 2.10GHz),"128GB
+(64GB + 64 GB)",Host from s2907,
+,Switch-Less Config,,,,,,,,3rd FC HBA in slot1-Broadcom-R5 Req,No JBOF,,,"SLS-31106
+s4378:0:4:2 <--> c3-hp5950-03:P35
+s4378:1:4:2 <--> c3-hp5950-03:P11",,c3-dl360g10-175,"CXO5_L2,U36,2459","10.157.182.92/
+10.157.182.93","c3-sn6000b-75  
+ LOC 2452",,RHEL8.6,SN1200E,,,,120G,From vVOL team,
+,,,,,,s4377 <--> s4378,,,FC slot3- Broadcom-R5,,,,"SLS-12671
+s4378:0:4:2 <--> c3-hp5950-03:P11
+s4378:0:4:4 <--> c3-hp5950-03:P13
+s4378:1:4:2 <--> c3-hp5945-02:P11
+s4378:1:4:4 <--> c3-hp5945-02:P13",,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,,,,
+,Arcus-4,2,,,,"FC, NVMeoFC; iSCSI/ NVMeoTCP",,,,,,,SLS-12212,5-Fixed Hosts & 1 flexi host (iSCSI/NVMeoTCP),c3-dl380g9-132,"CXO3_L2,U18-19,2959","10.157.181.105/
+10.157.181.106",c3-sn3600b-25 ,,RHEL8.6,HPE SN1200E 16Gb 2p FC HBA --> Slot1,,PCI-E Slot 2 HP Ethernet 10Gb 2-port 530SFP+ Adapter,"2CPUs, 32Cores,
+Intel(R) Xeon(R) CPU E5-2630 v3 @ 2.40GHz",64GB,Host from s2162,
+,Raider Head - 2U,,,Switchless,CXO3-L2 2956,,,,"E810-Slot4
+ (iSCSI/NVMeoTCP/
+RCIP)",,,       c3-sn3600b-25 ,"s4380:0:4:1 <--> c3-hp5945-02:P14
+s4380:0:4:3 <--> c3-hp5945-02:P16
+
+s4380:1:4:1 <--> c3-hp5950-03:P14
+s4380:1:4:3 <--> c3-hp5950-03:P16",,c3-dl380g9-114 ,"CXO3_L2,U20-21,2959","10.157.189.151/
+10.157.189.152",c3-sn3600b-25 ,,RHEL8.6,HPE SN1600E 32Gb 2p FC HBA * Slot1,,,,64GB,From vVOL,
+,S4380,Airtel,,,,,,,"Marvel -
+HPE64004-M ",No JBOF,,c3-sn6600b-10,,,c3-dl380g10-222,"CXO3_L2,u16-17,2959","10.157.164.50/
+10.157.164.49",c3-sn3600b-25 ,,RHEL8.6,2 * HPE SN1600E 32Gb 1p FC HBA - slot1 & slot2,Yes,,2 CPUs & 16 Cores/Xeon(R) Silver 4215 CPU @ 2.50GHz,"192GB 
+(96GB+96GB)",From s2907,
+,Switch-Less Config,,,,,,,,"s4380 0:3:1-> c3-sn6600b-10 P20
+s4380 1:3:1-> c3-brg620-07 P26",,,c3-brg620-07,SLS-12671,,"c3-dl360g10-131
+(ssmSSM99!)","CXO3_L2,u23,2951","10.157.163.123/
+10.157.163.122","3-dl360g10-131 s2p1 <--> c3-sn6600b-65 P22
+c3-dl360g10-131 s2p2 <--> c3-sn6600b-65 P21 - SLS-44680",,ESXi7.0.3,"1*SN1600E
+2*SN1200E",Yes,,"2CPUs, 32Cores, 
+Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz",64GB(32+32GB),Host from s1046 array,Moved from s4386 array on request for Farhana for airtel named config
+,,,,,,,,,,,,,"s4380:0:4:2 <--> c3-hp5950-03:P15
+s4380:1:4:2 <--> c3-hp5945-02:P15",,,,,,,,,,,,,,
+,,,,,,,,,SLS-5700,,,,"
+                 SLS-31106
+s4380:0:4:2 <--> c3-hp5950-03:P36 
+s4380:1:4:2 <--> c3-hp5950-03:P15 ",,"c3-dl380g10-492
+(iSCSI/NVMeoTCP)*",,,c3-sn3600b-25 ,"SLS-13306
+c3-dl380g10-492 1:1 <> c3-hp5950-03:P47
+c3-dl380g10-492 1:2 <> c3-hp5945-02:P35",RHEL9.0,HPE SN1610Q 32Gb 2p FC HBA-1,,,,,,
