@@ -39,7 +39,10 @@ class MongoStore:
         try:
             self.client = MongoClient(self.uri, serverSelectionTimeoutMS=2000)
             self.client.admin.command('ping')
-            self.db = self.client.get_database()
+            try:
+                self.db = self.client.get_database()
+            except Exception:
+                self.db = self.client.get_database("test")
             self._available = True
             log.info(f"[mongo] Connected to {self.uri}")
         except Exception as e:

@@ -2072,6 +2072,35 @@ def neo4j_graph():
         return jsonify({"error": str(ex), "nodes": [], "edges": []}), 500
 
 
+@app.route("/api/graph/mongo")
+def mongo_graph():
+    """Retrieve topology graph from MongoDB sandatas collection."""
+    # Trigger restart after pymongo installation
+    if not mongo.available:
+        return jsonify({"error": "MongoDB not available", "nodes": [], "edges": []}), 503
+    try:
+        db = mongo.db
+        doc = db.sandatas.find_one({})
+        if not doc:
+            return jsonify({"nodes": [], "edges": []})
+        
+        nodes = doc.get("nodes", [])
+        edges = doc.get("edges", [])
+        
+        # Ensure edges have both from/to and source/target properties for compatibility
+        for e in edges:
+            if "from" in e and "source" not in e:
+                e["source"] = e["from"]
+            if "to" in e and "target" not in e:
+                e["target"] = e["to"]
+                
+        return jsonify({"nodes": nodes, "edges": edges})
+    except Exception as ex:
+        log.exception("Failed to query mongo_graph")
+        return jsonify({"error": str(ex), "nodes": [], "edges": []}), 500
+
+
+
 # ── RAG chat, ingest, faker ───────────────────────────────────────────────────
 
 _cancelled_requests = set()

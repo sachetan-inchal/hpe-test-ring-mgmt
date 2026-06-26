@@ -75,6 +75,7 @@ export default function InventoryPage({ apiBase }) {
         let json = null
         if (selectedSource === 'all') {
           const localSources = [
+            `${apiBase}/api/graph/mongo`,
             `${apiBase}/api/graph/neo4j`,
             `${apiBase}/api/ontology/topology?source=all`,
             `${apiBase}/api/sim/mock-topology`,

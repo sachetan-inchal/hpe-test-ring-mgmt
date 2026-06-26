@@ -77,6 +77,7 @@ export default function TopologyPage({ apiBase }) {
         let json = null
         if (selectedSource === 'all') {
           const localSources = [
+            `${apiBase}/api/graph/mongo`,
             `${apiBase}/api/ontology/topology?source=all`,
             `${apiBase}/api/graph/neo4j`,
             `${apiBase}/api/sim/mock-topology`,
