@@ -19,7 +19,7 @@ export function AuthProvider({ children }) {
 
     window.fetch = (input, init = {}) => {
       const reqUrl = typeof input === 'string' ? input : (input?.url || '')
-      const isInternal = reqUrl.startsWith('/') || reqUrl.includes(window.location.host)
+      const isInternal = reqUrl.startsWith('/') || reqUrl.includes(window.location.host) || reqUrl.includes(window.location.hostname)
       const shouldAttach = isInternal && (reqUrl.includes('/api') || reqUrl.includes('/chatbot') || reqUrl === '' || reqUrl.startsWith('/'))
 
       if (!shouldAttach || !user) {

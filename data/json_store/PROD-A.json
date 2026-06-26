@@ -13,8 +13,8 @@
   "failed_cap_mib": 0,
   "config_type": "switchless",
   "protocols_supported": [
-    "NVMe",
-    "FC"
+    "FC",
+    "NVMe"
   ],
   "components": [
     {
