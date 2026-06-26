@@ -28,8 +28,32 @@ class MongoStore:
         # In-memory representations to build the single document
         self.nodes = {}
         self.edges = set()
+        self.current_run_node_ids = set()
         
         self._init_client()
+
+    def load_existing_state(self):
+        if not self._available:
+            return
+        try:
+            doc = self.db.sandatas.find_one({})
+            if doc:
+                self.nodes = {}
+                self.edges = set()
+                for n in doc.get("nodes", []):
+                    n_id = n.get("id")
+                    if n_id:
+                        self.nodes[n_id] = n
+                for e in doc.get("edges", []):
+                    f = e.get("from") or e.get("source")
+                    t = e.get("to") or e.get("target")
+                    lbl = e.get("label") or ""
+                    if f and t:
+                        self.edges.add((f, t, lbl))
+                log.info(f"[mongo] Loaded {len(self.nodes)} nodes and {len(self.edges)} edges from previous state.")
+            self.current_run_node_ids = set()
+        except Exception as e:
+            log.warning(f"[mongo] Failed to load previous state: {e}")
 
     def _init_client(self):
         if MongoClient is None:
@@ -105,6 +129,7 @@ class MongoStore:
             "protocolsSupported": p.get("protocols_supported", []),
             "ipAddress": ip
         }
+        self.current_run_node_ids.add(array_id)
 
         # 2. Nodes (Controllers)
         for n in p.get("nodes", []):
@@ -123,6 +148,7 @@ class MongoStore:
                 "upSince": str(n.get("up_since", ""))
             }
             self.edges.add((array_id, nid, "has_node"))
+            self.current_run_node_ids.add(nid)
 
         # 3. Ports
         for port in p.get("ports", []):
@@ -147,6 +173,7 @@ class MongoStore:
                 "label": port.get("label", "")
             }
             self.edges.add((array_id, port_id, "has_port"))
+            self.current_run_node_ids.add(port_id)
 
         # 4. Switches
         for s in p.get("switches", []):
@@ -169,6 +196,7 @@ class MongoStore:
                     "temperature": float(s.get("temp", s.get("temperature"))) if (s.get("temp") or s.get("temperature")) else None
                 }
                 self.edges.add((array_id, sid, "has_switch"))
+                self.current_run_node_ids.add(sid)
 
         # 5. Hosts
         for h in p.get("hosts", []):
@@ -188,6 +216,7 @@ class MongoStore:
                 "multipathStatus": "active"
             }
             self.edges.add((h_ip, array_id, "zoned"))
+            self.current_run_node_ids.add(h_ip)
 
         # 6. Cages
         for cage in p.get("cages", []):
@@ -205,6 +234,7 @@ class MongoStore:
                 "temperature": float(cage.get("temp", cage.get("temperature"))) if (cage.get("temp") or cage.get("temperature")) else None
             }
             self.edges.add((array_id, cid, "has_cage"))
+            self.current_run_node_ids.add(cid)
 
         # 7. Drives
         for d in p.get("drives", []):
@@ -229,6 +259,7 @@ class MongoStore:
                 "capacity": f"{d.get('capacity_gb', round(d.get('total_mib', 0)/1024.0, 2))} GB"
             }
             self.edges.add((cid, serial, "has_disk"))
+            self.current_run_node_ids.add(serial)
 
         # 8. Cage Slots (PCI and SFPs diagnostics)
         for slot in p.get("cage_slots", []):
@@ -254,6 +285,7 @@ class MongoStore:
                 "rxLoss": slot.get("rx_loss", "")
             }
             self.edges.add((cage_node_id, slot_id, "has_slot"))
+            self.current_run_node_ids.add(slot_id)
 
         # Remote peers
         for peer_ip in p.get("connected_array_ips", []):
@@ -271,6 +303,7 @@ class MongoStore:
             "osType": p.get("os_name", ""),
             "ipAddress": ip
         }
+        self.current_run_node_ids.add(h_id)
 
         for disk in p.get("disks", []):
             serial = disk.get("serial") or f"{ip}_{disk.get('device', disk.get('device_id', '0'))}"
@@ -284,6 +317,46 @@ class MongoStore:
                 "diskModel": disk.get("model", "")
             }
             self.edges.add((h_id, serial, "has_disk"))
+            self.current_run_node_ids.add(serial)
+
+    def prune_and_sync_final_state(self):
+        if not self._available:
+            return
+        try:
+            nodes_to_delete = []
+            for n_id, n in list(self.nodes.items()):
+                # Only touch nodes that belong to dynamically crawled SAN
+                is_dynamic = "." in n_id or "_" in n_id or "pd" in n_id
+                if not is_dynamic:
+                    continue
+
+                if n_id in self.current_run_node_ids:
+                    if n.get("status") == "offline":
+                        n["status"] = "normal"
+                    continue
+
+                parentId = n.get("parentId")
+                if not parentId:
+                    n["status"] = "offline"
+                else:
+                    if parentId in self.current_run_node_ids:
+                        nodes_to_delete.append(n_id)
+                    else:
+                        n["status"] = "offline"
+
+            for n_id in nodes_to_delete:
+                self.nodes.pop(n_id, None)
+
+            edges_to_keep = set()
+            for edge in self.edges:
+                if edge[0] in self.nodes and edge[1] in self.nodes:
+                    edges_to_keep.add(edge)
+            self.edges = edges_to_keep
+
+            self._sync_to_db()
+            log.info(f"[mongo] Delta crawler final sync completed: {len(self.nodes)} nodes, {len(self.edges)} edges.")
+        except Exception as e:
+            log.error(f"[mongo] Delta sync failed: {e}")
 
     def _sync_to_db(self):
         try:

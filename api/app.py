@@ -420,31 +420,60 @@ def _filter_graph_payload(payload, actor):
             if not node_id:
                 return False
             
-            root_ancestor_id = get_root_ancestor(node_id)
-            if root_ancestor_id.upper() in allowed_names_or_serials:
+            if role == _ROLE_ADMIN:
                 return True
                 
-            # Get the root ancestor node to check its name/serial properties
-            root_node = None
-            for n in nodes:
-                n_data = _extract_node_data(n)
-                if n_data.get("id") == root_ancestor_id:
-                    root_node = n_data
-                    break
+            # If node has explicit team property, check it first
+            node_team = (node_data.get("team") or node_data.get("owner_team") or "").strip().lower()
+            node_cluster = (node_data.get("cluster") or "").strip().lower()
             
-            if not root_node:
-                for n in topo_data.get("nodes", []):
-                    if n.get("id") == root_ancestor_id:
-                        root_node = n
-                        break
+            user_team_clean = actor["team"].strip().lower()
+            user_cluster_clean = actor["cluster"].strip().lower()
             
-            if root_node:
-                r_id = str(root_node.get("id") or "").upper()
-                r_name = str(root_node.get("name") or "").upper()
-                r_serial = str(root_node.get("serialNumber") or root_node.get("serial") or "").upper()
-                if r_id in allowed_names_or_serials or r_name in allowed_names_or_serials or r_serial in allowed_names_or_serials:
+            if role == _ROLE_TEAM_MEMBER:
+                if node_team and node_team == user_team_clean:
                     return True
-                    
+                
+                # Check derived cluster scope
+                root_ancestor_id = get_root_ancestor(node_id)
+                user_team_cluster = team_to_cluster.get(user_team_clean)
+                if user_team_cluster:
+                    allowed_devs = cluster_to_devices.get(user_team_cluster, set())
+                    if root_ancestor_id.upper() in allowed_devs:
+                        return True
+                return False
+                
+            elif role == _ROLE_MANAGER:
+                if node_cluster and node_cluster == user_cluster_clean:
+                    return True
+                if node_team:
+                    resolved_node_cluster = team_to_cluster.get(node_team)
+                    if resolved_node_cluster and resolved_node_cluster == user_cluster_clean:
+                        return True
+                        
+                # Check derived cluster scope
+                root_ancestor_id = get_root_ancestor(node_id)
+                allowed_devs = cluster_to_devices.get(user_cluster_clean, set())
+                if root_ancestor_id.upper() in allowed_devs:
+                    return True
+                return False
+                
+            elif role == _ROLE_SENIOR_MANAGER:
+                allowed_clusters_sm = {c.strip().lower() for c in actor["managed_clusters"]}
+                if user_cluster_clean:
+                    allowed_clusters_sm.add(user_cluster_clean)
+                if node_cluster and node_cluster in allowed_clusters_sm:
+                    return True
+                if node_team:
+                    resolved_node_cluster = team_to_cluster.get(node_team)
+                    if resolved_node_cluster and resolved_node_cluster in allowed_clusters_sm:
+                        return True
+                root_ancestor_id = get_root_ancestor(node_id)
+                for c_id in allowed_clusters_sm:
+                    if root_ancestor_id.upper() in cluster_to_devices.get(c_id, set()):
+                        return True
+                return False
+                
             return False
 
         can_view_fn = custom_can_view
@@ -896,7 +925,7 @@ def get_ssh_credentials_status(ip):
     """Check if credentials exist for a target IP without leaking plaintext passwords."""
     try:
         if mongo.available:
-            db = mongo._client.hpe_san
+            db = mongo.db
             cred = db.ssh_credentials.find_one({"ip": ip})
             if cred:
                 return jsonify({"ip": ip, "has_credentials": True, "username": cred.get("username")})

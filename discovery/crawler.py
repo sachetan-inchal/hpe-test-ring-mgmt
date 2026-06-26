@@ -152,6 +152,9 @@ class DiscoveryCrawler:
             self.delay_ms = delay_ms
             self.custom_commands = commands
 
+        if self.mongo and self.mongo.available:
+            self.mongo.load_existing_state()
+
         self._emit({"type": "start", "msg": f"Discovery started. Seeds: {seed_ips}"})
 
         while self.queue:
@@ -170,6 +173,8 @@ class DiscoveryCrawler:
             self.running = False
 
         if was_running:
+            if self.mongo and self.mongo.available:
+                self.mongo.prune_and_sync_final_state()
             self._emit({"type": "complete", "msg": f"Discovery complete. Visited {len(self.visited)} devices."})
 
     def _discover_device(self, ip: str):
