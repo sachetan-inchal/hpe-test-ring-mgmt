@@ -13,15 +13,9 @@
   "failed_cap_mib": 0,
   "config_type": "switched",
   "protocols_supported": [
-<<<<<<< HEAD
-    "IP",
-    "FC",
-    "NVMe"
-=======
     "NVMe",
-    "FC",
-    "IP"
->>>>>>> main
+    "IP",
+    "FC"
   ],
   "components": [
     {

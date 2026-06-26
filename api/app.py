@@ -403,13 +403,49 @@ def _filter_graph_payload(payload, actor):
             if devs:
                 allowed_device_ids.update(devs)
 
+        # Build a lookup of allowed device names, serials, and IDs from database.json:
+        allowed_names_or_serials = set()
+        for d_id in allowed_device_ids:
+            allowed_names_or_serials.add(d_id.upper())
+            for n in topo_data.get("nodes", []):
+                if n.get("id") and n.get("id").upper() == d_id.upper():
+                    if n.get("name"):
+                        allowed_names_or_serials.add(n.get("name").upper())
+                    if n.get("serialNumber"):
+                        allowed_names_or_serials.add(n.get("serialNumber").upper())
+
         # 6. View function to check if node_data is allowed
         def custom_can_view(node_data):
             node_id = node_data.get("id")
             if not node_id:
                 return False
-            root_ancestor = get_root_ancestor(node_id)
-            return root_ancestor in allowed_device_ids
+            
+            root_ancestor_id = get_root_ancestor(node_id)
+            if root_ancestor_id.upper() in allowed_names_or_serials:
+                return True
+                
+            # Get the root ancestor node to check its name/serial properties
+            root_node = None
+            for n in nodes:
+                n_data = _extract_node_data(n)
+                if n_data.get("id") == root_ancestor_id:
+                    root_node = n_data
+                    break
+            
+            if not root_node:
+                for n in topo_data.get("nodes", []):
+                    if n.get("id") == root_ancestor_id:
+                        root_node = n
+                        break
+            
+            if root_node:
+                r_id = str(root_node.get("id") or "").upper()
+                r_name = str(root_node.get("name") or "").upper()
+                r_serial = str(root_node.get("serialNumber") or root_node.get("serial") or "").upper()
+                if r_id in allowed_names_or_serials or r_name in allowed_names_or_serials or r_serial in allowed_names_or_serials:
+                    return True
+                    
+            return False
 
         can_view_fn = custom_can_view
     else:
@@ -1167,7 +1203,6 @@ def v1_openapi():
 
 # ── API Aliases for Dashboard ──────────────────────────────────────────────────
 
-@app.route("/api/ontology/topology")
 @app.route("/api/graph/neo4j")
 def legacy_graph_alias():
     # Force a re-check if it's currently unavailable

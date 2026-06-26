@@ -343,6 +343,20 @@
       "switchType": "FC"
     },
     {
+      "id": "SW-03",
+      "name": "Eth-Switch-Mgmt",
+      "type": "Switch",
+      "status": "degraded",
+      "category": "main",
+      "parentId": null,
+      "isDecommissioned": true,
+      "model": "Aruba CX 6300",
+      "serialNumber": "ARU9901",
+      "firmware": "10.09.1020",
+      "temperature": 38,
+      "switchType": "Ethernet"
+    },
+    {
       "id": "SW01-SP1",
       "name": "sw1/port-0",
       "type": "SwitchPort",
@@ -2220,46 +2234,6 @@
       "edgeCount": 0
     },
     {
-<<<<<<< HEAD
-      "from": "ARR-01",
-      "to": "SW-ETH-01",
-      "label": "iSCSI 10G"
-    },
-    {
-      "from": "SW-ETH-01",
-      "to": "HOST-01",
-      "label": "iSCSI 10G"
-    },
-    {
-      "from": "ARR-04",
-      "to": "SW-SAS-01",
-      "label": "SAS 12G"
-    },
-    {
-      "from": "SW-SAS-01",
-      "to": "HOST-04",
-      "label": "SAS 12G"
-    },
-    {
-      "from": "ARR-02",
-      "to": "SW-IB-01",
-      "label": "IB HDR"
-    },
-    {
-      "from": "SW-IB-01",
-      "to": "HOST-02",
-      "label": "IB HDR"
-    },
-    {
-      "from": "ARR-03",
-      "to": "SW-FCOE-01",
-      "label": "FCoE 10G"
-    },
-    {
-      "from": "SW-FCOE-01",
-      "to": "HOST-03",
-      "label": "FCoE 10G"
-=======
       "id": "src_llm_ingest_m1_array_proxy_txt_20260521_142922",
       "label": "\u2728 LLM Ingest: m1-array_proxy.txt",
       "timestamp": "2026-05-21T14:29:22.662029",
@@ -2300,7 +2274,6 @@
       "timestamp": "2026-05-21T15:06:39.431526",
       "nodeCount": 0,
       "edgeCount": 0
->>>>>>> origin/prototype
     }
   ]
 }
