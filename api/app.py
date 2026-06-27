@@ -43,6 +43,9 @@ from integrations.neo4j_runner import run_cypher as neo4j_run_cypher
 from integrations.ontology_engine import OntologyLLMEngine, populate_graph
 from integrations.rag_engine import RAGEngine
 from integrations.san_agent import SanAgent
+from integrations.san_autonomous_agent import SANAutonomousAgent
+
+
 from integrations.spreadsheet_pipeline import SpreadsheetPipeline
 from integrations.topology_db import TopologyDB
 

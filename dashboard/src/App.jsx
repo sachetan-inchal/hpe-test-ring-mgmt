@@ -11,6 +11,7 @@ import AdminPage from './pages/AdminPage'
 import HealthPage from './pages/HealthPage'
 import InventoryPage from './pages/InventoryPage'
 import SSHRingPage from './pages/SSHRingPage'
+import SANAutonomousAgentPage from './pages/SANAutonomousAgentPage'
 import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check } from 'lucide-react'
 
 const FLASK_API = window.location.port === '3000' ? '' : `http://${window.location.hostname}:5005`
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { path: '/emulator', label: 'Emulator', icon: Terminal, desc: 'CLI terminal' },
   { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
   { path: '/chat', label: 'AI Assistant', icon: MessageSquare, desc: 'Intelligent chat' },
+  { path: '/autonomous-agent', label: 'Autonomous Agent', icon: Activity, desc: 'SAN LangGraph tool clockwork' },
   { path: '/admin', label: 'Admin', icon: Settings, desc: 'Device & schema mgmt' },
 ]
 
@@ -509,6 +511,7 @@ export default function App() {
                   <Route path="/ssh-ring" element={<SSHRingPage apiBase={FLASK_API} />} />
                   <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} />} />
                   <Route path="/chat" element={<ChatPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
+                  <Route path="/autonomous-agent" element={<SANAutonomousAgentPage apiBase={FLASK_API} />} />
                   <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} /> : <Navigate to="/discovery" replace />} />
                   <Route path="/health" element={<HealthPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="*" element={<Navigate to="/discovery" replace />} />
