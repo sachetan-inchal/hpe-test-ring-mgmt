@@ -215,10 +215,11 @@ Component          Version
 Architecture:        x86_64
 CPU op-mode(s):      32-bit, 64-bit
 Byte Order:          Little Endian
-CPU(s):              32
+CPU(s):              24
 Thread(s) per core:  2
-Core(s) per socket:  8
+Core(s) per socket:  6
 Socket(s):           2
+Model name:          AMD EPYC 7542 32-Core Processor
 Model name:          AMD EPYC 7542 32-Core Processor
 CPU MHz:             2100.000
 L1d cache:           32K

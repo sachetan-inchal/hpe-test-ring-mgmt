@@ -61,17 +61,17 @@
       "label": "P011   25G"
     },
     {
-      "port_id": "0:1:3",
+      "port_id": "0:1:4",
       "node": 0,
       "slot": 1,
-      "port_num": 3,
+      "port_num": 4,
       "mode": "target",
       "state": "ready",
       "node_wwn_ip": "5C:3C:CF:ED:C6:58:EE:C3",
       "port_wwn_hw": "C0:B2:38:82:47:79",
       "type": "host",
-      "protocol": "NVMe",
-      "label": "P013   25G"
+      "protocol": "FC",
+      "label": "P014   32G"
     },
     {
       "port_id": "0:2:1",
@@ -92,12 +92,25 @@
       "slot": 2,
       "port_num": 3,
       "mode": "target",
+      "state": "loss_sync",
+      "node_wwn_ip": "F3:A1:F4:DA:19:A6:99:34",
+      "port_wwn_hw": "F1:54:03:F2:E2:62:92:1A",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P023   32G"
+    },
+    {
+      "port_id": "0:2:4",
+      "node": 0,
+      "slot": 2,
+      "port_num": 4,
+      "mode": "target",
       "state": "ready",
       "node_wwn_ip": "AD:F1:53:4B:9D:F8:9D:01",
       "port_wwn_hw": "C4:93:EE:67:9B:F4",
       "type": "host",
       "protocol": "NVMe",
-      "label": "P023   25G"
+      "label": "P024   25G"
     },
     {
       "port_id": "0:2:4",
@@ -161,8 +174,8 @@
       "node_wwn_ip": "49:31:A1:A8:5C:8A:1B:E8",
       "port_wwn_hw": "88:83:39:28:BF:FD:0A:97",
       "type": "host",
-      "protocol": "FC",
-      "label": "P111   32G"
+      "protocol": "NVMe",
+      "label": "P112   25G"
     },
     {
       "port_id": "1:1:2",
@@ -191,7 +204,7 @@
       "label": "P114   32G"
     },
     {
-      "port_id": "1:2:1",
+      "port_id": "1:1:4",
       "node": 1,
       "slot": 2,
       "port_num": 1,
@@ -217,7 +230,7 @@
       "label": "P122   32G"
     },
     {
-      "port_id": "1:2:3",
+      "port_id": "1:2:1",
       "node": 1,
       "slot": 2,
       "port_num": 3,
@@ -241,12 +254,40 @@
       "type": "host",
       "protocol": "NVMe",
       "label": "P131   25G"
+      "protocol": "NVMe",
+      "label": "P131   25G"
     },
     {
       "port_id": "1:3:2",
       "node": 1,
       "slot": 3,
       "port_num": 2,
+      "mode": "target",
+      "state": "loss_sync",
+      "node_wwn_ip": "BE:D4:28:94:5A:30:78:A8",
+      "port_wwn_hw": "23:02:6E:B0:B6:B7:31:96",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P132   32G"
+    },
+    {
+      "port_id": "1:3:3",
+      "node": 1,
+      "slot": 3,
+      "port_num": 3,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "B6:40:DB:AF:69:F6:68:CF",
+      "port_wwn_hw": "C2:51:F3:25:6B:49",
+      "type": "host",
+      "protocol": "NVMe",
+      "label": "P133   25G"
+    },
+    {
+      "port_id": "1:3:4",
+      "node": 1,
+      "slot": 3,
+      "port_num": 4,
       "mode": "target",
       "state": "ready",
       "node_wwn_ip": "E4:B3:21:75:40:CB:31:0A",
@@ -291,7 +332,7 @@
       "cage_pos": "0:0",
       "cage_id": 0,
       "slot": 0,
-      "type": "NVMe",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
@@ -351,7 +392,7 @@
       "cage_pos": "0:3",
       "cage_id": 0,
       "slot": 3,
-      "type": "SSD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
@@ -371,7 +412,7 @@
       "cage_pos": "0:4",
       "cage_id": 0,
       "slot": 4,
-      "type": "NVMe",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
@@ -411,7 +452,7 @@
       "cage_pos": "0:6",
       "cage_id": 0,
       "slot": 6,
-      "type": "SSD",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
@@ -452,6 +493,7 @@
       "cage_id": 0,
       "slot": 8,
       "type": "NVMe",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
@@ -471,7 +513,7 @@
       "cage_pos": "0:9",
       "cage_id": 0,
       "slot": 9,
-      "type": "HDD",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 16384000,
@@ -483,7 +525,7 @@
       "serial": "DRV43538914",
       "fw_rev": "SN04",
       "protocol": "SAS",
-      "disk_type": "HDD",
+      "disk_type": "SSD",
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -491,6 +533,7 @@
       "cage_pos": "0:10",
       "cage_id": 0,
       "slot": 10,
+      "type": "NVMe",
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
@@ -531,7 +574,7 @@
       "cage_pos": "0:12",
       "cage_id": 0,
       "slot": 12,
-      "type": "SSD",
+      "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 1966080,
@@ -543,7 +586,7 @@
       "serial": "DRV63875680",
       "fw_rev": "MSB4",
       "protocol": "SAS",
-      "disk_type": "SSD",
+      "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
     },
     {
@@ -571,6 +614,7 @@
       "cage_pos": "0:14",
       "cage_id": 0,
       "slot": 14,
+      "type": "HDD",
       "type": "HDD",
       "rpm": "N/A",
       "state": "normal",
@@ -652,6 +696,7 @@
       "cage_id": 0,
       "slot": 18,
       "type": "NVMe",
+      "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
@@ -711,7 +756,7 @@
       "cage_pos": "0:21",
       "cage_id": 0,
       "slot": 21,
-      "type": "NVMe",
+      "type": "SSD",
       "rpm": "N/A",
       "state": "normal",
       "total_mib": 3932160,
@@ -751,6 +796,7 @@
       "cage_pos": "0:23",
       "cage_id": 0,
       "slot": 23,
+      "type": "NVMe",
       "type": "NVMe",
       "rpm": "N/A",
       "state": "normal",

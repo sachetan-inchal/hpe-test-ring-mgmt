@@ -2,6 +2,7 @@ import { useState, useContext, useEffect, useRef, useCallback } from 'react'
 import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom'
 import { AuthContext } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
+import LandingPage from './pages/LandingPage'
 import DiscoveryPage from './pages/DiscoveryPage'
 import TopologyPage from './pages/TopologyPage'
 import EmulatorPage from './pages/EmulatorPage'
@@ -414,6 +415,11 @@ export default function App() {
   const isAdmin = (user?.role || '').toLowerCase() === 'admin'
   const visibleNavItems = NAV_ITEMS.filter(item => item.path !== '/admin' || isAdmin)
 
+  // Landing page — no shell
+  if (location.pathname === '/') {
+    return <Routes><Route path="/" element={<LandingPage />} /></Routes>
+  }
+
   // Login page — no shell
   if (location.pathname === '/login') {
     return <Routes><Route path="/login" element={<LoginPage />} /></Routes>
@@ -421,6 +427,7 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/*" element={
         <ProtectedRoute>

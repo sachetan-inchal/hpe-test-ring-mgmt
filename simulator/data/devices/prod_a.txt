@@ -694,7 +694,7 @@ CPU(s):              24
 Thread(s) per core:  2
 Core(s) per socket:  6
 Socket(s):           2
-Model name:          Intel(R) Xeon(R) Gold 6230R CPU @ 2.10GHz
+Model name:          AMD EPYC 7542 32-Core Processor
 CPU MHz:             2100.000
 L1d cache:           32K
 L1i cache:           32K
