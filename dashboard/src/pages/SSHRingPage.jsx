@@ -62,6 +62,8 @@ export default function SSHRingPage({ apiBase }) {
   const [runStatus, setRunStatus] = useState({ text: '', type: '' })
   const [cmdOutput, setCmdOutput] = useState('(No output yet)')
   const [isExecuting, setIsExecuting] = useState(false)
+  const [isDiscovering, setIsDiscovering] = useState(false)
+  const [discoveryResults, setDiscoveryResults] = useState(null)
 
   // Auto-select all preset commands when target device category changes
   useEffect(() => {
@@ -257,6 +259,72 @@ export default function SSHRingPage({ apiBase }) {
       .join('; ')
     setCommand(composite)
     handleRun(null, composite)
+  }
+
+  // Sequentially discover diagnostic outputs from all server devices
+  const handleDiscoverAll = async () => {
+    if (devices.length === 0) return
+    setIsDiscovering(true)
+    const initialResults = devices.map(d => ({
+      device_name: d.device_name,
+      ip: d.ip_address || d.dns_name,
+      category: d.category || 'Host',
+      status: 'pending',
+      commands: {}
+    }))
+    setDiscoveryResults(initialResults)
+
+    for (let i = 0; i < devices.length; i++) {
+      const d = devices[i]
+      
+      // Update state to running
+      setDiscoveryResults(prev => prev.map((item, idx) => 
+        idx === i ? { ...item, status: 'running' } : item
+      ))
+
+      const devicePresets = PRESET_COMMANDS[d.category || 'Host'] || []
+
+      try {
+        const res = await fetch(`${API}/api/ssh/exec`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ip: d.ip_address || '',
+            username: d.username,
+            password: d.password,
+            port: parseInt(d.port || '22', 10),
+            commands: devicePresets,
+            dns_name: d.dns_name || '',
+            dns_server: d.dns_server || ''
+          }),
+        })
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}))
+          throw new Error(errData.error || errData.message || `HTTP ${res.status}`)
+        }
+
+        const data = await res.json()
+        const cmdResults = data.results || {}
+        
+        let deviceStatus = 'success'
+        for (const cmd of devicePresets) {
+          const resObj = cmdResults[cmd] || {}
+          if (resObj.stderr && resObj.stderr.trim()) {
+            deviceStatus = 'warning'
+          }
+        }
+
+        setDiscoveryResults(prev => prev.map((item, idx) => 
+          idx === i ? { ...item, status: deviceStatus, commands: cmdResults } : item
+        ))
+      } catch (err) {
+        setDiscoveryResults(prev => prev.map((item, idx) => 
+          idx === i ? { ...item, status: 'error', error: err.message } : item
+        ))
+      }
+    }
+    setIsDiscovering(false)
   }
 
   return (
@@ -781,9 +849,28 @@ export default function SSHRingPage({ apiBase }) {
 
       {/* Saved Devices Table */}
       <div className="glass-card" style={{ padding: 20 }}>
-        <h2 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 700, borderBottom: '1px solid rgba(1, 169, 130, 0.2)', paddingBottom: 8 }}>
-          Devices from Server
-        </h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 12px', borderBottom: '1px solid rgba(1, 169, 130, 0.2)', paddingBottom: 8 }}>
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>
+            Devices from Server
+          </h2>
+          <button
+            onClick={handleDiscoverAll}
+            disabled={isDiscovering || devices.length === 0}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: '1px solid var(--hpe-green)',
+              background: 'rgba(1, 169, 130, 0.15)',
+              color: 'var(--hpe-green)',
+              fontWeight: 700,
+              cursor: isDiscovering || devices.length === 0 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+              fontSize: '12px'
+            }}
+          >
+            {isDiscovering ? 'Discovering...' : 'Discover All'}
+          </button>
+        </div>
         
         {loadingDevices ? (
           <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '10px 0' }}>Loading device index...</div>
@@ -879,6 +966,165 @@ export default function SSHRingPage({ apiBase }) {
           </div>
         )}
       </div>
+
+      {/* Discovery Results Console */}
+      {discoveryResults && (
+        <div className="glass-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <style>{`
+            @keyframes ssh-ring-spin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(1, 169, 130, 0.2)', paddingBottom: 8 }}>
+            <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--hpe-green)' }}>
+              Discovery Results Console
+            </h2>
+            <button
+              onClick={() => setDiscoveryResults(null)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 600
+              }}
+            >
+              Clear Results
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {discoveryResults.map((res, index) => {
+              const statusColor = 
+                res.status === 'success' ? '#00c8ff' : 
+                res.status === 'warning' ? '#ffaa00' : 
+                res.status === 'error' ? '#ff6b6b' : 
+                res.status === 'running' ? 'var(--hpe-green)' : 'var(--muted)';
+              
+              return (
+                <div key={index} style={{
+                  border: `1px solid rgba(255, 255, 255, 0.08)`,
+                  borderRadius: 10,
+                  background: 'rgba(0, 0, 0, 0.2)',
+                  overflow: 'hidden'
+                }}>
+                  {/* Header */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontWeight: 700, fontSize: '14px' }}>{res.device_name}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>({res.ip || 'DNS Resolve'})</span>
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        color: 'var(--muted)',
+                        fontWeight: 600
+                      }}>{res.category}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: statusColor
+                      }}>
+                        {res.status.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Body Content */}
+                  <div style={{ padding: 14 }}>
+                    {res.status === 'pending' && <div style={{ color: 'var(--muted)', fontSize: '12px' }}>Waiting to connect...</div>}
+                    {res.status === 'running' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--hpe-green)', fontSize: '12px', fontWeight: 600 }}>
+                        <svg style={{
+                          animation: 'ssh-ring-spin 1s linear infinite',
+                          width: '14px',
+                          height: '14px',
+                          color: 'var(--hpe-green)'
+                        }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Executing preset commands sequentially...
+                      </div>
+                    )}
+                    {res.status === 'error' && (
+                      <div style={{ color: '#ff6b6b', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>
+                        Connection Error: {res.error}
+                      </div>
+                    )}
+
+                    {(res.status === 'success' || res.status === 'warning') && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {Object.entries(res.commands || {}).map(([cmd, outcome]) => {
+                          const hasErr = outcome.stderr && outcome.stderr.trim();
+                          return (
+                            <div key={cmd} style={{
+                              borderRadius: 6,
+                              background: 'rgba(0, 0, 0, 0.3)',
+                              border: `1px solid ${hasErr ? 'rgba(255, 107, 107, 0.2)' : 'rgba(1, 169, 130, 0.2)'}`
+                            }}>
+                              <div style={{
+                                padding: '8px 12px',
+                                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                              }}>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--hpe-green)', fontWeight: 600 }}>$ {cmd}</span>
+                                <span style={{
+                                  fontSize: '11px',
+                                  color: hasErr ? '#ff6b6b' : '#00c8ff',
+                                  fontWeight: 'bold'
+                                }}>
+                                  {hasErr ? 'ERROR' : 'OK'}
+                                </span>
+                              </div>
+                              <div style={{ padding: 12, maxHeight: 180, overflowY: 'auto' }}>
+                                {outcome.stdout && (
+                                  <pre style={{
+                                    margin: 0,
+                                    color: '#e2e8f0',
+                                    fontSize: '12px',
+                                    fontFamily: 'var(--font-mono)',
+                                    lineHeight: 1.4,
+                                    whiteSpace: 'pre-wrap'
+                                  }}>{outcome.stdout}</pre>
+                                )}
+                                {hasErr && (
+                                  <pre style={{
+                                    margin: outcome.stdout ? '8px 0 0 0' : 0,
+                                    color: '#ff6b6b',
+                                    fontSize: '12px',
+                                    fontFamily: 'var(--font-mono)',
+                                    lineHeight: 1.4,
+                                    whiteSpace: 'pre-wrap'
+                                  }}>{outcome.stderr}</pre>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

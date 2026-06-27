@@ -1,0 +1,1182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mini SSH Ring - Discover All</title>
+    <style>
+      :root{
+        --bg: #0b1220;
+        --card: rgba(255,255,255,0.06);
+        --card2: rgba(255,255,255,0.04);
+        --muted: rgba(220,235,255,0.7);
+        --fg: rgba(240,248,255,0.95);
+        --green: #01a982;
+        --red: #ff6b6b;
+        --blue: #00c8ff;
+        --yellow: #ffaa00;
+        --border: rgba(1, 169, 130, 0.25);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+      body{
+        margin:0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+        background: radial-gradient(1200px 600px at 20% -10%, rgba(1,169,130,0.35), transparent 55%),
+                    radial-gradient(900px 400px at 70% 10%, rgba(0,200,255,0.25), transparent 60%),
+                    var(--bg);
+        color: var(--fg);
+      }
+      .wrap{ max-width: 1200px; margin: 0 auto; padding: 18px; }
+      h1{ margin: 6px 0 0; font-size: 22px; letter-spacing: .2px; }
+      .sub{ margin: 6px 0 16px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+
+      .grid{ display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; }
+      .card{
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      }
+      label{ display:block; color: var(--muted); font-size: 12px; margin: 0 0 4px; }
+      input, select, button, textarea{
+        width:100%;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(0,0,0,0.18);
+        color: var(--fg);
+        padding: 10px 12px;
+        outline: none;
+      }
+      button{
+        width: auto;
+        cursor: pointer;
+        font-weight: 700;
+        border: 1px solid var(--border);
+        background: rgba(1,169,130,0.14);
+        color: var(--green);
+      }
+      button:disabled{ cursor:not-allowed; opacity: .6; }
+      .row{ display:flex; gap: 10px; }
+      .row > *{ flex:1; }
+      .btnrow{ display:flex; gap: 10px; align-items:center; justify-content: flex-end; }
+      .statusOk{ color: var(--green); font-size: 13px; margin-top: 8px; }
+      .statusErr{ color: var(--red); font-size: 13px; margin-top: 8px; }
+
+      table{ width:100%; border-collapse: collapse; }
+      th{ text-align:left; color: var(--muted); font-size: 12px; padding: 8px 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+      td{ padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+
+      pre{
+        margin:0;
+        padding: 12px;
+        max-height: 260px;
+        overflow: auto;
+        background: rgba(0,0,0,0.35);
+        border: 1px solid rgba(1,169,130,0.25);
+        border-radius: 10px;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.45;
+        color: rgba(230,244,255,0.93);
+        white-space: pre-wrap;
+      }
+
+      /* ── Collapsible dropdowns ── */
+      .dev{ border:1px solid rgba(255,255,255,0.08); background:rgba(0,0,0,0.20); border-radius:12px; overflow:hidden; }
+      .devHdr{
+        display:flex; justify-content:space-between; align-items:center;
+        padding:12px 14px;
+        background:rgba(255,255,255,0.02);
+        cursor:pointer;
+        user-select:none;
+        transition: background 0.15s;
+      }
+      .devHdr:hover{ background:rgba(255,255,255,0.05); }
+      .devHdrLeft{ display:flex; align-items:center; gap:10px; }
+      .devHdrRight{ display:flex; align-items:center; gap:10px; }
+      .chevron{
+        font-size:12px; width:18px; height:18px;
+        display:flex; align-items:center; justify-content:center;
+        border-radius:6px;
+        background:rgba(255,255,255,0.06);
+        color:var(--muted);
+        transition: transform 0.2s ease;
+        flex-shrink:0;
+      }
+      .devBody{
+        padding:12px 14px;
+        border-top:1px solid rgba(255,255,255,0.05);
+        overflow:hidden;
+        max-height:0;
+        padding-top:0; padding-bottom:0;
+        transition: max-height 0.25s ease, padding 0.2s ease;
+      }
+      .devBody.open{ max-height:9999px; padding:12px 14px; }
+
+      .cmd{ border:1px solid rgba(255,255,255,0.08); border-radius:10px; overflow:hidden; margin-bottom:10px; background:rgba(255,255,255,0.02); }
+      .cmdHdr{
+        display:flex; justify-content:space-between; align-items:center;
+        padding:8px 10px;
+        cursor:pointer;
+        user-select:none;
+        transition: background 0.15s;
+      }
+      .cmdHdr:hover{ background:rgba(255,255,255,0.04); }
+      .cmdHdrLeft{ display:flex; align-items:center; gap:8px; }
+      .cmdHdr b{ font-family:var(--mono); font-size:12px; color:var(--blue); }
+      .cmdOut{
+        padding:0 10px;
+        max-height:0;
+        overflow:hidden;
+        transition: max-height 0.2s ease, padding 0.15s ease;
+        border-top:0px solid rgba(255,255,255,0.04);
+      }
+      .cmdOut.open{ max-height:800px; padding:10px; border-top:1px solid rgba(255,255,255,0.04); }
+      .tagOk{ color:var(--blue); font-weight:800; font-size:11px; }
+      .tagWarn{ color:var(--yellow); font-weight:800; font-size:11px; }
+      .tagErr{ color:var(--red); font-weight:800; font-size:11px; }
+
+      .presetGrid{
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 8px;
+        padding: 10px;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px;
+        background: rgba(0,0,0,0.15);
+        max-height: 200px;
+        overflow: auto;
+      }
+      .presetItem{
+        display:flex;
+        align-items:center;
+        gap: 8px;
+        font-size: 12px;
+        padding: 3px 6px;
+        border-radius: 8px;
+        cursor: pointer;
+        border: 1px solid transparent;
+      }
+      .presetItem:hover{ border-color: rgba(255,255,255,0.08); }
+      .presetItem input{ width: auto; }
+      .presetItem span{ font-family: var(--mono); color: var(--fg); }
+      .terminalBox{ margin-top: 10px; }
+      .terminalTitle{ font-weight:800; font-size:13px; margin-bottom:8px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Mini SSH Ring Manager</h1>
+      <div class="sub">
+        Bare-bones web UI (pure HTML + JS). Register credentials, run presets per device category, and view outputs.
+      </div>
+
+      <div class="grid">
+        <!-- Left: Add/Edit + Discover All + Preset editor -->
+        <div class="card">
+          <h2 style="margin:0 0 12px; font-size:16px;">Add / Save SSH Credentials</h2>
+          <div class="small" style="margin-bottom:10px;">
+            Presets per device type (Host/Array/Switch). Each device uses its own category selection.
+          </div>
+
+          <form id="saveForm">
+            <div class="row">
+              <div>
+                <label>Device Name</label>
+                <input id="deviceName" placeholder="e.g. node-alpha" />
+              </div>
+              <div>
+                <label>Category</label>
+                <select id="category">
+                  <option value="Host">Host</option>
+                  <option value="Array">Array</option>
+                  <option value="Switch">Switch</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="height:10px"></div>
+
+            <div class="row">
+              <div>
+                <label>IP Address</label>
+                <input id="ip" placeholder="192.168.1.101" />
+              </div>
+              <div>
+                <label>DNS Name (optional)</label>
+                <input id="dnsName" placeholder="host.example.com" />
+              </div>
+            </div>
+
+            <div style="height:10px"></div>
+
+            <div class="row">
+              <div>
+                <label>DNS Server (optional)</label>
+                <input id="dnsServer" placeholder="8.8.8.8" />
+              </div>
+              <div>
+                <label>Port</label>
+                <input id="port" value="22" />
+              </div>
+            </div>
+
+            <div style="height:10px"></div>
+
+            <div class="row">
+              <div>
+                <label>Username</label>
+                <input id="username" placeholder="root" />
+              </div>
+              <div>
+                <label>Password</label>
+                <input id="password" placeholder="SSH password" type="password" />
+              </div>
+            </div>
+
+              <div style="height:12px"></div>
+
+            <!-- Preset editor (per category selection for that category) -->
+            <div class="card" style="padding:12px; margin:0; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; margin-bottom:12px;">
+              <div style="font-weight:800; font-size:13px; margin-bottom:6px;">Preset Commands for this Category</div>
+              <div class="small" style="margin-bottom:10px;">Check/uncheck commands to build the per-device preset command set.</div>
+
+              <div id="presetCheckboxes" class="presetGrid"></div>
+
+              <div style="height:10px"></div>
+
+              <div style="font-weight:800; font-size:13px; margin-bottom:6px;">Custom commands</div>
+              <div class="small" style="margin-bottom:10px;">Add extra commands and toggle them on/off exactly like preset commands (with a delete icon).</div>
+
+              <div class="row" style="align-items:flex-end;">
+                <div>
+                  <label>Add command</label>
+                  <input id="cmdToAdd" placeholder="e.g. showsys" />
+                </div>
+                <div style="max-width: 180px;">
+                  <button id="btnAddCmd" type="button" style="height: 40px;">Add</button>
+                </div>
+              </div>
+
+              <div style="height:10px"></div>
+
+              <div id="customCommandsBox" class="presetGrid"></div>
+
+              <div id="presetEditorStatus" class="small" style="margin-top:10px;"></div>
+            </div>
+
+            <div class="btnrow">
+              <button id="btnCheckAll" type="button" disabled style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2); color: var(--fg);">Check all</button>
+              <button id="btnUncheckAll" type="button" disabled style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2); color: var(--fg);">Uncheck all</button>
+              <button id="btnSave" type="submit">Save Credentials</button>
+              <button id="btnCancelEdit" type="button" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); color: var(--muted); display:none;">Cancel Edit</button>
+            </div>
+            <div id="saveStatus"></div>
+          </form>
+        </div>
+
+        <!-- Right: Registered credentials + run/discovery results -->
+        <div class="card">
+          <h2 style="margin:0 0 12px; font-size:16px;">Registered Credentials</h2>
+          <div style="display:flex; justify-content: space-between; align-items:center; gap: 10px; margin-bottom: 10px;">
+            <div class="small" id="countText">Loading...</div>
+            <div class="btnrow" style="justify-content:flex-end;">
+              <button id="btnRefresh" style="background: rgba(255,255,255,0.05); color: var(--fg); border-color: rgba(255,255,255,0.15);">Refresh</button>
+            </div>
+          </div>
+
+          <div style="overflow:auto; border-radius: 10px; border:1px solid rgba(255,255,255,0.06);">
+            <table>
+              <thead>
+                <tr>
+                  <th>Device</th>
+                  <th>Category</th>
+                  <th>IP</th>
+                  <th style="text-align:right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="credsTbody"></tbody>
+            </table>
+          </div>
+
+          <div style="height:12px"></div>
+
+          <div class="btnrow">
+            <button id="btnDiscover" disabled>Discover All</button>
+          </div>
+          <div class="small" style="margin-top:8px; color:var(--muted); font-size:11px; line-height:1.5;">
+            <b>Note:</b> Discovery All will only execute commands that are <b>checked</b> for each device’s current state (preset + custom selections).
+          </div>
+          <div id="discoverStatus" class="small" style="margin-top: 10px;"></div>
+
+        </div>
+      </div>
+
+      <div style="height:14px"></div>
+
+      <!-- Run Diagnostic Commands (Connect & Run) -->
+      <div class="card">
+        <h2 style="margin:0 0 12px; font-size:16px;">Run Diagnostic Commands</h2>
+
+        <form id="runForm">
+          <div class="row">
+            <div>
+              <label>Target IP</label>
+              <input id="targetIp" placeholder="e.g. 192.168.1.101" />
+            </div>
+            <div>
+              <label>DNS Name</label>
+              <input id="targetDnsName" placeholder="c3-dl380g11-25" />
+            </div>
+            <div>
+              <label>DNS Server</label>
+              <input id="targetDnsServer" placeholder="8.8.8.8" />
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="row">
+            <div>
+              <label>Target Category</label>
+              <select id="targetCategory">
+                <option value="Host">Host</option>
+                <option value="Array">Array</option>
+                <option value="Switch">Switch</option>
+              </select>
+            </div>
+            <div>
+              <label>Username</label>
+              <input id="targetUser" placeholder="Username" />
+            </div>
+            <div>
+              <label>Port</label>
+              <input id="targetPort" value="22" />
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="row">
+            <div>
+              <label>Password</label>
+              <input id="targetPassword" type="password" placeholder="Password" />
+            </div>
+            <div>
+              <label>Command to run</label>
+              <input id="command" placeholder="e.g. ls" />
+            </div>
+          </div>
+
+          <div style="height:12px"></div>
+
+          <div>
+            <label style="margin-bottom:6px;">Preset Commands for {targetCategory} (Connect & Run will use checked ones)</label>
+            <div id="targetPresetCheckboxes" class="presetGrid"></div>
+          </div>
+
+          <div style="height:12px"></div>
+          <div>
+            <label style="margin-bottom:6px;">Custom Commands for Target Device (Connect & Run will use checked ones)</label>
+            <div id="targetCustomCheckboxes" class="presetGrid"></div>
+          </div>
+
+          <div style="height:12px"></div>
+
+          <div class="row" style="align-items:flex-end;">
+            <div style="flex:1;">
+              <button id="btnRun" type="submit">Connect & Run</button>
+            </div>
+            <div style="flex:1;">
+              <button id="btnQuickRunInfo" type="button" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2); color: var(--fg);">Quick Run Info</button>
+            </div>
+          </div>
+
+          <div id="runStatus" class="small" style="margin-top:10px;"></div>
+        </form>
+
+        <div class="terminalBox">
+          <div class="terminalTitle">Command Output Console</div>
+          <pre id="cmdOutput">(No output yet)</pre>
+        </div>
+      </div>
+
+      <div style="height:14px"></div>
+
+      <!-- Discovery Results -->
+      <div class="card">
+        <h2 style="margin:0 0 12px; font-size:16px;">Discovery Results</h2>
+        <div class="results" id="results"></div>
+      </div>
+    </div>
+
+    <script>
+      const API_BASE = '';
+      const el = (id) => document.getElementById(id);
+
+      const PRESET_COMMANDS = {
+        Array: [
+          "showversion -b",
+          "showsys",
+          "shownode",
+          "showport",
+          "showhost",
+          "showcage -pci",
+          "showcage -sfp",
+          "showcage -state",
+          "showpd",
+          "showpd -s",
+          "showpd -i",
+          "showportdev",
+          "showportdev ns -nohdtot 0:3:1",
+          "showportdev ns -nohdtot 1:3:1"
+        ],
+        Host: [
+          "lscpu",
+          "systool -c fc_host -v",
+          "lspci -nnk"
+        ],
+        Switch: [
+          "fabricshow",
+          "switchshow"
+        ]
+      }
+
+      // Per-device command state: keyed by device_name.
+      // Each entry: { presetChecked: Set, customCmds: [], customChecked: Set }
+      window.__deviceCmdState = {};
+
+      // Current device being edited or targeted in the left form
+      window.__editingDeviceName = null;
+      // Current device being targeted in the Run Diagnostic section
+      window.__targetDeviceName = null;
+
+      function _defaultDeviceState(category) {
+        return {
+          presetChecked: new Set(PRESET_COMMANDS[category] || []),
+          customCmds: [],
+          customChecked: new Set(),
+        };
+      }
+
+      function _getDeviceState(deviceName, category) {
+        if (!window.__deviceCmdState[deviceName]) {
+          window.__deviceCmdState[deviceName] = _defaultDeviceState(category);
+        }
+        return window.__deviceCmdState[deviceName];
+      }
+
+      function _loadDeviceStateFromServer(device) {
+        const name = device.device_name || device.ip || '';
+        const cat  = device.category || 'Host';
+        const selectedCmds  = device.selected_commands || [];
+        const customCmds    = device.custom_commands   || [];
+        const state = _getDeviceState(name, cat);
+
+        // Overwrite preset selection from saved list (if present)
+        if (selectedCmds.length > 0) {
+          state.presetChecked = new Set(selectedCmds.filter(c => (PRESET_COMMANDS[cat] || []).includes(c)));
+          // Any saved selected cmd not in preset list is treated as custom
+          const savedCustomChecked = selectedCmds.filter(c => !(PRESET_COMMANDS[cat] || []).includes(c));
+          state.customChecked = new Set(savedCustomChecked);
+        }
+        if (customCmds.length > 0) {
+          // Merge: avoid duplicates
+          for (const c of customCmds) {
+            if (!state.customCmds.includes(c)) state.customCmds.push(c);
+          }
+        }
+      }
+
+      function _getEnabledCommandsForDevice(deviceName, category) {
+        const state = _getDeviceState(deviceName, category);
+        const orderedPreset = (PRESET_COMMANDS[category] || []).filter(c => state.presetChecked.has(c));
+        const enabledCustom = state.customCmds.filter(c => state.customChecked.has(c));
+        const final = [...orderedPreset, ...enabledCustom];
+        const seen = new Set();
+        const out = [];
+        for (const c of final) {
+          const key = (c || '').trim();
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          out.push(key);
+        }
+        return out;
+      }
+
+
+      function statusBox(node, msg, type){
+        node.className = '';
+        if(type === 'ok') node.className = 'statusOk';
+        else if(type === 'err') node.className = 'statusErr';
+        else node.className = 'small';
+        node.textContent = msg;
+      }
+
+      async function apiGet(path){
+        const res = await fetch(API_BASE + path);
+        if(!res.ok){
+          const t = await res.text();
+          throw new Error(t || ('HTTP ' + res.status));
+        }
+        return res.json();
+      }
+
+      async function apiPost(path, body){
+        const res = await fetch(API_BASE + path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok){
+          throw new Error(data.error || data.message || ('HTTP ' + res.status));
+        }
+        return data;
+      }
+
+      // ── Render helpers ────────────────────────────────────────────────────────
+
+      function _renderPresetCheckboxes(containerId, category, presetCheckedSet) {
+        const root = el(containerId);
+        if (!root) return;
+        root.innerHTML = '';
+        const cmds = PRESET_COMMANDS[category] || [];
+        for (const cmd of cmds) {
+          const item = document.createElement('label');
+          item.className = 'presetItem';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = presetCheckedSet.has(cmd);
+          cb.onchange = () => { if (cb.checked) presetCheckedSet.add(cmd); else presetCheckedSet.delete(cmd); };
+          const span = document.createElement('span');
+          span.textContent = cmd;
+          item.appendChild(cb);
+          item.appendChild(span);
+          root.appendChild(item);
+        }
+      }
+
+      function _renderCustomCheckboxes(containerId, state, allowDelete) {
+        const root = el(containerId);
+        if (!root) return;
+        root.innerHTML = '';
+        if (state.customCmds.length === 0) {
+          const hint = document.createElement('div');
+          hint.className = 'small';
+          hint.style.padding = '10px 6px';
+          hint.textContent = '(no custom commands)';
+          root.appendChild(hint);
+          return;
+        }
+        for (const cmd of state.customCmds) {
+          const item = document.createElement('label');
+          item.className = 'presetItem';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = state.customChecked.has(cmd);
+          cb.onchange = () => { if (cb.checked) state.customChecked.add(cmd); else state.customChecked.delete(cmd); };
+          const span = document.createElement('span');
+          span.textContent = cmd;
+          item.appendChild(cb);
+          item.appendChild(span);
+          if (allowDelete) {
+            const del = document.createElement('button');
+            del.type = 'button'; del.textContent = '🗑'; del.title = 'Remove';
+            del.style.cssText = 'margin-left:auto;padding:2px 8px;border-radius:8px;border:1px solid rgba(255,107,107,0.35);background:rgba(255,107,107,0.08);color:#ff6b6b;cursor:pointer;';
+            del.onclick = (e) => {
+              e.preventDefault(); e.stopPropagation();
+              state.customCmds = state.customCmds.filter(x => x !== cmd);
+              state.customChecked.delete(cmd);
+              renderLeftCommandUI();
+            };
+            item.appendChild(del);
+          }
+          root.appendChild(item);
+        }
+      }
+
+      function _setAllPresetCheckboxes(state, category, checked) {
+        const cmds = PRESET_COMMANDS[category] || [];
+        if (checked) {
+          for (const c of cmds) state.presetChecked.add(c);
+        } else {
+          for (const c of cmds) state.presetChecked.delete(c);
+        }
+      }
+
+      function _setAllCustomCheckboxes(state, checked) {
+        if (checked) {
+          for (const c of state.customCmds) state.customChecked.add(c);
+        } else {
+          for (const c of state.customCmds) state.customChecked.delete(c);
+        }
+      }
+
+      function setAllCommandsForCurrentEditingDevice(checked) {
+        const cat  = el('category').value;
+        const name = window.__editingDeviceName || '__new__';
+        const state = _getDeviceState(name, cat);
+        _setAllPresetCheckboxes(state, cat, checked);
+        _setAllCustomCheckboxes(state, checked);
+        renderLeftCommandUI();
+      }
+
+      function renderLeftCommandUI() {
+        const cat  = el('category').value;
+        const name = window.__editingDeviceName || '__new__';
+        const state = _getDeviceState(name, cat);
+        _renderPresetCheckboxes('presetCheckboxes', cat, state.presetChecked);
+        _renderCustomCheckboxes('customCommandsBox', state, true);
+      }
+
+
+      function renderTargetCommandUI() {
+        const cat  = el('targetCategory').value;
+        const name = window.__targetDeviceName || '__run__';
+        const state = _getDeviceState(name, cat);
+        _renderPresetCheckboxes('targetPresetCheckboxes', cat, state.presetChecked);
+        _renderCustomCheckboxes('targetCustomCheckboxes', state, false);
+      }
+
+      // Compatibility alias used from legacy call sites
+      function renderCustomCommandsCheckboxes() { renderLeftCommandUI(); }
+      function renderAllPresetUIs() { renderLeftCommandUI(); renderTargetCommandUI(); }
+
+      async function refreshCreds(){
+        const data = await apiGet('/api/credentials/list');
+        const devices = data.devices || [];
+        el('countText').textContent = devices.length + ' credential(s)';
+        const disableDiscovery = devices.length === 0;
+        el('btnDiscover').disabled = disableDiscovery;
+        el('btnCheckAll').disabled = disableDiscovery;
+        el('btnUncheckAll').disabled = disableDiscovery;
+
+
+        // Hydrate per-device command state from server-saved values
+        for (const d of devices) { _loadDeviceStateFromServer(d); }
+
+        el('credsTbody').innerHTML = '';
+        for(const d of devices){
+          const tr = document.createElement('tr');
+
+          const tdDevice = document.createElement('td');
+          tdDevice.innerHTML = '<b>' + (d.device_name || '') + '</b>';
+
+          const tdCat = document.createElement('td');
+          tdCat.textContent = d.category || 'Host';
+
+          const tdIp = document.createElement('td');
+          tdIp.textContent = d.ip_address || d.ip || '-';
+
+          const tdActions = document.createElement('td');
+          tdActions.style.textAlign = 'right';
+          tdActions.style.whiteSpace = 'nowrap';
+
+          const btnUse = document.createElement('button');
+          btnUse.textContent = 'Use';
+          btnUse.style.padding = '6px 10px';
+          btnUse.style.marginLeft = '6px';
+          btnUse.style.borderRadius = '8px';
+          btnUse.style.border = '1px solid rgba(1,169,130,0.45)';
+          btnUse.style.background = 'rgba(1,169,130,0.08)';
+          btnUse.style.color = 'var(--green)';
+          btnUse.onclick = () => handleUse(d);
+
+          const btnEdit = document.createElement('button');
+          btnEdit.textContent = 'Edit';
+          btnEdit.style.padding = '6px 10px';
+          btnEdit.style.marginLeft = '6px';
+          btnEdit.style.borderRadius = '8px';
+          btnEdit.style.border = '1px solid rgba(255,255,255,0.2)';
+          btnEdit.style.background = 'rgba(255,255,255,0.05)';
+          btnEdit.style.color = 'var(--fg)';
+          btnEdit.onclick = () => handleEdit(d);
+
+          const btnDel = document.createElement('button');
+          btnDel.textContent = 'Delete';
+          btnDel.style.padding = '6px 10px';
+          btnDel.style.marginLeft = '6px';
+          btnDel.style.borderRadius = '8px';
+          btnDel.style.border = '1px solid rgba(255,107,107,0.35)';
+          btnDel.style.background = 'rgba(255,107,107,0.08)';
+          btnDel.style.color = '#ff6b6b';
+          btnDel.onclick = () => handleDelete(d);
+
+          tdActions.appendChild(btnUse);
+          tdActions.appendChild(btnEdit);
+          tdActions.appendChild(btnDel);
+
+          tr.appendChild(tdDevice);
+          tr.appendChild(tdCat);
+          tr.appendChild(tdIp);
+          tr.appendChild(tdActions);
+
+          el('credsTbody').appendChild(tr);
+        }
+      }
+
+      let __editingOriginalName = null;
+
+      function handleEdit(device){
+        const name = device.device_name || '';
+        __editingOriginalName = name;
+        window.__editingDeviceName = name;
+        el('deviceName').value = name;
+        el('ip').value = device.ip_address || device.ip || '';
+        el('dnsName').value = device.dns_name || '';
+        el('dnsServer').value = device.dns_server || '';
+        el('port').value = String(device.port ?? 22);
+        el('username').value = device.username || '';
+        el('password').value = device.password || '';
+        el('category').value = device.category || 'Host';
+
+        el('btnCancelEdit').style.display = 'inline-block';
+        el('saveStatus').textContent = '';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        renderLeftCommandUI();
+      }
+
+      async function handleDelete(device){
+        if(!confirm('Delete SSH credentials for "' + (device.device_name || '') + '"?')) return;
+        try{
+          await apiPost('/api/credentials/delete', { device_name: device.device_name, ip: device.ip_address });
+          statusBox(el('saveStatus'), 'Deleted.', 'ok');
+          await refreshCreds();
+        }catch(e){
+          statusBox(el('saveStatus'), e.message, 'err');
+        }
+      }
+
+      function handleUse(device){
+        const name = device.device_name || device.ip || '';
+        window.__targetDeviceName = name;
+        el('targetIp').value = device.ip_address || device.ip || '';
+        el('targetUser').value = device.username || '';
+        el('targetPassword').value = device.password || '';
+        el('targetDnsName').value = device.dns_name || '';
+        el('targetDnsServer').value = device.dns_server || '';
+        el('targetPort').value = String(device.port ?? 22);
+        el('targetCategory').value = device.category || 'Host';
+        renderTargetCommandUI();
+        el('targetIp').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      async function discoverAll(){
+        el('discoverStatus').textContent = 'Starting discovery...';
+        el('btnDiscover').disabled = true;
+        el('results').innerHTML = '';
+
+        // Build per-device command list from LIVE in-memory checkbox state.
+        // Key it by the exact device identifier the backend uses for lookup.
+        // (backend prefers commands_by_device[ip] first, so send ip when available)
+        const credsData = await apiGet('/api/credentials/list').catch(() => ({devices:[]}));
+        const commands_by_device = {};
+        for (const d of (credsData.devices || [])) {
+          const cat  = d.category || 'Host';
+          const lookupName = d.device_name || d.ip || d.dns_name || '';
+          const key = d.ip || d.dns_name || lookupName;
+          commands_by_device[key] = _getEnabledCommandsForDevice(lookupName, cat);
+        }
+
+
+        try{
+          const data = await apiPost('/api/discover', { commands_by_device });
+          el('discoverStatus').textContent = (data.status === 'complete')
+            ? ('Complete @ ' + (data.discovered_at || ''))
+            : (data.status || '');
+          renderResults(data.results || []);
+        }catch(err){
+          el('discoverStatus').textContent = 'Discover failed: ' + err.message;
+        }finally{
+          await refreshCreds().catch(()=>{});
+        }
+      }
+
+      function renderResults(results){
+        const root = el('results');
+        root.innerHTML = '';
+
+        if (!results || results.length === 0) {
+          root.innerHTML = '<div class="small" style="padding:12px;">No results.</div>';
+          return;
+        }
+
+        for(const res of results){
+          const dev = document.createElement('div');
+          dev.className = 'dev';
+
+          // ── Device-level header (clickable toggle) ──
+          const hdr = document.createElement('div');
+          hdr.className = 'devHdr';
+
+          const chevDev = document.createElement('span');
+          chevDev.className = 'chevron';
+          chevDev.textContent = '›';
+
+          const left = document.createElement('div');
+          left.className = 'devHdrLeft';
+          left.appendChild(chevDev);
+          const nameSpan = document.createElement('span');
+          nameSpan.innerHTML = '<b>' + (res.device_name || 'Unknown') + '</b>&nbsp;<span class="small">(' + (res.ip || res.category || 'DNS') + ')</span>';
+          left.appendChild(nameSpan);
+
+          const right = document.createElement('div');
+          right.className = 'devHdrRight';
+
+          // cmd count badge
+          const cmdCount = Object.keys(res.commands || {}).length;
+          if (cmdCount > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'small';
+            badge.style.cssText = 'background:rgba(0,200,255,0.08);border:1px solid rgba(0,200,255,0.18);border-radius:999px;padding:2px 8px;';
+            badge.textContent = cmdCount + (cmdCount === 1 ? ' cmd' : ' cmds');
+            right.appendChild(badge);
+          }
+
+          const pill = document.createElement('div');
+          pill.className = 'pill';
+          let pillColor = 'rgba(255,255,255,0.7)';
+          if(res.status === 'success') pillColor = 'var(--blue)';
+          if(res.status === 'warning') pillColor = 'var(--yellow)';
+          if(res.status === 'error')   pillColor = 'var(--red)';
+          if(res.status === 'running') pillColor = 'var(--green)';
+          pill.style.color = pillColor;
+          pill.style.borderColor = 'rgba(255,255,255,0.15)';
+          pill.textContent = (res.status || 'UNKNOWN').toUpperCase();
+          right.appendChild(pill);
+
+          hdr.appendChild(left);
+          hdr.appendChild(right);
+          dev.appendChild(hdr);
+
+          // ── Device body (collapsible) ──
+          const body = document.createElement('div');
+          body.className = 'devBody'; // collapsed by default
+
+          // Toggle on header click
+          hdr.addEventListener('click', () => {
+            const open = body.classList.toggle('open');
+            chevDev.style.transform = open ? 'rotate(90deg)' : '';
+          });
+
+          // Auto-expand errors
+          if (res.status === 'error') {
+            body.classList.add('open');
+            chevDev.style.transform = 'rotate(90deg)';
+          }
+
+          if(res.status === 'error'){
+            const errDiv = document.createElement('div');
+            errDiv.className = 'small';
+            errDiv.style.color = 'var(--red)';
+            errDiv.textContent = 'Error: ' + (res.error || 'Unknown error');
+            body.appendChild(errDiv);
+          } else {
+            const cmds = res.commands || {};
+            const cmdKeys = Object.keys(cmds);
+            if(cmdKeys.length === 0){
+              const noCmd = document.createElement('div');
+              noCmd.className = 'small';
+              noCmd.textContent = 'No commands executed.';
+              body.appendChild(noCmd);
+            }
+
+            for(const cmd of cmdKeys){
+              const r = cmds[cmd] || {};
+              const hasErr = (r.stderr || '').trim().length > 0;
+              const hasOut = (r.stdout || '').trim().length > 0;
+              const exitOk = (r.exit_code === 0 || r.exit_code == null);
+
+              // Command box
+              const cmdBox = document.createElement('div');
+              cmdBox.className = 'cmd';
+
+              // Command header (clickable toggle)
+              const cmdHdr = document.createElement('div');
+              cmdHdr.className = 'cmdHdr';
+
+              const chevCmd = document.createElement('span');
+              chevCmd.className = 'chevron';
+              chevCmd.textContent = '›';
+              chevCmd.style.flexShrink = '0';
+
+              const cmdLeft = document.createElement('div');
+              cmdLeft.className = 'cmdHdrLeft';
+              cmdLeft.appendChild(chevCmd);
+              const cmdLabel = document.createElement('b');
+              cmdLabel.textContent = '$ ' + cmd;
+              cmdLeft.appendChild(cmdLabel);
+
+              const tag = document.createElement('span');
+              if (hasErr) { tag.className = 'tagErr'; tag.textContent = 'STDERR'; }
+              else if (!exitOk) { tag.className = 'tagErr'; tag.textContent = 'EXIT ' + r.exit_code; }
+              else { tag.className = 'tagOk'; tag.textContent = 'OK'; }
+
+              const cmdRight = document.createElement('div');
+              cmdRight.style.display = 'flex';
+              cmdRight.style.alignItems = 'center';
+              cmdRight.style.gap = '8px';
+              if (hasOut) {
+                const lineCount = (r.stdout.match(/\n/g) || []).length + 1;
+                const lc = document.createElement('span');
+                lc.className = 'small';
+                lc.textContent = lineCount + (lineCount === 1 ? ' line' : ' lines');
+                cmdRight.appendChild(lc);
+              }
+              cmdRight.appendChild(tag);
+
+              cmdHdr.appendChild(cmdLeft);
+              cmdHdr.appendChild(cmdRight);
+
+              // Command output (collapsible)
+              const out = document.createElement('div');
+              out.className = 'cmdOut';
+
+              if(hasOut){
+                const pre = document.createElement('pre');
+                pre.textContent = r.stdout;
+                out.appendChild(pre);
+              }
+              if(hasErr){
+                const pre2 = document.createElement('pre');
+                pre2.style.borderColor = 'rgba(255,107,107,0.35)';
+                pre2.style.color = 'rgba(255,200,200,0.95)';
+                pre2.textContent = r.stderr;
+                out.appendChild(pre2);
+              }
+              if (!hasOut && !hasErr) {
+                const noOut = document.createElement('div');
+                noOut.className = 'small';
+                noOut.style.padding = '4px 0';
+                noOut.textContent = '(no output)';
+                out.appendChild(noOut);
+              }
+
+              // Toggle on cmd header click
+              cmdHdr.addEventListener('click', () => {
+                const open = out.classList.toggle('open');
+                chevCmd.style.transform = open ? 'rotate(90deg)' : '';
+              });
+
+              // Auto-expand errors
+              if (hasErr || !exitOk) {
+                out.classList.add('open');
+                chevCmd.style.transform = 'rotate(90deg)';
+              }
+
+              cmdBox.appendChild(cmdHdr);
+              cmdBox.appendChild(out);
+              body.appendChild(cmdBox);
+            }
+          }
+
+          dev.appendChild(body);
+          root.appendChild(dev);
+        }
+      }
+
+      async function runConnectAndRun(){
+        const ip = (el('targetIp').value || '').trim();
+        const dns_name = (el('targetDnsName').value || '').trim();
+        const dns_server = (el('targetDnsServer').value || '').trim();
+        const username = (el('targetUser').value || '').trim();
+        const password = el('targetPassword').value;
+        const port = parseInt(el('targetPort').value || '22', 10);
+        const targetCategory = el('targetCategory').value;
+
+        if((!ip && !dns_name) || !username || !password){
+          statusBox(el('runStatus'), 'Enter target IP or DNS Name, username, and password first', 'err');
+          return;
+        }
+
+        // Run checked commands for the target device
+        const targetName = window.__targetDeviceName || '__run__';
+        const checkedPresets = _getEnabledCommandsForDevice(targetName, targetCategory);
+        if(checkedPresets.length === 0){
+          statusBox(el('runStatus'), 'No commands checked. Click "Use" on a device or check some commands.', 'err');
+          return;
+        }
+
+        el('cmdOutput').textContent = '(Connecting...)';
+        statusBox(el('runStatus'), 'Connecting & executing commands...', 'ok');
+
+        try{
+          const data = await apiPost('/api/ssh/exec', {
+            ip,
+            dns_name,
+            dns_server,
+            username,
+            password,
+            port,
+            // Use `commands` list so server runs sequentially and returns per-cmd stdout/stderr
+            commands: checkedPresets
+          });
+
+          if(data.results){
+            let output = '';
+            for(const [cmd, result] of Object.entries(data.results)){
+              output += `$ ${cmd}\n`;
+              if(result.stdout) output += result.stdout + '\n';
+              if(result.stderr) output += `[ERROR] ${result.stderr}\n`;
+              output += '\n';
+            }
+            el('cmdOutput').textContent = output || '(no output)';
+          } else {
+            el('cmdOutput').textContent = data.output || JSON.stringify(data, null, 2);
+          }
+          statusBox(el('runStatus'), 'Execution complete', 'ok');
+        }catch(err){
+          el('cmdOutput').textContent = 'ERROR: ' + err.message;
+          statusBox(el('runStatus'), 'Execution failed', 'err');
+        }
+      }
+
+      function quickRunInfo(){
+        const cat = el('targetCategory').value;
+        const cmds = getEnabledCommandsForCategory(cat);
+        alert('Quick Run Info for ' + cat + '\n\n' + (cmds.length ? cmds.join('\n') : '(none)'));
+      }
+
+      // Save credentials (Add or Update)
+      async function handleSaveFormSubmit(e){
+        e.preventDefault();
+
+        const device_name = (el('deviceName').value || '').trim();
+        const ip = (el('ip').value || '').trim();
+        const dns_name = (el('dnsName').value || '').trim();
+        const dns_server = (el('dnsServer').value || '').trim();
+        const port = parseInt(el('port').value || '22', 10);
+        const username = (el('username').value || '').trim();
+        const password = el('password').value;
+        const category = el('category').value;
+
+        if(!device_name || (!ip && !dns_name) || !username || !password){
+          statusBox(el('saveStatus'), 'Device name, IP or DNS Name, username, and password are required', 'err');
+          return;
+        }
+
+        statusBox(el('saveStatus'), 'Saving credentials...', 'ok');
+
+        try{
+          const devKey = window.__editingDeviceName || device_name;
+          const state  = _getDeviceState(devKey, category);
+          const selected_commands = _getEnabledCommandsForDevice(devKey, category);
+          const custom_commands   = state.customCmds;
+
+          await apiPost('/api/credentials/save', {
+            device_name,
+            ip,
+            port,
+            username,
+            password,
+            dns_name,
+            dns_server,
+            category,
+            selected_commands,
+            custom_commands,
+          });
+
+          // If editing and name changed: migrate state to new name, delete old record
+          if(__editingOriginalName && __editingOriginalName !== device_name){
+            window.__deviceCmdState[device_name] = window.__deviceCmdState[__editingOriginalName];
+            delete window.__deviceCmdState[__editingOriginalName];
+            await apiPost('/api/credentials/delete', { device_name: __editingOriginalName, ip: '' });
+          }
+
+          statusBox(el('saveStatus'), 'Saved "' + device_name + '" successfully', 'ok');
+
+          // Clear form
+          __editingOriginalName = null;
+          window.__editingDeviceName = null;
+          el('deviceName').value = '';
+          el('ip').value = '';
+          el('dnsName').value = '';
+          el('dnsServer').value = '';
+          el('port').value = '22';
+          el('username').value = '';
+          el('password').value = '';
+          el('category').value = 'Host';
+          el('btnCancelEdit').style.display = 'none';
+
+          renderLeftCommandUI();
+
+          await refreshCreds();
+        }catch(err){
+          statusBox(el('saveStatus'), 'Save failed: ' + err.message, 'err');
+        }
+      }
+
+      el('saveForm').addEventListener('submit', handleSaveFormSubmit);
+      el('btnCancelEdit').addEventListener('click', () => {
+        __editingOriginalName = null;
+        window.__editingDeviceName = null;
+        el('btnCancelEdit').style.display = 'none';
+        el('deviceName').value = '';
+        el('ip').value = '';
+        el('dnsName').value = '';
+        el('dnsServer').value = '';
+        el('port').value = '22';
+        el('username').value = '';
+        el('password').value = '';
+        el('category').value = 'Host';
+        statusBox(el('saveStatus'), '', '');
+        renderLeftCommandUI();
+      });
+
+      // Left form: category change re-renders with same editing device
+      el('category').addEventListener('change', () => { renderLeftCommandUI(); });
+      // Target panel: category change re-renders for target device
+      el('targetCategory').addEventListener('change', () => { renderTargetCommandUI(); });
+
+      el('btnAddCmd').addEventListener('click', () => {
+        const cat  = el('category').value;
+        const name = window.__editingDeviceName || '__new__';
+        const cmd  = (el('cmdToAdd').value || '').trim();
+        if (!cmd) { el('presetEditorStatus').textContent = 'Enter a command to add.'; return; }
+        const state = _getDeviceState(name, cat);
+        if (state.customCmds.includes(cmd)) {
+          el('presetEditorStatus').textContent = 'Command already exists.'; return;
+        }
+        state.customCmds.push(cmd);
+        state.customChecked.add(cmd);
+        el('cmdToAdd').value = '';
+        el('presetEditorStatus').textContent = 'Command added.';
+        renderLeftCommandUI();
+      });
+
+      // Discover All
+      el('btnDiscover').addEventListener('click', discoverAll);
+
+      // Check/Uncheck all for the currently edited device (left editor only)
+      el('btnCheckAll').addEventListener('click', () => {
+        setAllCommandsForCurrentEditingDevice(true);
+      });
+      el('btnUncheckAll').addEventListener('click', () => {
+        setAllCommandsForCurrentEditingDevice(false);
+      });
+
+      el('btnRefresh').addEventListener('click', refreshCreds);
+
+
+
+      // Run Diagnostic Commands
+      el('runForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await runConnectAndRun();
+      });
+
+      el('btnQuickRunInfo').addEventListener('click', quickRunInfo);
+
+      // Initial load
+      renderLeftCommandUI();
+      renderTargetCommandUI();
+      refreshCreds().catch(()=>{
+        el('countText').textContent = 'Failed to load credentials.';
+      });
+    </script>
+  </body>
+</html>
+
