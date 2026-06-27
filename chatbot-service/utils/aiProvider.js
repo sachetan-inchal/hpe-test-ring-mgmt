@@ -4,9 +4,18 @@ import { getSANDataForAI, searchSANNodes, getProblematicComponents, getCapacityI
 // Environment variables are loaded by chatbot-service/server.js
 // Do not re-load .env here (would load chatbot-service/.env instead of monorepo root).
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
+// Initialize Gemini lazily
+let genAI = null;
+const getGenAI = () => {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY environment variable is not defined');
+    }
+    genAI = new GoogleGenerativeAI(apiKey);
+  }
+  return genAI;
+};
 
 // AI Provider configuration
 const AI_PROVIDERS = {
@@ -18,8 +27,7 @@ const AI_PROVIDERS = {
   openai: {
     name: 'OpenAI',
     models: ['gpt-3.5-turbo', 'gpt-4'],
-    currentModelIndex: 0,
-    apiKey: process.env.OPENAI_API_KEY
+    currentModelIndex: 0
   }
 };
 
@@ -50,7 +58,7 @@ const retryWithBackoff = async (fn, maxRetries = 3) => {
 
 // Gemini API calls
 const geminiGenerate = async (history, currentPrompt, modelName = 'gemini-2.5-flash') => {
-  const model = genAI.getGenerativeModel({ model: modelName });
+  const model = getGenAI().getGenerativeModel({ model: modelName });
   
   const formattedHistory = history.map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
@@ -71,7 +79,8 @@ const geminiGenerate = async (history, currentPrompt, modelName = 'gemini-2.5-fl
 
 // OpenAI API calls (if you add OpenAI support later)
 const openaiGenerate = async (history, currentPrompt, modelName = 'gpt-3.5-turbo') => {
-  if (!AI_PROVIDERS.openai.apiKey) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
@@ -88,7 +97,7 @@ const openaiGenerate = async (history, currentPrompt, modelName = 'gpt-3.5-turbo
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${AI_PROVIDERS.openai.apiKey}`
+      'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: modelName,
@@ -426,7 +435,7 @@ export const checkAIProviders = async () => {
   }
   
   // Check OpenAI if API key is available
-  if (AI_PROVIDERS.openai.apiKey) {
+  if (process.env.OPENAI_API_KEY) {
     try {
       await openaiGenerate([], 'Hello', 'gpt-3.5-turbo');
       status.openai = 'healthy';
