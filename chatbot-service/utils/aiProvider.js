@@ -1,10 +1,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import dotenv from 'dotenv';
 import { getSANDataForAI, searchSANNodes, getProblematicComponents, getCapacityInfo } from './sanDataLoader.js';
-dotenv.config();
+
+// Environment variables are loaded by chatbot-service/server.js
+// Do not re-load .env here (would load chatbot-service/.env instead of monorepo root).
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 
 // AI Provider configuration
 const AI_PROVIDERS = {
