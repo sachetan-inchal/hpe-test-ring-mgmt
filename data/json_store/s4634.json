@@ -14,8 +14,8 @@
   "config_type": "switched",
   "protocols_supported": [
     "FC",
-    "NVMe",
-    "IP"
+    "IP",
+    "NVMe"
   ],
   "components": [
     {

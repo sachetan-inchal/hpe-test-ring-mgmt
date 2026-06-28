@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect, useRef, useCallback } from 'react'
-import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, NavLink, useLocation, Outlet } from 'react-router-dom'
 import { AuthContext } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
 import LandingPage from './pages/LandingPage'
@@ -36,6 +36,14 @@ function ProtectedRoute({ children }) {
     </div>
   )
   return user ? children : <Navigate to="/login" replace />
+}
+
+function ProtectedLayout() {
+  return (
+    <ProtectedRoute>
+      <AppShell />
+    </ProtectedRoute>
+  )
 }
 
 // ── Snapshot Selector Component ────────────────────────────────────────────────
@@ -415,16 +423,6 @@ export default function App() {
   const isAdmin = (user?.role || '').toLowerCase() === 'admin'
   const visibleNavItems = NAV_ITEMS.filter(item => item.path !== '/admin' || isAdmin)
 
-  // Landing page — no shell
-  if (location.pathname === '/') {
-    return <Routes><Route path="/" element={<LandingPage />} /></Routes>
-  }
-
-  // Login page — no shell
-  if (location.pathname === '/login') {
-    return <Routes><Route path="/login" element={<LoginPage />} /></Routes>
-  }
-
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
@@ -436,7 +434,7 @@ export default function App() {
             <aside className={`app-sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'mobile-open' : ''}`}>
               <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
                 <img 
-                  src="/images/image.png" 
+                  src="/images/hpe-logo-dark.avif" 
                   alt="HPE Logo" 
                   style={{ width: sidebarCollapsed ? '0' : '140px', opacity: sidebarCollapsed ? 0 : 1, transition: 'all 0.3s ease', objectFit: 'contain' }} 
                 />
