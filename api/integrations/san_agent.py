@@ -183,6 +183,40 @@ class SanAgent:
                 return a
         return arrays[0]
 
+    def _stream_llm_call(self, system: str, user: str, use_ollama=False, disable_think=False, json_mode=False) -> str:
+        if not self.llm_call:
+            return ""
+        ans = self.llm_call(
+            system, user,
+            use_ollama=use_ollama, disable_think=disable_think, stream=True,
+            json_mode=json_mode
+        )
+        full_ans = []
+        if hasattr(ans, "__iter__") and not isinstance(ans, str):
+            for chunk in ans:
+                try:
+                    chunk_data = json.loads(chunk)
+                    msg = chunk_data.get("message", {})
+                    thinking = msg.get("thinking") or msg.get("reasoning_content") or ""
+                    content = msg.get("content") or ""
+                    if thinking:
+                        chunk_text, is_think = thinking, True
+                    else:
+                        chunk_text, is_think = content, False
+                except Exception:
+                    chunk_text, is_think = chunk, False
+
+                if chunk_text:
+                    full_ans.append(chunk_text)
+                    callback = getattr(self, "on_synthesis_chunk", None)
+                    if callback:
+                        try:
+                            callback(chunk_text, is_think)
+                        except Exception:
+                            pass
+            return "".join(full_ans)
+        return str(ans)
+
     # ── Step emitter ─────────────────────────────────────────────────────────
 
     def _step(self, steps: list, step_type: str, title: str, detail: str = "", **extra):
@@ -246,9 +280,9 @@ Output ONLY the JSON. No markdown, no explanation outside the JSON."""
         self._step(steps, "thinking", "Planning",
                    f"Asking LLM to plan diagnostic steps for: *{query}*")
         try:
-            raw = self.llm_call(
+            raw = self._stream_llm_call(
                 self._PLANNER_SYSTEM, user_msg,
-                use_ollama=use_ollama, disable_think=disable_think, stream=False,
+                use_ollama=use_ollama, disable_think=disable_think,
                 json_mode=True
             )
             data = _extract_json(raw)
@@ -398,9 +432,9 @@ Output ONLY the JSON. No markdown, no explanation outside the JSON."""
         )
 
         try:
-            raw = self.llm_call(
+            raw = self._stream_llm_call(
                 self._REFLECT_SYSTEM, user_msg,
-                use_ollama=use_ollama, disable_think=disable_think, stream=False,
+                use_ollama=use_ollama, disable_think=disable_think,
                 json_mode=True
             )
             data = _extract_json(raw)
@@ -489,37 +523,10 @@ CRITICAL RULES:
             user_msg += f"\n\nADDITIONAL GRAPH DATA:\n{json.dumps(neo4j_rows[:20], indent=2, default=str)}"
 
         try:
-            ans = self.llm_call(
+            return self._stream_llm_call(
                 self._SYNTH_SYSTEM, user_msg,
-                use_ollama=use_ollama, disable_think=disable_think, stream=stream
+                use_ollama=use_ollama, disable_think=disable_think
             )
-
-            if stream and hasattr(ans, "__iter__") and not isinstance(ans, str):
-                full_ans = []
-                for chunk in ans:
-                    try:
-                        chunk_data = json.loads(chunk)
-                        msg = chunk_data.get("message", {})
-                        thinking = msg.get("thinking") or msg.get("reasoning_content", "")
-                        content = msg.get("content", "")
-                        if thinking:
-                            chunk_text, is_think = thinking, True
-                        else:
-                            chunk_text, is_think = content, False
-                    except Exception:
-                        chunk_text, is_think = chunk, False
-
-                    if chunk_text:
-                        full_ans.append(chunk_text)
-                        callback = getattr(self, "on_synthesis_chunk", None)
-                        if callback:
-                            try:
-                                callback(chunk_text, is_think)
-                            except Exception:
-                                pass
-                return "".join(full_ans)
-
-            return ans or self._fallback_report(array_name, san_facts)
         except Exception as e:
             sys.stderr.write(f"[SanAgent] LLM synthesis failed: {e}\n")
             return self._fallback_report(array_name, san_facts)

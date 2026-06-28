@@ -299,16 +299,6 @@ export default function InventoryPage({ apiBase }) {
               <Zap size={14} style={{ marginRight: 6 }} /> Data Flow Map
             </button>
           </div>
-
-          <div style={{ height: 20, width: 1, background: 'var(--line)' }} />
-          
-          <select className="input" style={{ width: 130, height: 32, padding: '0 8px', fontSize: 11, background: 'var(--surface-1)', cursor: 'pointer' }}
-            value={selectedSource} onChange={e => setSelectedSource(e.target.value)}>
-            <option value="all">🌐 All Sources</option>
-            {sources.map(s => (
-              <option key={s.id} value={s.id}>{s.label || s.id}</option>
-            ))}
-          </select>
           
           <SearchBar value={searchQuery} onChange={setSearchQuery} />
         </div>

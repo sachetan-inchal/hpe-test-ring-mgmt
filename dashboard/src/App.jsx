@@ -14,19 +14,19 @@ import SSHRingPage from './pages/SSHRingPage'
 import SANAutonomousAgentPage from './pages/SANAutonomousAgentPage'
 import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check } from 'lucide-react'
 
-const FLASK_API = window.location.port === '3000' ? '' : `http://${window.location.hostname}:5005`
+const FLASK_API = `http://${window.location.hostname}:5005`
 const CHATBOT_API = '/chatbot'
 
 const NAV_ITEMS = [
+  { path: '/ssh-ring', label: 'SSH Ring Manager', icon: Layers, desc: 'Configure and discover SSH rings' },
   { path: '/topology', label: 'Test Ring Viewer', icon: Map, desc: 'SAN diagram & ring topology' },
   { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
-  { path: '/discovery', label: 'Discovery', icon: Radar, desc: 'Live BFS network scan' },
-  { path: '/ssh-ring', label: 'SSH Ring Manager', icon: Layers, desc: 'Configure and discover SSH rings' },
-  { path: '/emulator', label: 'Emulator', icon: Terminal, desc: 'CLI terminal' },
-  { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
   { path: '/chat', label: 'AI Assistant', icon: MessageSquare, desc: 'Intelligent chat' },
   { path: '/autonomous-agent', label: 'Autonomous Agent', icon: Activity, desc: 'SAN LangGraph tool clockwork' },
   { path: '/admin', label: 'Admin', icon: Settings, desc: 'Device & schema mgmt' },
+  { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
+  { path: '/discovery', label: '(Virtual demo) Discovery', icon: Radar, desc: 'Live BFS network scan' },
+  { path: '/emulator', label: '(Virtual demo) Emulator', icon: Terminal, desc: 'CLI terminal' },
 ]
 
 function ProtectedRoute({ children }) {
@@ -422,8 +422,29 @@ export default function App() {
   const location = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  
+  // Track which tabs are visible (persisted in localStorage)
+  const [visibleTabs, setVisibleTabs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('visible_tabs')
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
+
+  const toggleTabVisibility = (path) => {
+    setVisibleTabs(prev => {
+      const next = { ...prev, [path]: prev[path] === false ? true : false }
+      localStorage.setItem('visible_tabs', JSON.stringify(next))
+      return next
+    })
+  }
+
   const isAdmin = (user?.role || '').toLowerCase() === 'admin'
-  const visibleNavItems = NAV_ITEMS.filter(item => item.path !== '/admin' || isAdmin)
+  const allowedNavItems = NAV_ITEMS.filter(item => item.path !== '/admin' || isAdmin)
+  const visibleNavItems = allowedNavItems.filter(item => visibleTabs[item.path] !== false)
 
   return (
     <Routes>
@@ -434,11 +455,11 @@ export default function App() {
           <div className="app-shell">
             {/* Sidebar */}
             <aside className={`app-sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'mobile-open' : ''}`}>
-              <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
-                <img 
-                  src="/images/hpe-logo-dark.avif" 
-                  alt="HPE Logo" 
-                  style={{ width: sidebarCollapsed ? '0' : '140px', opacity: sidebarCollapsed ? 0 : 1, transition: 'all 0.3s ease', objectFit: 'contain' }} 
+               <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
+                <img
+                  src="/images/hpe-logo-dark.avif"
+                  alt="HPE Logo"
+                  style={{ width: sidebarCollapsed ? '0' : '140px', opacity: sidebarCollapsed ? 0 : 1, transition: 'all 0.3s ease', objectFit: 'contain' }}
                 />
                 <button className="sidebar-collapse-btn" onClick={() => setSidebarCollapsed(c => !c)}>
                   <ChevronRight size={16} style={{ transform: sidebarCollapsed ? 'rotate(0)' : 'rotate(180deg)', transition: 'transform 0.3s' }} />
@@ -486,7 +507,7 @@ export default function App() {
                 </button>
                 <div className="topbar-title">
                   <span className="topbar-hpe">HPE</span>
-                  <span className="topbar-label">SAN Unified Platform</span>
+                  <span className="topbar-label">SAN Tool</span>
                 </div>
                 <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   {visibleNavItems.find(n => location.pathname.startsWith(n.path)) && (
@@ -495,14 +516,29 @@ export default function App() {
                     </span>
                   )}
                   {/* ── Global Snapshot Selector ── */}
-                  <SnapshotSelector apiBase={FLASK_API} />
+                  {/* <SnapshotSelector apiBase={FLASK_API} /> */}
+
+                  {/* Settings Gear Button */}
+                  <button 
+                    onClick={() => setSettingsOpen(true)} 
+                    title="Interface Settings" 
+                    style={{
+                      background: 'transparent', border: 'none', color: 'var(--muted)', 
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      padding: 6, borderRadius: 8, transition: 'color 0.2s, background 0.2s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--foreground)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <Settings size={18} />
+                  </button>
                 </div>
               </header>
 
               {/* Page content */}
               <div className="app-content">
                 <Routes>
-                  <Route path="/" element={<Navigate to="/discovery" replace />} />
+                  <Route path="/" element={<Navigate to="/ssh-ring" replace />} />
                   <Route path="/discovery" element={<DiscoveryPage apiBase={FLASK_API} />} />
                   <Route path="/topology" element={<TopologyPage apiBase={FLASK_API} />} />
                   <Route path="/inventory" element={<InventoryPage apiBase={FLASK_API} />} />
@@ -510,13 +546,63 @@ export default function App() {
                   <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} />} />
                   <Route path="/chat" element={<ChatPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="/autonomous-agent" element={<SANAutonomousAgentPage apiBase={FLASK_API} />} />
-                  <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} /> : <Navigate to="/discovery" replace />} />
+                  <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} /> : <Navigate to="/ssh-ring" replace />} />
                   <Route path="/health" element={<HealthPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
-                  <Route path="*" element={<Navigate to="/discovery" replace />} />
+                  <Route path="*" element={<Navigate to="/ssh-ring" replace />} />
                 </Routes>
               </div>
             </main>
           </div>
+
+          {/* Settings Modal */}
+          {settingsOpen && (
+            <div className="modal-backdrop" onClick={() => setSettingsOpen(false)}>
+              <div className="glass-card rise-in" onClick={e => e.stopPropagation()} style={{ padding: 24, width: 400, maxWidth: '90vw' }}>
+                <h3 style={{ fontSize: 16, marginBottom: 12, color: 'var(--foreground)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 8 }}>
+                  Interface Settings
+                </h3>
+                <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>Show or hide tabs in the sidebar navigation:</p>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                  {allowedNavItems.map(item => {
+                    const isVisible = visibleTabs[item.path] !== false
+                    return (
+                      <div key={item.path} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <item.icon size={16} style={{ color: 'var(--muted)' }} />
+                          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{item.label}</span>
+                        </div>
+                        <label style={{ position: 'relative', display: 'inline-block', width: 34, height: 18 }}>
+                          <input 
+                            type="checkbox" 
+                            checked={isVisible} 
+                            onChange={() => toggleTabVisibility(item.path)} 
+                            style={{ opacity: 0, width: 0, height: 0 }}
+                          />
+                          <span style={{
+                            position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                            backgroundColor: isVisible ? 'var(--hpe-green, #01a982)' : 'rgba(255, 255, 255, 0.15)',
+                            border: '1px solid var(--line, rgba(255, 255, 255, 0.15))',
+                            transition: 'background-color 0.2s, border-color 0.2s', borderRadius: 20
+                          }}>
+                            <span style={{
+                              position: 'absolute', height: 12, width: 12, left: 2, bottom: 2,
+                              backgroundColor: 'white', transition: 'transform 0.2s', borderRadius: '50%',
+                              transform: isVisible ? 'translateX(16px)' : 'none'
+                            }} />
+                          </span>
+                        </label>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-primary" onClick={() => setSettingsOpen(false)}>Done</button>
+                </div>
+              </div>
+            </div>
+          )}
         </ProtectedRoute>
       } />
     </Routes>

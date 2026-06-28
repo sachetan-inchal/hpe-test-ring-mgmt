@@ -455,7 +455,6 @@ export default function TopologyPage({ apiBase }) {
             <button className="btn" onClick={handleClearSelection}>Clear Selection</button>
           )}
           <button className="btn" onClick={handleExportConfig}><Download size={14} />Export Excel</button>
-          <button className="btn" onClick={() => setShowImport(true)}>Import Config</button>
         </div>
       </div>
 

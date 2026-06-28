@@ -579,6 +579,7 @@ function OntologyBackupSection({ apiBase }) {
 export default function AdminPage({ apiBase }) {
   const [allNodes, setAllNodes] = useState([])
   const [refreshKey, setRefreshKey] = useState(0)
+  const [visible, setVisible] = useState(true)
   const refresh = () => setRefreshKey(k => k + 1)
 
   useEffect(() => {
@@ -588,23 +589,51 @@ export default function AdminPage({ apiBase }) {
   }, [apiBase, refreshKey])
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h2 className="page-title">Admin & Configuration</h2>
-          <p className="page-subtitle">Manage nodes, schema, data import, and synthetic data generation</p>
-        </div>
-        <button className="btn" onClick={refresh}><RefreshCw size={14} /> Refresh</button>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
-        {/* Full-width log ingest section always first */}
-        <LogFileIngestSection apiBase={apiBase} />
-        <FakerSection apiBase={apiBase} />
-        <AddNodeSection apiBase={apiBase} onRefresh={refresh} />
-        <CsvIngestSection apiBase={apiBase} />
-        <FieldSchemaSection apiBase={apiBase} />
-        <OntologyBackupSection apiBase={apiBase} />
-        <DeleteSection apiBase={apiBase} allNodes={allNodes} onRefresh={refresh} />
+    <div style={{ position: 'relative', minHeight: '100%' }}>
+      {visible && (
+        <>
+          <div className="page-header">
+            <div>
+              <h2 className="page-title">Admin & Configuration</h2>
+              <p className="page-subtitle">Manage nodes, schema, data import, and synthetic data generation</p>
+            </div>
+            <button className="btn" onClick={refresh}><RefreshCw size={14} /> Refresh</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
+            {/* Full-width log ingest section always first */}
+            <LogFileIngestSection apiBase={apiBase} />
+            <FakerSection apiBase={apiBase} />
+            <AddNodeSection apiBase={apiBase} onRefresh={refresh} />
+            <CsvIngestSection apiBase={apiBase} />
+            <FieldSchemaSection apiBase={apiBase} />
+            <OntologyBackupSection apiBase={apiBase} />
+            <DeleteSection apiBase={apiBase} allNodes={allNodes} onRefresh={refresh} />
+          </div>
+        </>
+      )}
+
+      {/* Bottom right small switch with no name */}
+      <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 1000 }}>
+        <label style={{ position: 'relative', display: 'inline-block', width: 34, height: 18 }}>
+          <input 
+            type="checkbox" 
+            checked={visible} 
+            onChange={() => setVisible(!visible)} 
+            style={{ opacity: 0, width: 0, height: 0 }}
+          />
+          <span style={{
+            position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: visible ? 'var(--hpe-green, #01a982)' : 'rgba(255, 255, 255, 0.15)',
+            border: '1px solid var(--line, rgba(255, 255, 255, 0.15))',
+            transition: 'background-color 0.2s, border-color 0.2s', borderRadius: 20
+          }}>
+            <span style={{
+              position: 'absolute', height: 12, width: 12, left: 2, bottom: 2,
+              backgroundColor: 'white', transition: 'transform 0.2s', borderRadius: '50%',
+              transform: visible ? 'translateX(16px)' : 'none'
+            }} />
+          </span>
+        </label>
       </div>
     </div>
   )

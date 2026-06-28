@@ -838,12 +838,22 @@ def save_ssh_credentials():
     dns_name = data.get("dns_name", "")
     dns_server = data.get("dns_server", "")
     category = data.get("category", "Host")
+    device_kind = data.get("device_kind", "real")
+    vsan_device_type = data.get("vsan_device_type", "host")
+    selected_commands = data.get("selected_commands", [])
+    custom_commands = data.get("custom_commands", [])
+    mock_commands = data.get("mock_commands", {})
     
     if not ip and not dns_name:
         return jsonify({"error": "ip or dns_name is required"}), 400
         
-    if not username or not password:
-        return jsonify({"error": "username and password are required"}), 400
+    if device_kind == "real":
+        if not username or password is None:
+            return jsonify({"error": "username and password are required"}), 400
+    else:
+        # Mock device defaults
+        username = username or "simulator"
+        password = password or ""
         
     try:
         encrypted = _encrypt_password(password)
@@ -858,7 +868,12 @@ def save_ssh_credentials():
                     "device_name": device_name or ip or dns_name,
                     "dns_name": dns_name,
                     "dns_server": dns_server,
-                    "category": category
+                    "category": category,
+                    "device_kind": device_kind,
+                    "vsan_device_type": vsan_device_type,
+                    "selected_commands": selected_commands,
+                    "custom_commands": custom_commands,
+                    "mock_commands": mock_commands
                 }},
                 upsert=True
             )
@@ -872,13 +887,13 @@ def save_ssh_credentials():
 def list_ssh_credentials():
     """List all saved SSH credentials, decrypted for client use."""
     try:
+        persisted = []
         if mongo.available:
             db = mongo.db
             creds = list(db.ssh_credentials.find({}))
-            out = []
             for c in creds:
                 decrypted = _decrypt_password(c.get("password", ""))
-                out.append({
+                persisted.append({
                     "device_name": c.get("device_name") or c.get("ip"),
                     "ip_address": c.get("ip"),
                     "ip": c.get("ip"),
@@ -887,10 +902,57 @@ def list_ssh_credentials():
                     "port": c.get("port", 22),
                     "dns_name": c.get("dns_name", ""),
                     "dns_server": c.get("dns_server", ""),
-                    "category": c.get("category", "Host")
+                    "category": c.get("category", "Host"),
+                    "device_kind": c.get("device_kind", "real"),
+                    "vsan_device_type": c.get("vsan_device_type", "host"),
+                    "selected_commands": c.get("selected_commands", []),
+                    "custom_commands": c.get("custom_commands", []),
+                    "mock_commands": c.get("mock_commands", {})
                 })
-            return jsonify({"devices": out})
-        return jsonify({"error": "MongoDB unavailable"}), 503
+
+        # Inject simulator-derived mock devices
+        injected = []
+        try:
+            sim_devices = virtual_network.list_devices()
+            for d in sim_devices:
+                ip = d.get("ip")
+                name = d.get("name") or d.get("device_name") or ip
+                category = d.get("type") or d.get("category") or "Host"
+                # Normalize category to Host, Switch, Array
+                if "array" in category.lower():
+                    category = "Array"
+                elif "switch" in category.lower():
+                    category = "Switch"
+                else:
+                    category = "Host"
+
+                injected.append({
+                    "device_name": name,
+                    "ip_address": ip,
+                    "ip": ip,
+                    "username": "simulator",
+                    "password": "",
+                    "port": 22,
+                    "dns_name": "",
+                    "dns_server": "",
+                    "category": category,
+                    "device_kind": "mock",
+                    "vsan_device_type": category.lower(),
+                    "selected_commands": [],
+                    "custom_commands": [],
+                    "mock_commands": {}
+                })
+        except Exception as e:
+            log.error(f"Failed to list simulator devices: {e}")
+
+        # Merge by IP so persisted entries win.
+        by_ip = {d.get("ip"): d for d in injected if d.get("ip")}
+        for d in persisted:
+            if d.get("ip"):
+                by_ip[d.get("ip")] = d
+
+        devices = list(by_ip.values())
+        return jsonify({"devices": devices})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -940,7 +1002,7 @@ def get_ssh_credentials_status(ip):
 @app.route("/api/ssh/exec", methods=["POST"])
 @app.route("/api/ssh-ring/exec", methods=["POST"])
 def ssh_ring_exec():
-    """Execute a CLI command on a real SSH device directly."""
+    """Execute a CLI command on a real SSH device or a simulated/mock device."""
     data = request.json or {}
     ip = data.get("ip") or data.get("ip_address")
     command = data.get("command")
@@ -958,8 +1020,8 @@ def ssh_ring_exec():
         except Exception as e:
             return jsonify({"error": f"Failed to resolve DNS {dns_name}: {e}"}), 400
 
-    if not ip or not username or not password:
-        return jsonify({"error": "IP/DNS Name, username, and password are required"}), 400
+    if not ip:
+        return jsonify({"error": "IP or DNS Name is required"}), 400
         
     if not command and not commands:
         return jsonify({"error": "command or commands are required"}), 400
@@ -971,6 +1033,65 @@ def ssh_ring_exec():
     else:
         cmds_to_run = []
         
+    # Determine if this is a mock/simulated device
+    is_mock = False
+    mock_commands = {}
+    if mongo.available:
+        try:
+            db = mongo.db
+            cred = db.ssh_credentials.find_one({"ip": ip})
+            if cred and cred.get("device_kind") == "mock":
+                is_mock = True
+                mock_commands = cred.get("mock_commands") or {}
+        except Exception:
+            pass
+
+    # If it is an existing simulator device, it can be executed via SimulatorConnector
+    is_sim = any(d.get("ip") == ip for d in virtual_network.list_devices())
+
+    if is_mock or is_sim:
+        from api.integrations.device_connector import SimulatorConnector
+        results = {}
+        for cmd in cmds_to_run:
+            # 1. Check if there is an explicit mock command override in the database
+            if is_mock and cmd in mock_commands:
+                entry = mock_commands[cmd]
+                results[cmd] = {
+                    "stdout": entry.get("stdout", ""),
+                    "stderr": entry.get("stderr", ""),
+                    "exit_code": entry.get("exit_code", 0)
+                }
+            # 2. Otherwise, if it's a simulator device, fall back to SimulatorConnector
+            elif is_sim:
+                try:
+                    connector = SimulatorConnector(virtual_network, ip)
+                    res = connector.execute(cmd)
+                    results[cmd] = {
+                        "stdout": res.get("stdout", ""),
+                        "stderr": res.get("stderr", ""),
+                        "exit_code": res.get("exit_code", 0)
+                    }
+                except Exception as e:
+                    results[cmd] = {"stdout": "", "stderr": str(e), "exit_code": 1}
+            else:
+                results[cmd] = {"stdout": "", "stderr": "Command not simulated", "exit_code": 1}
+        
+        first_cmd_output = ""
+        if cmds_to_run:
+            first_res = results.get(cmds_to_run[0], {})
+            first_cmd_output = first_res.get("stdout", "") + first_res.get("stderr", "")
+            
+        return jsonify({
+            "ip": ip,
+            "command": command or (cmds_to_run[0] if cmds_to_run else ""),
+            "output": first_cmd_output,
+            "results": results
+        })
+
+    # Real SSH Execution
+    if not username or not password:
+        return jsonify({"error": "username and password are required for real SSH devices"}), 400
+
     try:
         from api.integrations.device_connector import SSHConnector
         connector = SSHConnector(host=ip, username=username, password=password, port=port)
@@ -980,11 +1101,11 @@ def ssh_ring_exec():
                 res = connector.execute(cmd)
                 results[cmd] = {
                     "stdout": res.get("stdout", ""),
-                    "stderr": res.get("stderr", "")
+                    "stderr": res.get("stderr", ""),
+                    "exit_code": res.get("exit_code", 0)
                 }
             connector.disconnect()
             
-            # Return both formats to be safe
             first_cmd_output = ""
             if cmds_to_run:
                 first_res = results.get(cmds_to_run[0], {})
@@ -1005,6 +1126,148 @@ def ssh_ring_exec():
             }), 401
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discover", methods=["POST"])
+@app.route("/api/ssh-ring/discover", methods=["POST"])
+def ssh_ring_discover_all():
+    """Discover all registered credentials by running command sets per category."""
+    from api.integrations.device_connector import SimulatorConnector, SSHConnector
+    PRESET_COMMANDS = {
+        "Array": [
+            "showversion -b", "showsys", "shownode", "showport", "showhost",
+            "showcage -pci", "showcage -sfp", "showcage -state", "showpd",
+            "showpd -s", "showpd -i", "showportdev",
+            "showportdev ns -nohdtot 0:3:1", "showportdev ns -nohdtot 1:3:1"
+        ],
+        "Host": [
+            "lscpu", "systool -c fc_host -v", "lspci -nnk"
+        ],
+        "Switch": [
+            "fabricshow", "switchshow"
+        ]
+    }
+    data = request.json or {}
+    commands_override = data.get("commands")
+    commands_by_device = data.get("commands_by_device") or {}
+    commands_by_category = data.get("commands_by_category") or {}
+    target_ips = data.get("ips")
+
+    # Load credentials using the list_ssh_credentials logic
+    devices_resp = list_ssh_credentials()
+    creds = devices_resp.get_json().get("devices", [])
+    if not creds:
+        return jsonify({"error": "No credentials registered"}), 400
+
+    if target_ips:
+        # Filter to only the selected device IPs
+        creds = [c for c in creds if c.get("ip_address") in target_ips or c.get("ip") in target_ips]
+        if not creds:
+            return jsonify({"error": "None of the selected devices have registered credentials"}), 400
+
+    all_results = []
+    for d in creds:
+        device_name = d.get("device_name") or d.get("ip_address") or "unknown"
+        ip = d.get("ip_address") or d.get("ip") or d.get("dns_name")
+        category = d.get("category") or "Host"
+        username = d.get("username")
+        password = d.get("password")
+        port = int(d.get("port", 22))
+        device_kind = d.get("device_kind", "real")
+        mock_commands = d.get("mock_commands") or {}
+
+        presets = None
+        if isinstance(commands_override, list):
+            presets = commands_override
+        elif commands_by_device:
+            presets = commands_by_device.get(ip) or commands_by_device.get(d.get("dns_name") or "")
+        if not presets:
+            presets = d.get("selected_commands")
+        if not presets:
+            if commands_by_category and isinstance(commands_by_category, dict):
+                presets = commands_by_category.get(category)
+        if not presets:
+            presets = PRESET_COMMANDS.get(category) or []
+
+        device_result = {
+            "device_name": device_name,
+            "ip": ip,
+            "category": category,
+            "status": "pending",
+            "commands": {},
+            "error": None,
+        }
+
+        try:
+            device_result["status"] = "running"
+            if not presets:
+                device_result["status"] = "warning"
+                all_results.append(device_result)
+                continue
+
+            results = {}
+            is_sim = any(sim_d.get("ip") == ip for sim_d in virtual_network.list_devices())
+
+            for cmd in presets:
+                if device_kind == "mock" and cmd in mock_commands:
+                    entry = mock_commands[cmd]
+                    results[cmd] = {
+                        "stdout": entry.get("stdout", ""),
+                        "stderr": entry.get("stderr", ""),
+                        "exit_code": entry.get("exit_code", 0)
+                    }
+                elif device_kind == "mock" or is_sim:
+                    # Fallback to SimulatorConnector if it's virtual/simulated
+                    try:
+                        connector = SimulatorConnector(virtual_network, ip)
+                        res = connector.execute(cmd)
+                        results[cmd] = {
+                            "stdout": res.get("stdout", ""),
+                            "stderr": res.get("stderr", ""),
+                            "exit_code": res.get("exit_code", 0)
+                        }
+                    except Exception as e:
+                        results[cmd] = {"stdout": "", "stderr": str(e), "exit_code": 1}
+                else:
+                    # Real SSH Execution
+                    from api.integrations.device_connector import SSHConnector
+                    connector = SSHConnector(host=ip, username=username, password=password, port=port)
+                    if connector.connect():
+                        res = connector.execute(cmd)
+                        results[cmd] = {
+                            "stdout": res.get("stdout", ""),
+                            "stderr": res.get("stderr", ""),
+                            "exit_code": res.get("exit_code", 0)
+                        }
+                        connector.disconnect()
+                    else:
+                        results[cmd] = {"stdout": "", "stderr": "SSH Connection Failure", "exit_code": -1}
+
+            # mark warning if any stderr / nonzero exit
+            status = "success"
+            for cmd, r in results.items():
+                if (r.get("stderr") or "").strip():
+                    status = "warning"
+                    break
+                if r.get("exit_code") not in (None, 0):
+                    status = "warning"
+                    break
+
+            device_result["commands"] = results
+            device_result["status"] = status
+
+        except Exception as e:
+            device_result["status"] = "error"
+            device_result["error"] = str(e)
+
+        all_results.append(device_result)
+
+    from datetime import datetime
+    return jsonify({
+        "status": "complete",
+        "results": all_results,
+        "discovered_at": datetime.utcnow().isoformat() + "Z"
+    })
 
 
 def _san_agent_executor(ip, cmd):

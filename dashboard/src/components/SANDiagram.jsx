@@ -59,6 +59,64 @@ export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeCl
   );
   const hosts = activeNodes.filter(n => n.category === "main" && n.type === "Host");
 
+  // Determine which arrays are selected or focused
+  const selectedArrayIds = useMemo(() => {
+    const selected = arrays.filter(a => selectedIds?.has(a.id)).map(a => a.id);
+    if (selected.length > 0) {
+      return selected;
+    }
+    if (focusedId && arrays.some(a => a.id === focusedId)) {
+      return [focusedId];
+    }
+    return [];
+  }, [arrays, selectedIds, focusedId]);
+
+  // Find all nodes connected to the selected arrays
+  const connectedNodeIds = useMemo(() => {
+    if (selectedArrayIds.length === 0) return null;
+    const visited = new Set(selectedArrayIds);
+    const queue = [...selectedArrayIds];
+    const adj = {};
+    activeNodes.forEach(n => {
+      adj[n.id] = [];
+    });
+    edges.forEach(e => {
+      if (adj[e.from] && adj[e.to]) {
+        adj[e.from].push(e.to);
+        adj[e.to].push(e.from);
+      }
+    });
+    activeNodes.forEach(n => {
+      if (n.parentId) {
+        if (adj[n.id] && adj[n.parentId]) {
+          adj[n.id].push(n.parentId);
+          adj[n.parentId].push(n.id);
+        }
+      }
+    });
+    while (queue.length > 0) {
+      const curr = queue.shift();
+      const neighbors = adj[curr] || [];
+      for (const neighbor of neighbors) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+    return visited;
+  }, [selectedArrayIds, activeNodes, edges]);
+
+  const visibleSwitches = useMemo(() => {
+    if (!connectedNodeIds) return switches;
+    return switches.filter(s => connectedNodeIds.has(s.id));
+  }, [switches, connectedNodeIds]);
+
+  const visibleHosts = useMemo(() => {
+    if (!connectedNodeIds) return hosts;
+    return hosts.filter(h => connectedNodeIds.has(h.id));
+  }, [hosts, connectedNodeIds]);
+
   // Helper to get sub-components for a parent
   const getSubNodes = (parentId) => activeNodes.filter(n => n.parentId === parentId);
   const getConnectedEdges = (nodeId) => edges.filter(e => e.from === nodeId || e.to === nodeId);
@@ -222,12 +280,12 @@ export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeCl
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <svg style={{ width: 16, height: 16 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
               FC / Ethernet / SAS / InfiniBand / FCoE Switches
-              <span style={{ fontSize: 10, background: 'rgba(88,166,255,0.12)', color: '#58a6ff', border: '1px solid rgba(88,166,255,0.25)', borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>{switches.length}</span>
+              <span style={{ fontSize: 10, background: 'rgba(88,166,255,0.12)', color: '#58a6ff', border: '1px solid rgba(88,166,255,0.25)', borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>{visibleSwitches.length}</span>
             </div>
             <svg style={{ width: 16, height: 16, transition: 'transform 0.3s', transform: showSwitches ? 'rotate(180deg)' : 'none' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
           </div>
-          {showSwitches && switches.length > 0 && switches.map(node => renderCard(node))}
-          {showSwitches && switches.length === 0 && (
+          {showSwitches && visibleSwitches.length > 0 && visibleSwitches.map(node => renderCard(node))}
+          {showSwitches && visibleSwitches.length === 0 && (
             <div style={{ width: '100%', padding: '12px 16px', textAlign: 'center', fontSize: 12, color: 'var(--muted)', border: '1px dashed var(--line)', borderRadius: 8 }}>
               No switches detected
             </div>
@@ -254,10 +312,16 @@ export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeCl
              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                <svg style={{ width: 16, height: 16 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z" /></svg>
                Compute Hosts
+               <span style={{ fontSize: 10, background: 'rgba(88,166,255,0.12)', color: '#58a6ff', border: '1px solid rgba(88,166,255,0.25)', borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>{visibleHosts.length}</span>
              </div>
              <svg style={{ width: 16, height: 16, transition: 'transform 0.3s', transform: showHosts ? 'rotate(180deg)' : 'none' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
           </div>
-          {showHosts && hosts.map(node => renderCard(node))}
+          {showHosts && visibleHosts.map(node => renderCard(node))}
+          {showHosts && visibleHosts.length === 0 && (
+            <div style={{ width: '100%', padding: '12px 16px', textAlign: 'center', fontSize: 12, color: 'var(--muted)', border: '1px dashed var(--line)', borderRadius: 8 }}>
+              No hosts detected
+            </div>
+          )}
         </div>
 
       </div>

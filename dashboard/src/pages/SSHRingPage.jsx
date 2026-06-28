@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Plus, Trash2, RefreshCw } from 'lucide-react'
 
 export default function SSHRingPage({ apiBase }) {
   const API = apiBase || ''
-  
+
   // Credentials List
   const [devices, setDevices] = useState([])
   const [loadingDevices, setLoadingDevices] = useState(false)
@@ -45,6 +46,21 @@ export default function SSHRingPage({ apiBase }) {
   const [dnsName, setDnsName] = useState('')
   const [dnsServer, setDnsServer] = useState('')
   const [category, setCategory] = useState('Host')
+
+  // Virtual / Mock Device additions
+  const [deviceKind, setDeviceKind] = useState('real') // 'real' or 'mock'
+  const [vsanDeviceType, setVsanDeviceType] = useState('host') // 'host', 'array', 'switch', 'custom'
+  const [selectedCommands, setSelectedCommands] = useState([])
+  const [customCommands, setCustomCommands] = useState([])
+  const [newCustomCommand, setNewCustomCommand] = useState('')
+  const [mockCommands, setMockCommands] = useState({}) // cmd -> { stdout, stderr, exit_code }
+
+  // Mock Output Editor State
+  const [selectedMockCmd, setSelectedMockCmd] = useState('')
+  const [mockStdout, setMockStdout] = useState('')
+  const [mockStderr, setMockStderr] = useState('')
+  const [mockExitCode, setMockExitCode] = useState(0)
+
   const [isEditing, setIsEditing] = useState(false)
   const [originalDeviceName, setOriginalDeviceName] = useState('')
   const [saveStatus, setSaveStatus] = useState({ text: '', type: '' })
@@ -58,10 +74,20 @@ export default function SSHRingPage({ apiBase }) {
   const [targetDnsServer, setTargetDnsServer] = useState('')
   const [targetCategory, setTargetCategory] = useState('Host')
   const [selectedPresets, setSelectedPresets] = useState([])
+  const [targetCustomCommands, setTargetCustomCommands] = useState([])
+  const [selectedCustomPresets, setSelectedCustomPresets] = useState([])
   const [command, setCommand] = useState('ls')
   const [runStatus, setRunStatus] = useState({ text: '', type: '' })
   const [cmdOutput, setCmdOutput] = useState('(No output yet)')
   const [isExecuting, setIsExecuting] = useState(false)
+
+  // Discovery State
+  const [isDiscovering, setIsDiscovering] = useState(false)
+  const [discoverStatus, setDiscoverStatus] = useState('')
+  const [discoveryResults, setDiscoveryResults] = useState(null)
+
+  // Selection of devices in the table
+  const [selectedDeviceIps, setSelectedDeviceIps] = useState(new Set())
 
   // Auto-select all preset commands when target device category changes
   useEffect(() => {
@@ -72,6 +98,15 @@ export default function SSHRingPage({ apiBase }) {
     }
   }, [targetCategory])
 
+  // Sync category when vsanDeviceType changes
+  useEffect(() => {
+    if (deviceKind === 'mock') {
+      if (vsanDeviceType === 'array') setCategory('Array')
+      else if (vsanDeviceType === 'switch') setCategory('Switch')
+      else if (vsanDeviceType === 'host') setCategory('Host')
+    }
+  }, [vsanDeviceType, deviceKind])
+
   // Fetch devices on mount and when API changes
   const fetchDevices = async () => {
     setLoadingDevices(true)
@@ -79,7 +114,15 @@ export default function SSHRingPage({ apiBase }) {
       const res = await fetch(`${API}/api/credentials/list`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json().catch(() => ({}))
-      setDevices(data?.devices || [])
+      const rawDevices = data?.devices || []
+      const sortedDevices = [...rawDevices].sort((a, b) => {
+        const kindA = a.device_kind === 'mock' ? 1 : 0
+        const kindB = b.device_kind === 'mock' ? 1 : 0
+        return kindA - kindB
+      })
+      setDevices(sortedDevices)
+      // Reset selection when list reloads
+      setSelectedDeviceIps(new Set())
     } catch (e) {
       console.error('Failed to fetch devices:', e)
     } finally {
@@ -96,8 +139,12 @@ export default function SSHRingPage({ apiBase }) {
   // Handle Save
   const handleSave = async (e) => {
     e.preventDefault()
-    if (!deviceName.trim() || (!ip.trim() && !dnsName.trim()) || !username.trim() || !password) {
-      setSaveStatus({ text: 'Device name, IP or DNS Name, username, and password are required', type: 'err' })
+    if (!deviceName.trim() || (!ip.trim() && !dnsName.trim())) {
+      setSaveStatus({ text: 'Device name and IP or DNS Name are required', type: 'err' })
+      return
+    }
+    if (deviceKind === 'real' && (!username.trim() || !password)) {
+      setSaveStatus({ text: 'Username and password are required for real SSH devices', type: 'err' })
       return
     }
 
@@ -114,7 +161,12 @@ export default function SSHRingPage({ apiBase }) {
           password: password,
           dns_name: dnsName.trim(),
           dns_server: dnsServer.trim(),
-          category: category
+          category: category,
+          device_kind: deviceKind,
+          vsan_device_type: vsanDeviceType,
+          selected_commands: selectedCommands,
+          custom_commands: customCommands,
+          mock_commands: mockCommands
         }),
       })
 
@@ -131,7 +183,7 @@ export default function SSHRingPage({ apiBase }) {
       }
 
       setSaveStatus({ text: `Saved "${deviceName.trim()}" successfully`, type: 'ok' })
-      
+
       // Clear form
       setDeviceName('')
       setIp('')
@@ -141,9 +193,17 @@ export default function SSHRingPage({ apiBase }) {
       setDnsName('')
       setDnsServer('')
       setCategory('Host')
+      setDeviceKind('real')
+      setVsanDeviceType('host')
+      setSelectedCommands([])
+      setCustomCommands([])
+      setMockCommands({})
+      setSelectedMockCmd('')
+      setMockStdout('')
+      setMockStderr('')
       setIsEditing(false)
       setOriginalDeviceName('')
-      
+
       await fetchDevices()
     } catch (err) {
       setSaveStatus({ text: `Save failed: ${err.message}`, type: 'err' })
@@ -177,6 +237,11 @@ export default function SSHRingPage({ apiBase }) {
     setDnsName(device.dns_name || '')
     setDnsServer(device.dns_server || '')
     setCategory(device.category || 'Host')
+    setDeviceKind(device.device_kind || 'real')
+    setVsanDeviceType(device.vsan_device_type || 'host')
+    setSelectedCommands(device.selected_commands || [])
+    setCustomCommands(device.custom_commands || [])
+    setMockCommands(device.mock_commands || {})
     setIsEditing(true)
     setOriginalDeviceName(device.device_name || '')
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -191,14 +256,28 @@ export default function SSHRingPage({ apiBase }) {
     setTargetDnsName(device.dns_name || '')
     setTargetDnsServer(device.dns_server || '')
     setTargetCategory(device.category || 'Host')
+
+    // Load presets
+    if (device.selected_commands && device.selected_commands.length > 0) {
+      setSelectedPresets(device.selected_commands.filter(c => (PRESET_COMMANDS[device.category] || []).includes(c)))
+    }
+
+    // Load custom commands for target checkboxes
+    if (device.custom_commands && device.custom_commands.length > 0) {
+      setTargetCustomCommands(device.custom_commands)
+      setSelectedCustomPresets(device.custom_commands)
+    } else {
+      setTargetCustomCommands([])
+      setSelectedCustomPresets([])
+    }
   }
 
   // Connect & Run Command
   const handleRun = async (e, customCmd = null) => {
     if (e) e.preventDefault()
     const cmdToRun = customCmd || command
-    if ((!targetIp.trim() && !targetDnsName.trim()) || !targetUser.trim() || !targetPassword) {
-      setRunStatus({ text: 'Enter target IP or DNS Name, username, and password first', type: 'err' })
+    if ((!targetIp.trim() && !targetDnsName.trim())) {
+      setRunStatus({ text: 'Enter target IP or DNS Name first', type: 'err' })
       return
     }
 
@@ -246,122 +325,262 @@ export default function SSHRingPage({ apiBase }) {
     }
   }
 
-  // Quick Command Run using selected presets
+  // Quick Command Run using selected presets + custom target presets
   const handleQuickRun = () => {
-    if (selectedPresets.length === 0) {
-      setRunStatus({ text: 'No preset commands checked', type: 'err' })
+    const allSelected = [...selectedPresets, ...selectedCustomPresets]
+    if (allSelected.length === 0) {
+      setRunStatus({ text: 'Select at least one preset or custom command to run', type: 'err' })
       return
     }
-    const composite = selectedPresets
-      .map(cmd => `echo "--- CMD: ${cmd} ---"; ${cmd}`)
-      .join('; ')
-    setCommand(composite)
-    handleRun(null, composite)
+
+    setRunStatus({ text: `Executing batch of ${allSelected.length} commands...`, type: 'ok' })
+    setCmdOutput('(Executing batch...)')
+    setIsExecuting(true)
+
+    const runBatch = async () => {
+      try {
+        const res = await fetch(`${API}/api/ssh/exec`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ip: targetIp.trim(),
+            username: targetUser.trim(),
+            password: targetPassword,
+            port: parseInt(targetPort || '22', 10),
+            commands: allSelected,
+            dns_name: targetDnsName.trim(),
+            dns_server: targetDnsServer.trim()
+          }),
+        })
+
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
+
+        let output = ''
+        if (data.results) {
+          for (const [cmd, result] of Object.entries(data.results)) {
+            output += `$ ${cmd}\n`
+            if (result.stdout) output += result.stdout + '\n'
+            if (result.stderr) output += `[ERROR] ${result.stderr}\n`
+            output += '\n'
+          }
+        } else {
+          output = data.output || JSON.stringify(data, null, 2)
+        }
+
+        setCmdOutput(output || '(no output)')
+        setRunStatus({ text: 'Batch execution complete', type: 'ok' })
+      } catch (err) {
+        setCmdOutput(`ERROR: ${err.message}`)
+        setRunStatus({ text: 'Batch execution failed', type: 'err' })
+      } finally {
+        setIsExecuting(false)
+      }
+    }
+
+    runBatch()
   }
 
+  // Discover registered credentials (all or selected only)
+  const handleDiscover = async (onlySelected = false) => {
+    if (devices.length === 0) {
+      setDiscoverStatus('No devices registered to discover')
+      return
+    }
+
+    if (onlySelected && selectedDeviceIps.size === 0) {
+      setDiscoverStatus('No devices selected to discover')
+      return
+    }
+
+    setIsDiscovering(true)
+    setDiscoverStatus(onlySelected ? `Triggering discovery for ${selectedDeviceIps.size} selected devices...` : 'Triggering discovery across all registered credentials...')
+    setDiscoveryResults(null)
+
+    try {
+      const payload = {}
+      if (onlySelected) {
+        payload.ips = Array.from(selectedDeviceIps)
+      }
+
+      const res = await fetch(`${API}/api/discover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Discovery failed')
+
+      setDiscoveryResults(data)
+      setDiscoverStatus('Discovery complete!')
+    } catch (e) {
+      setDiscoverStatus(`Discovery error: ${e.message}`)
+    } finally {
+      setIsDiscovering(false)
+    }
+  }
+
+  // Toggle selection for a specific device IP
+  const handleToggleSelectDevice = (ip) => {
+    setSelectedDeviceIps(prev => {
+      const next = new Set(prev)
+      if (next.has(ip)) {
+        next.delete(ip)
+      } else {
+        next.add(ip)
+      }
+      return next
+    })
+  }
+
+  // Toggle selection for all devices
+  const handleToggleSelectAll = (checked) => {
+    if (checked) {
+      const allIps = devices.map(d => d.ip_address || d.ip).filter(Boolean)
+      setSelectedDeviceIps(new Set(allIps))
+    } else {
+      setSelectedDeviceIps(new Set())
+    }
+  }
+
+  // Add custom command to list
+  const handleAddCustomCommand = () => {
+    const cmd = newCustomCommand.trim()
+    if (!cmd) return
+    if (!customCommands.includes(cmd)) {
+      setCustomCommands(prev => [...prev, cmd])
+      setSelectedCommands(prev => [...prev, cmd])
+    }
+    setNewCustomCommand('')
+  }
+
+  // Remove custom command
+  const handleRemoveCustomCommand = (cmd) => {
+    setCustomCommands(prev => prev.filter(c => c !== cmd))
+    setSelectedCommands(prev => prev.filter(c => c !== cmd))
+    if (selectedMockCmd === cmd) {
+      setSelectedMockCmd('')
+    }
+    setMockCommands(prev => {
+      const copy = { ...prev }
+      delete copy[cmd]
+      return copy
+    })
+  }
+
+  // Load mock output values when selectedMockCmd changes
+  useEffect(() => {
+    if (selectedMockCmd) {
+      const entry = mockCommands[selectedMockCmd] || { stdout: '', stderr: '', exit_code: 0 }
+      setMockStdout(entry.stdout || '')
+      setMockStderr(entry.stderr || '')
+      setMockExitCode(entry.exit_code || 0)
+    }
+  }, [selectedMockCmd, mockCommands])
+
+  // Apply mock output override
+  const handleApplyMockOverride = () => {
+    if (!selectedMockCmd) return
+    setMockCommands(prev => ({
+      ...prev,
+      [selectedMockCmd]: {
+        stdout: mockStdout,
+        stderr: mockStderr,
+        exit_code: parseInt(mockExitCode || '0', 10)
+      }
+    }))
+    alert(`Applied mock override for "${selectedMockCmd}"`)
+  }
+
+  // Get all commands currently available for selection
+  const allAvailableCommands = [
+    ...(PRESET_COMMANDS[category] || []),
+    ...customCommands
+  ]
+
+  const allIps = devices.map(d => d.ip_address || d.ip).filter(Boolean)
+  const isAllSelected = devices.length > 0 && selectedDeviceIps.size === allIps.length
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 20, padding: 12 }}>
-      <div>
-        <h1 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: 800, color: 'var(--hpe-green)' }}>
-          SSH Ring Manager
-        </h1>
-        <p style={{ color: 'var(--muted)', margin: 0, fontSize: '13px', lineHeight: 1.4 }}>
-          Securely register network credentials and run interactive diagnostic commands on registered storage nodes.
-        </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: 20 }}>
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">SSH Ring Manager</h2>
+          <p className="page-subtitle">Configure SSH credentials, custom commands, and virtual mock devices for the SAN ring</p>
+        </div>
       </div>
 
-      {/* Grid for forms */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
-        gap: 20
-      }}>
-        {/* Form: Add / Save credentials */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 20 }}>
+        {/* Form: Add/Edit Credentials */}
         <div className="glass-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, borderBottom: '1px solid rgba(1, 169, 130, 0.2)', paddingBottom: 8 }}>
-            {isEditing ? `Edit "${originalDeviceName}"` : 'Add / Save SSH Credentials'}
+            {isEditing ? 'Edit Device Credentials' : 'Register New Device'}
           </h2>
-          
-          <div className="note" style={{
-            fontSize: '11px',
-            color: 'var(--muted)',
-            padding: 10,
-            borderRadius: 8,
-            border: '1px dashed rgba(1, 169, 130, 0.3)',
-            background: 'rgba(255, 255, 255, 0.02)'
-          }}>
-            Credentials are securely indexed and encrypted in the Mongo database. Plaintext passwords are not cached.
-          </div>
 
           <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Device Name</label>
-              <input
-                value={deviceName}
-                onChange={(e) => setDeviceName(e.target.value)}
-                placeholder="e.g. node-alpha"
-                required
-                style={{
-                  width: '100%',
-                  padding: '9px 12px',
-                  borderRadius: 8,
-                  border: '1px solid rgba(1, 169, 130, 0.3)',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  color: 'var(--foreground)',
-                  outline: 'none'
-                }}
-              />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Device Kind</label>
+                <select
+                  value={deviceKind}
+                  onChange={(e) => setDeviceKind(e.target.value)}
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
+                    color: 'var(--foreground)', outline: 'none'
+                  }}
+                >
+                  <option value="real" style={{ background: '#1a1a1a', color: '#fff' }}>Real SSH Device</option>
+                  <option value="mock" style={{ background: '#1a1a1a', color: '#fff' }}>Virtual / Mock Device</option>
+                </select>
+              </div>
+
+              {deviceKind === 'mock' && (
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Vsan Device Type</label>
+                  <select
+                    value={vsanDeviceType}
+                    onChange={(e) => setVsanDeviceType(e.target.value)}
+                    style={{
+                      width: '100%', padding: '9px 12px', borderRadius: 8,
+                      border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
+                      color: 'var(--foreground)', outline: 'none'
+                    }}
+                  >
+                    <option value="host" style={{ background: '#1a1a1a', color: '#fff' }}>Compute Host</option>
+                    <option value="array" style={{ background: '#1a1a1a', color: '#fff' }}>Array System</option>
+                    <option value="switch" style={{ background: '#1a1a1a', color: '#fff' }}>Fibre Channel Switch</option>
+                    <option value="custom" style={{ background: '#1a1a1a', color: '#fff' }}>Custom Mock Outputs</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 2 }}>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Device Name</label>
+                <input
+                  value={deviceName}
+                  onChange={(e) => setDeviceName(e.target.value)}
+                  placeholder="e.g. PROD-A-N0"
+                  required
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
+                  }}
+                />
+              </div>
               <div style={{ flex: 2 }}>
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>IP Address</label>
                 <input
                   value={ip}
                   onChange={(e) => setIp(e.target.value)}
-                  placeholder="e.g. 192.168.1.101"
+                  placeholder="e.g. 192.168.1.50"
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
-                  }}
-                />
-              </div>
-              <div style={{ flex: 2 }}>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>DNS Name</label>
-                <input
-                  value={dnsName}
-                  onChange={(e) => setDnsName(e.target.value)}
-                  placeholder="e.g. c3-dl380g11-25"
-                  style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
-                  }}
-                />
-              </div>
-              <div style={{ flex: 2 }}>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>DNS Server IP</label>
-                <input
-                  value={dnsServer}
-                  onChange={(e) => setDnsServer(e.target.value)}
-                  placeholder="e.g. 8.8.8.8"
-                  style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 />
               </div>
@@ -372,13 +591,38 @@ export default function SSHRingPage({ apiBase }) {
                   onChange={(e) => setPort(e.target.value)}
                   placeholder="22"
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 2 }}>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>DNS Name (Optional)</label>
+                <input
+                  value={dnsName}
+                  onChange={(e) => setDnsName(e.target.value)}
+                  placeholder="e.g. host-prod-1"
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
+                  }}
+                />
+              </div>
+              <div style={{ flex: 2 }}>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>DNS Server (Optional)</label>
+                <input
+                  value={dnsServer}
+                  onChange={(e) => setDnsServer(e.target.value)}
+                  placeholder="e.g. 8.8.8.8"
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 />
               </div>
@@ -390,14 +634,11 @@ export default function SSHRingPage({ apiBase }) {
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
+                  disabled={deviceKind === 'mock' && vsanDeviceType !== 'custom'}
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(0, 0, 0, 0.2)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 >
                   <option value="Host" style={{ background: '#1a1a1a', color: '#fff' }}>Host</option>
@@ -410,16 +651,12 @@ export default function SSHRingPage({ apiBase }) {
                 <input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. root"
-                  required
+                  placeholder={deviceKind === 'mock' ? 'simulator' : 'e.g. root'}
+                  required={deviceKind === 'real'}
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 />
               </div>
@@ -429,33 +666,108 @@ export default function SSHRingPage({ apiBase }) {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="SSH password"
-                  required
+                  placeholder={deviceKind === 'mock' ? 'None' : 'SSH password'}
+                  required={deviceKind === 'real'}
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 />
               </div>
             </div>
 
+            {/* Custom Commands Management Section */}
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10, marginTop: 5 }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 6 }}>
+                Manage Custom Commands
+              </label>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <input
+                  value={newCustomCommand}
+                  onChange={(e) => setNewCustomCommand(e.target.value)}
+                  placeholder="e.g. df -h"
+                  style={{
+                    flex: 1, padding: '7px 12px', borderRadius: 6,
+                    border: '1px solid rgba(1, 169, 130, 0.25)', background: 'rgba(255, 255, 255, 0.03)',
+                    color: 'var(--foreground)', outline: 'none', fontSize: '12px'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomCommand}
+                  style={{
+                    padding: '7px 12px', borderRadius: 6, border: 'none',
+                    background: 'var(--hpe-green)', color: 'white', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 4, fontSize: '12px'
+                  }}
+                >
+                  <Plus size={14} /> Add
+                </button>
+              </div>
+
+              {customCommands.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 100, overflowY: 'auto', padding: 6, background: 'rgba(0,0,0,0.15)', borderRadius: 6 }}>
+                  {customCommands.map((cmd) => (
+                    <div key={cmd} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', color: 'var(--foreground)' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)' }}>{cmd}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCustomCommand(cmd)}
+                        style={{ border: 'none', background: 'transparent', color: '#ff6b6b', cursor: 'pointer' }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Selected Commands to Persist */}
+            <div style={{ marginTop: 5 }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 6 }}>
+                Commands to Persist / Execute ({selectedCommands.length} selected)
+              </label>
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '6px',
+                padding: '10px', borderRadius: 8, border: '1px solid rgba(1, 169, 130, 0.2)',
+                background: 'rgba(0, 0, 0, 0.25)', maxHeight: '120px', overflowY: 'auto'
+              }}>
+                {allAvailableCommands.map((cmd) => {
+                  const isChecked = selectedCommands.includes(cmd)
+                  return (
+                    <label key={cmd} style={{
+                      display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px',
+                      cursor: 'pointer', color: isChecked ? 'var(--foreground)' : 'var(--muted)'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedCommands(prev => [...prev, cmd])
+                          } else {
+                            setSelectedCommands(prev => prev.filter(c => c !== cmd))
+                          }
+                        }}
+                        style={{ accentColor: 'var(--hpe-green)', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={cmd}>
+                        {cmd}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
               <button
                 type="submit"
                 style={{
-                  flex: 2,
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid var(--hpe-green)',
-                  background: 'rgba(1, 169, 130, 0.15)',
-                  color: 'var(--hpe-green)',
-                  fontWeight: 700,
-                  cursor: 'pointer',
+                  flex: 2, padding: '10px 14px', borderRadius: 8,
+                  border: '1px solid var(--hpe-green)', background: 'rgba(1, 169, 130, 0.15)',
+                  color: 'var(--hpe-green)', fontWeight: 700, cursor: 'pointer',
                   transition: 'background 0.2s'
                 }}
               >
@@ -471,16 +783,21 @@ export default function SSHRingPage({ apiBase }) {
                     setPort('22')
                     setUsername('')
                     setPassword('')
+                    setDnsName('')
+                    setDnsServer('')
+                    setCategory('Host')
+                    setDeviceKind('real')
+                    setVsanDeviceType('host')
+                    setSelectedCommands([])
+                    setCustomCommands([])
+                    setMockCommands({})
+                    setSelectedMockCmd('')
                     setOriginalDeviceName('')
                   }}
                   style={{
-                    flex: 1,
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    color: 'var(--muted)',
-                    cursor: 'pointer'
+                    flex: 1, padding: '10px 14px', borderRadius: 8,
+                    border: '1px solid rgba(255, 255, 255, 0.2)', background: 'rgba(255, 255, 255, 0.05)',
+                    color: 'var(--muted)', cursor: 'pointer'
                   }}
                 >
                   Cancel
@@ -491,8 +808,7 @@ export default function SSHRingPage({ apiBase }) {
 
           {saveStatus.text && (
             <div style={{
-              fontSize: '13px',
-              marginTop: 4,
+              fontSize: '13px', marginTop: 4,
               color: saveStatus.type === 'ok' ? 'var(--hpe-green)' : '#ff6b6b'
             }}>
               {saveStatus.text}
@@ -503,7 +819,7 @@ export default function SSHRingPage({ apiBase }) {
         {/* Form: Run commands against saved credentials */}
         <div className="glass-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, borderBottom: '1px solid rgba(1, 169, 130, 0.2)', paddingBottom: 8 }}>
-            Run Diagnostic Commands
+            Run Commands
           </h2>
 
           <form onSubmit={handleRun} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -515,13 +831,9 @@ export default function SSHRingPage({ apiBase }) {
                   onChange={(e) => setTargetIp(e.target.value)}
                   placeholder="e.g. 192.168.1.101"
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 />
               </div>
@@ -532,13 +844,9 @@ export default function SSHRingPage({ apiBase }) {
                   onChange={(e) => setTargetDnsName(e.target.value)}
                   placeholder="c3-dl380g11-25"
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 />
               </div>
@@ -549,13 +857,9 @@ export default function SSHRingPage({ apiBase }) {
                   onChange={(e) => setTargetDnsServer(e.target.value)}
                   placeholder="8.8.8.8"
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 />
               </div>
@@ -566,13 +870,9 @@ export default function SSHRingPage({ apiBase }) {
                   onChange={(e) => setTargetPort(e.target.value)}
                   placeholder="22"
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 />
               </div>
@@ -585,13 +885,9 @@ export default function SSHRingPage({ apiBase }) {
                   value={targetCategory}
                   onChange={(e) => setTargetCategory(e.target.value)}
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(0, 0, 0, 0.2)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 >
                   <option value="Host" style={{ background: '#1a1a1a', color: '#fff' }}>Host</option>
@@ -605,15 +901,10 @@ export default function SSHRingPage({ apiBase }) {
                   value={targetUser}
                   onChange={(e) => setTargetUser(e.target.value)}
                   placeholder="Username"
-                  required
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 />
               </div>
@@ -624,15 +915,10 @@ export default function SSHRingPage({ apiBase }) {
                   value={targetPassword}
                   onChange={(e) => setTargetPassword(e.target.value)}
                   placeholder="Password"
-                  required
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'var(--foreground)',
-                    outline: 'none'
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
                   }}
                 />
               </div>
@@ -640,30 +926,19 @@ export default function SSHRingPage({ apiBase }) {
 
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 6 }}>
-                Preset Commands for {targetCategory} (Check/Uncheck to include)
+                Preset Commands for {targetCategory} (Connect & Run will use checked ones)
               </label>
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                gap: '8px',
-                padding: '12px',
-                borderRadius: 8,
-                border: '1px solid rgba(1, 169, 130, 0.2)',
-                background: 'rgba(0, 0, 0, 0.25)',
-                maxHeight: '160px',
-                overflowY: 'auto',
-                marginBottom: 10
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px',
+                padding: '12px', borderRadius: 8, border: '1px solid rgba(1, 169, 130, 0.2)',
+                background: 'rgba(0, 0, 0, 0.25)', maxHeight: '120px', overflowY: 'auto', marginBottom: 10
               }}>
                 {PRESET_COMMANDS[targetCategory]?.map((cmd) => {
                   const isChecked = selectedPresets.includes(cmd)
                   return (
                     <label key={cmd} style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                      color: isChecked ? 'var(--foreground)' : 'var(--muted)',
+                      display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px',
+                      cursor: 'pointer', color: isChecked ? 'var(--foreground)' : 'var(--muted)',
                       transition: 'color 0.2s'
                     }}>
                       <input
@@ -676,10 +951,7 @@ export default function SSHRingPage({ apiBase }) {
                             setSelectedPresets(prev => prev.filter(c => c !== cmd))
                           }
                         }}
-                        style={{
-                          accentColor: 'var(--hpe-green)',
-                          cursor: 'pointer'
-                        }}
+                        style={{ accentColor: 'var(--hpe-green)', cursor: 'pointer' }}
                       />
                       <span style={{ fontFamily: 'var(--font-mono)' }}>{cmd}</span>
                     </label>
@@ -687,6 +959,45 @@ export default function SSHRingPage({ apiBase }) {
                 })}
               </div>
             </div>
+
+            {/* Custom Commands for Target Device */}
+            {targetCustomCommands.length > 0 && (
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 6 }}>
+                  Custom Commands for Target Device (Connect & Run will use checked ones)
+                </label>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px',
+                  padding: '12px', borderRadius: 8, border: '1px solid rgba(1, 169, 130, 0.2)',
+                  background: 'rgba(0, 0, 0, 0.25)', maxHeight: '100px', overflowY: 'auto', marginBottom: 10
+                }}>
+                  {targetCustomCommands.map((cmd) => {
+                    const isChecked = selectedCustomPresets.includes(cmd)
+                    return (
+                      <label key={cmd} style={{
+                        display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px',
+                        cursor: 'pointer', color: isChecked ? 'var(--foreground)' : 'var(--muted)',
+                        transition: 'color 0.2s'
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCustomPresets(prev => [...prev, cmd])
+                            } else {
+                              setSelectedCustomPresets(prev => prev.filter(c => c !== cmd))
+                            }
+                          }}
+                          style={{ accentColor: 'var(--hpe-green)', cursor: 'pointer' }}
+                        />
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>{cmd}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Command to run</label>
@@ -696,14 +1007,9 @@ export default function SSHRingPage({ apiBase }) {
                 placeholder="e.g. ls"
                 required
                 style={{
-                  width: '100%',
-                  padding: '9px 12px',
-                  borderRadius: 8,
-                  border: '1px solid rgba(1, 169, 130, 0.3)',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  color: 'var(--foreground)',
-                  fontFamily: 'var(--font-mono)',
-                  outline: 'none'
+                  width: '100%', padding: '9px 12px', borderRadius: 8,
+                  border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                  color: 'var(--foreground)', fontFamily: 'var(--font-mono)', outline: 'none'
                 }}
               />
             </div>
@@ -713,14 +1019,9 @@ export default function SSHRingPage({ apiBase }) {
                 type="submit"
                 disabled={isExecuting}
                 style={{
-                  flex: 1,
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid var(--hpe-green)',
-                  background: 'rgba(1, 169, 130, 0.15)',
-                  color: 'var(--hpe-green)',
-                  fontWeight: 700,
-                  cursor: isExecuting ? 'not-allowed' : 'pointer',
+                  flex: 1, padding: '10px 14px', borderRadius: 8,
+                  border: '1px solid var(--hpe-green)', background: 'rgba(1, 169, 130, 0.15)',
+                  color: 'var(--hpe-green)', fontWeight: 700, cursor: isExecuting ? 'not-allowed' : 'pointer',
                   transition: 'background 0.2s'
                 }}
               >
@@ -731,24 +1032,19 @@ export default function SSHRingPage({ apiBase }) {
                 onClick={handleQuickRun}
                 disabled={isExecuting}
                 style={{
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: 'var(--foreground)',
-                  fontWeight: 600,
-                  cursor: isExecuting ? 'not-allowed' : 'pointer'
+                  padding: '10px 14px', borderRadius: 8,
+                  border: '1px solid rgba(255, 255, 255, 0.2)', background: 'rgba(255, 255, 255, 0.05)',
+                  color: 'var(--foreground)', fontWeight: 600, cursor: isExecuting ? 'not-allowed' : 'pointer'
                 }}
               >
-                Quick Run Info
+                Run Selected Batch
               </button>
             </div>
           </form>
 
           {runStatus.text && (
             <div style={{
-              fontSize: '13px',
-              color: runStatus.type === 'ok' ? 'var(--hpe-green)' : '#ff6b6b'
+              fontSize: '13px', color: runStatus.type === 'ok' ? 'var(--hpe-green)' : '#ff6b6b'
             }}>
               {runStatus.text}
             </div>
@@ -762,17 +1058,10 @@ export default function SSHRingPage({ apiBase }) {
           Command Output Console
         </div>
         <pre style={{
-          margin: 0,
-          padding: 14,
-          maxHeight: 280,
-          overflow: 'auto',
-          color: '#eaf1ff',
-          background: 'rgba(0, 0, 0, 0.35)',
-          border: '1px solid rgba(1, 169, 130, 0.25)',
-          borderRadius: 8,
-          fontFamily: 'var(--font-mono)',
-          fontSize: '12px',
-          lineHeight: 1.5,
+          margin: 0, padding: 14, maxHeight: 280, overflow: 'auto',
+          color: '#eaf1ff', background: 'rgba(0, 0, 0, 0.35)',
+          border: '1px solid rgba(1, 169, 130, 0.25)', borderRadius: 8,
+          fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: 1.5,
           whiteSpace: 'pre-wrap'
         }}>
           {cmdOutput}
@@ -781,10 +1070,54 @@ export default function SSHRingPage({ apiBase }) {
 
       {/* Saved Devices Table */}
       <div className="glass-card" style={{ padding: 20 }}>
-        <h2 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 700, borderBottom: '1px solid rgba(1, 169, 130, 0.2)', paddingBottom: 8 }}>
-          Devices from Server
-        </h2>
-        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid rgba(1, 169, 130, 0.2)', paddingBottom: 8 }}>
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>
+            Registered Devices
+          </h2>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={() => handleDiscover(true)}
+              disabled={isDiscovering || selectedDeviceIps.size === 0}
+              style={{
+                padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
+                border: '1px solid var(--hpe-green)',
+                background: selectedDeviceIps.size === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(1, 169, 130, 0.1)',
+                color: selectedDeviceIps.size === 0 ? 'var(--muted)' : 'var(--hpe-green)',
+                cursor: isDiscovering || selectedDeviceIps.size === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Poll Selected ({selectedDeviceIps.size})
+            </button>
+            <button
+              onClick={() => handleDiscover(false)}
+              disabled={isDiscovering || devices.length === 0}
+              style={{
+                padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
+                border: '1px solid var(--hpe-green)', background: 'rgba(1, 169, 130, 0.15)',
+                color: 'var(--hpe-green)', cursor: isDiscovering ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {isDiscovering ? 'Discovering...' : 'Discover All'}
+            </button>
+            <button
+              onClick={fetchDevices}
+              className="btn"
+              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', height: 28 }}
+            >
+              <RefreshCw size={12} /> Refresh
+            </button>
+          </div>
+        </div>
+
+        {discoverStatus && (
+          <div style={{
+            fontSize: '13px', color: 'var(--hpe-green)', marginBottom: 10, padding: '6px 10px',
+            background: 'rgba(1,169,130,0.05)', borderRadius: 6, border: '1px solid rgba(1,169,130,0.15)'
+          }}>
+            {discoverStatus}
+          </div>
+        )}
+
         {loadingDevices ? (
           <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '10px 0' }}>Loading device index...</div>
         ) : devices.length === 0 ? (
@@ -794,7 +1127,16 @@ export default function SSHRingPage({ apiBase }) {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                  <th style={{ textAlign: 'left', padding: '10px 8px', width: '30px' }}>
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={(e) => handleToggleSelectAll(e.target.checked)}
+                      style={{ accentColor: 'var(--hpe-green)', cursor: 'pointer' }}
+                    />
+                  </th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Device Name</th>
+                  <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Kind</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Category</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>IP Address</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>DNS Name</th>
@@ -805,80 +1147,143 @@ export default function SSHRingPage({ apiBase }) {
                 </tr>
               </thead>
               <tbody>
-                {devices.map((device, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)', transition: 'background 0.2s' }}>
-                     <td style={{ padding: '12px 8px', fontSize: '13px', fontWeight: 600 }}>{device.device_name}</td>
-                     <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                       <span style={{
-                         padding: '2px 6px',
-                         borderRadius: 4,
-                         fontSize: '11px',
-                         fontWeight: 'bold',
-                         background: device.category === 'Array' ? 'rgba(0, 200, 255, 0.15)' : device.category === 'Switch' ? 'rgba(255, 170, 0, 0.15)' : 'rgba(128, 128, 128, 0.15)',
-                         color: device.category === 'Array' ? '#00c8ff' : device.category === 'Switch' ? '#ffaa00' : 'var(--muted)',
-                         border: `1px solid ${device.category === 'Array' ? 'rgba(0, 200, 255, 0.3)' : device.category === 'Switch' ? 'rgba(255, 170, 0, 0.3)' : 'rgba(128, 128, 128, 0.3)'}`
-                       }}>
-                         {device.category || 'Host'}
-                       </span>
-                     </td>
-                     <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.ip_address || '-'}</td>
-                     <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_name || '-'}</td>
-                     <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_server || '-'}</td>
-                     <td style={{ padding: '12px 8px', fontSize: '13px' }}>{device.username}</td>
-                     <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.port}</td>
-                    <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={() => handleUse(device)}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: 6,
-                            fontSize: '11px',
-                            border: '1px solid var(--hpe-green)',
-                            background: 'rgba(1, 169, 130, 0.08)',
-                            color: 'var(--hpe-green)',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Use
-                        </button>
-                        <button
-                          onClick={() => handleEdit(device)}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: 6,
-                            fontSize: '11px',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            color: 'var(--foreground)',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(device)}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: 6,
-                            fontSize: '11px',
-                            border: '1px solid rgba(255, 107, 107, 0.3)',
-                            background: 'rgba(255, 107, 107, 0.08)',
-                            color: '#ff6b6b',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {devices.map((device, idx) => {
+                  const devIp = device.ip_address || device.ip
+                  return (
+                    <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)', transition: 'background 0.2s' }}>
+                      <td style={{ padding: '12px 8px' }}>
+                        {devIp && (
+                          <input
+                            type="checkbox"
+                            checked={selectedDeviceIps.has(devIp)}
+                            onChange={() => handleToggleSelectDevice(devIp)}
+                            style={{ accentColor: 'var(--hpe-green)', cursor: 'pointer' }}
+                          />
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px', fontWeight: 600 }}>{device.device_name}</td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
+                        <span style={{
+                          padding: '2px 6px', borderRadius: 4, fontSize: '10px', fontWeight: 'bold',
+                          background: device.device_kind === 'mock' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(1, 169, 130, 0.15)',
+                          color: device.device_kind === 'mock' ? '#a855f7' : 'var(--hpe-green)',
+                          border: `1px solid ${device.device_kind === 'mock' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(1, 169, 130, 0.3)'}`
+                        }}>
+                          {device.device_kind === 'mock' ? 'Virtual' : 'Real'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
+                        <span style={{
+                          padding: '2px 6px', borderRadius: 4, fontSize: '11px', fontWeight: 'bold',
+                          background: device.category === 'Array' ? 'rgba(0, 200, 255, 0.15)' : device.category === 'Switch' ? 'rgba(255, 170, 0, 0.15)' : 'rgba(128, 128, 128, 0.15)',
+                          color: device.category === 'Array' ? '#00c8ff' : device.category === 'Switch' ? '#ffaa00' : 'var(--muted)',
+                          border: `1px solid ${device.category === 'Array' ? 'rgba(0, 200, 255, 0.3)' : device.category === 'Switch' ? 'rgba(255, 170, 0, 0.3)' : 'rgba(128, 128, 128, 0.3)'}`
+                        }}>
+                          {device.category || 'Host'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.ip_address || '-'}</td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_name || '-'}</td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_server || '-'}</td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>{device.username}</td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.port}</td>
+                      <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => handleUse(device)}
+                            style={{
+                              padding: '6px 10px', borderRadius: 6, fontSize: '11px',
+                              border: '1px solid var(--hpe-green)', background: 'rgba(1, 169, 130, 0.08)',
+                              color: 'var(--hpe-green)', cursor: 'pointer'
+                            }}
+                          >
+                            Use
+                          </button>
+                          <button
+                            onClick={() => handleEdit(device)}
+                            style={{
+                              padding: '6px 10px', borderRadius: 6, fontSize: '11px',
+                              border: '1px solid rgba(255, 255, 255, 0.2)', background: 'rgba(255, 255, 255, 0.05)',
+                              color: 'var(--foreground)', cursor: 'pointer'
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(device)}
+                            style={{
+                              padding: '6px 10px', borderRadius: 6, fontSize: '11px',
+                              border: '1px solid rgba(255, 107, 107, 0.3)', background: 'rgba(255, 107, 107, 0.08)',
+                              color: '#ff6b6b', cursor: 'pointer'
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Discovery Results Display */}
+      {discoveryResults && discoveryResults.results && (
+        <div className="glass-card" style={{ padding: 20 }}>
+          <h2 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 700, borderBottom: '1px solid rgba(1, 169, 130, 0.2)', paddingBottom: 8 }}>
+            Discovery Results (Discovered at: {new Date(discoveryResults.discovered_at).toLocaleString()})
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {discoveryResults.results.map((res, i) => (
+              <div key={i} style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{
+                  padding: '10px 14px', background: 'rgba(255,255,255,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  borderBottom: '1px solid rgba(255,255,255,0.06)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>{res.device_name}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>({res.ip})</span>
+                  </div>
+                  <span style={{
+                    padding: '2px 8px', borderRadius: 4, fontSize: '11px', fontWeight: 'bold',
+                    background: res.status === 'success' ? 'rgba(0,200,83,0.15)' : res.status === 'warning' ? 'rgba(255,170,0,0.15)' : 'rgba(255,107,107,0.15)',
+                    color: res.status === 'success' ? '#00e676' : res.status === 'warning' ? '#ffaa00' : '#ff6b6b'
+                  }}>
+                    {res.status.toUpperCase()}
+                  </span>
+                </div>
+
+                {res.error && (
+                  <div style={{ padding: 12, color: '#ff6b6b', fontSize: '12px', background: 'rgba(255,107,107,0.05)', fontFamily: 'var(--font-mono)' }}>
+                    Error: {res.error}
+                  </div>
+                )}
+
+                {res.commands && Object.keys(res.commands).length > 0 && (
+                  <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {Object.entries(res.commands).map(([cmd, out]) => (
+                      <div key={cmd} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)' }}>
+                        <div style={{ padding: '6px 10px', fontSize: '11px', fontFamily: 'var(--font-mono)', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.04)', color: 'var(--hpe-green)' }}>
+                          $ {cmd} (Exit Code: {out.exit_code})
+                        </div>
+                        <pre style={{
+                          margin: 0, padding: 10, maxHeight: 150, overflow: 'auto',
+                          fontSize: '11px', fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', color: '#eaf1ff'
+                        }}>
+                          {out.stdout || (out.stderr ? `[ERROR] ${out.stderr}` : '(no output)')}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
