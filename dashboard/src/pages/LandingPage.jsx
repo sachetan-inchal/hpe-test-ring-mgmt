@@ -1,8 +1,14 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
+import { useContext } from 'react'
+import { AuthContext } from '../context/AuthContext'
 import { ArrowRight, Hexagon, Activity, Shield, Zap, Globe, Database, Network, Cpu, Lock, BarChart3, CheckCircle, Radar } from 'lucide-react'
 
 export default function LandingPage() {
   const navigate = useNavigate()
+  const { user } = useContext(AuthContext)
+
+  // Redirect logged-in users to dashboard
+  if (user) return <Navigate to="/discovery" replace />
 
   const features = [
     { icon: Activity, title: 'Real-time Monitoring', desc: 'Live network discovery and health tracking' },
@@ -33,13 +39,19 @@ export default function LandingPage() {
         <div className="header-buttons">
           <button 
             className="header-btn secondary"
-            onClick={() => navigate('/login')}
+            onClick={() => {
+              console.log('Navigate to /login')
+              navigate('/login')
+            }}
           >
             Sign In
           </button>
           <button 
             className="header-btn primary"
-            onClick={() => navigate('/login')}
+            onClick={() => {
+              console.log('Navigate to /login')
+              navigate('/login')
+            }}
           >
             Get Started
           </button>
@@ -89,7 +101,10 @@ export default function LandingPage() {
           <div className="landing-buttons">
             <button 
               className="landing-btn primary"
-              onClick={() => navigate('/login')}
+              onClick={() => {
+                console.log('Navigate to /login from main button')
+                navigate('/login')
+              }}
             >
               Login
               <ArrowRight size={18} />
