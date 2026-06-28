@@ -14,7 +14,7 @@ except ImportError:
 import requests
 
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3:4b")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3:8b")
 
 def detect_ollama():
     for p in [11434, 11435, 11430, 8000]:
@@ -104,8 +104,8 @@ class RAGEngine:
                                 model_to_use = deepseek_7b[0]
                             else:
                                 model_to_use = deepseek_models[0]
-                        elif "qwen3:4b" in available_models:
-                            model_to_use = "qwen3:4b"
+                        elif "qwen3:8b" in available_models:
+                            model_to_use = "qwen3:8b"
                         else:
                             model_to_use = available_models[0]
             except Exception:

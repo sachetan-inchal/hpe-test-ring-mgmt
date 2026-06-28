@@ -183,6 +183,54 @@ class SanAgent:
                 return a
         return arrays[0]
 
+    _INTENT_SYSTEM = """\
+You are an intent classifier for an HPE SAN storage systems assistant.
+Classify the user's input into one of these categories:
+- GREETING: Simple hello, thanks, greeting, or polite small talk.
+- OUT_OF_SCOPE: General knowledge, poetry, questions about your name/identity, or other non-SAN topics.
+- DIAGNOSTIC: A question, request, or query about SAN hardware, health, configuration, zoning, hosts, version, capacity, or troubleshooting.
+
+Return ONLY a JSON object:
+{"intent": "GREETING" | "OUT_OF_SCOPE" | "DIAGNOSTIC", "response": "A direct, polite response if the intent is GREETING or OUT_OF_SCOPE, otherwise null."}
+
+Output ONLY the JSON. No markdown."""
+
+    def _llm_classify_intent(self, query: str, use_ollama=False, disable_think=False) -> dict:
+        if not self.llm_call:
+            return {"intent": "DIAGNOSTIC", "response": None}
+        # Check simple greetings via regex first for instant response
+        q_clean = query.lower().strip().strip("?.! ")
+        if q_clean in ("hi", "hello", "hey", "hola", "greetings", "good morning", "good afternoon", "thanks", "thank you", "bye", "goodbye"):
+            resp = "Hello! I am your HPE SAN Storage Assistant. How can I help you with your storage arrays, switches, or hosts today?"
+            if q_clean in ("thanks", "thank you"):
+                resp = "You're welcome! Let me know if you need any more SAN diagnostics or assistance."
+            elif q_clean in ("bye", "goodbye"):
+                resp = "Goodbye! Have a great day managing your SAN infrastructure."
+            return {"intent": "GREETING", "response": resp}
+            
+        try:
+            # We bypass on_synthesis_chunk callback here to avoid printing the raw classification JSON
+            old_callback = getattr(self, "on_synthesis_chunk", None)
+            self.on_synthesis_chunk = None
+            try:
+                raw = self._stream_llm_call(
+                    self._INTENT_SYSTEM, f"User input: {query}",
+                    use_ollama=use_ollama, disable_think=disable_think,
+                    json_mode=True
+                )
+            finally:
+                self.on_synthesis_chunk = old_callback
+                
+            data = _extract_json(raw)
+            if data and data.get("intent"):
+                return {
+                    "intent": str(data["intent"]).upper(),
+                    "response": data.get("response")
+                }
+        except Exception:
+            pass
+        return {"intent": "DIAGNOSTIC", "response": None}
+
     def _stream_llm_call(self, system: str, user: str, use_ollama=False, disable_think=False, json_mode=False) -> str:
         if not self.llm_call:
             return ""
@@ -671,134 +719,70 @@ CRITICAL RULES:
         steps: list[dict] = []
         t0 = time.time()
 
+        # ── Intent Classification Gate ────────────────────────────────────────
+        intent_data = self._llm_classify_intent(query, use_ollama=use_ollama, disable_think=disable_think)
+        if intent_data["intent"] in ("GREETING", "OUT_OF_SCOPE"):
+            resp_text = intent_data["response"] or "I am focused on HPE SAN diagnostics and management."
+            if stream:
+                callback = getattr(self, "on_synthesis_chunk", None)
+                if callback: callback(resp_text, False)
+            self._step(steps, "final", "Polite response", resp_text)
+            return {
+                "answer": resp_text, "steps": steps, "cypher": None, "table": [],
+                "graph": {"nodes": [], "edges": []}, "array": None,
+                "neo4j_connected": bool(self.neo4j and self.neo4j.available),
+                "elapsed_ms": int((time.time() - t0) * 1000),
+            }
+
         # ── Resolve target array ─────────────────────────────────────────────
         hint = array_hint or _extract_array_hint(query)
         target = self._resolve_array(hint)
         if not target:
             return {
-                "answer": "No simulated arrays found. Start the Python simulator first.",
-                "steps": [{"type": "error", "title": "No devices",
-                            "detail": "Simulator returned an empty device list."}],
+                "answer": "No simulated arrays found.",
+                "steps": [{"type": "error", "title": "No devices", "detail": "Simulator returned an empty device list."}],
                 "neo4j_connected": bool(self.neo4j and self.neo4j.available),
             }
 
-        ip = target.get("ip") or target.get("id")
-        array_name = target.get("name") or hint or ip
+        ip, array_name = target.get("ip") or target.get("id"), target.get("name") or hint
+        plan = self._llm_plan(query, array_name, steps, use_ollama=use_ollama, disable_think=disable_think)
+        commands_to_run, cypher, ran_commands, cmd_outputs = list(plan["commands"]), plan.get("cypher"), [], {}
 
-        # ── Phase 1: LLM Planner ─────────────────────────────────────────────
-        plan = self._llm_plan(query, array_name, steps,
-                              use_ollama=use_ollama, disable_think=disable_think)
-        commands_to_run: list[str] = list(plan["commands"])
-        cypher: Optional[str] = plan.get("cypher")
-        ran_commands: list[str] = []
-        cmd_outputs: dict = {}
-
-        # ── Phase 2: Execute initial tool set ────────────────────────────────
+        # ── Execution ────────────────────────────────────────────────────────
         for cmd in commands_to_run:
             self._execute_command(ip, array_name, cmd, steps, cmd_outputs)
             ran_commands.append(cmd)
 
-        # ── Persist + normalise ───────────────────────────────────────────────
-        parsed_snapshot: dict = {}
-        if cmd_outputs:
-            try:
-                parsed_snapshot = self._persist_parsed(ip, array_name, cmd_outputs)
-                hosts_n = len(parsed_snapshot.get("hosts", []))
-                drives_n = len(parsed_snapshot.get("drives", []))
-                self._step(steps, "neo4j", "Updated Neo4j graph database",
-                           f"Merged array **{array_name}**: {hosts_n} host(s), "
-                           f"{drives_n} drive(s), "
-                           f"{len(parsed_snapshot.get('nodes', []))} node(s).",
-                           nodes_updated=hosts_n + drives_n)
-            except Exception as ex:
-                self._step(steps, "neo4j", "Neo4j update skipped", str(ex))
-
+        parsed_snapshot = self._persist_parsed(ip, array_name, cmd_outputs) if cmd_outputs else {}
         san_facts = self._build_san_facts(array_name, parsed_snapshot)
 
-        # ── Phase 3: Reflection loop ──────────────────────────────────────────
+        # ── Reflection loop ──────────────────────────────────────────────────
         if self.llm_call and use_ollama:
             for reflection_round in range(MAX_REFLECT_ITERS):
-                self._step(steps, "reflecting", "Reflecting",
-                           f"Checking if more data is needed (round {reflection_round + 1}/{MAX_REFLECT_ITERS})…")
-                next_cmd = self._llm_reflect(
-                    query, array_name, san_facts, ran_commands, steps,
-                    use_ollama=use_ollama, disable_think=disable_think
-                )
-                if next_cmd is None:
-                    self._step(steps, "reflecting", "Reflecting",
-                               "Agent is satisfied with the data collected. Proceeding to synthesis.")
-                    break
-                if next_cmd in ran_commands:
-                    # LLM asked for a command already run — stop
-                    self._step(steps, "reflecting", "Reflecting",
-                               f"Command `{next_cmd}` already executed. Proceeding to synthesis.")
-                    break
-
-                # Run the extra command the agent requested
-                self._step(steps, "reflecting", "Reflecting",
-                           f"Agent needs more data: running `{next_cmd}`")
+                next_cmd = self._llm_reflect(query, array_name, san_facts, ran_commands, steps, use_ollama, disable_think)
+                if next_cmd is None or next_cmd in ran_commands: break
                 self._execute_command(ip, array_name, next_cmd, steps, cmd_outputs)
                 ran_commands.append(next_cmd)
-
-                # Re-parse & rebuild facts with new data
                 try:
                     parsed_snapshot = self._persist_parsed(ip, array_name, cmd_outputs)
                     san_facts = self._build_san_facts(array_name, parsed_snapshot)
-                except Exception:
-                    pass
+                except Exception: pass
 
-        # ── Cypher / Neo4j query ──────────────────────────────────────────────
-        neo4j_rows: list = []
-        if cypher:
-            neo4j_rows = self._run_cypher_safe(
-                cypher, steps, use_ollama=use_ollama, disable_think=disable_think
-            )
-
-        # Deterministic fallbacks when graph is empty
-        if not neo4j_rows and parsed_snapshot.get("hosts") and "host" in query.lower():
-            neo4j_rows = [
-                {"host_name": h.get("name"), "os_type": h.get("os_name") or h.get("os"),
-                 "paths": h.get("port") or h.get("multipath"), "connection_type": "Fibre Channel"}
-                for h in parsed_snapshot["hosts"]
-            ]
-        if not neo4j_rows and parsed_snapshot.get("drives") and "fail" in query.lower():
-            neo4j_rows = [
-                {"array_name": array_name, "pd_id": d.get("pd_id"), "state": d.get("state")}
-                for d in parsed_snapshot["drives"]
-                if d.get("state") in ("failed", "degraded")
-            ]
-
-        # ── Phase 4: Synthesis ────────────────────────────────────────────────
-        answer = self._llm_synthesize(
-            query, array_name, san_facts, neo4j_rows, steps,
-            use_ollama=use_ollama, disable_think=disable_think, stream=stream
-        )
-
-        # Short description for the final step bubble
-        final_desc = "Successfully completed SAN diagnostics."
-        for line in [l.strip() for l in answer.split("\n") if l.strip()]:
-            clean = re.sub(r"^[#*\s\-\[\]\(\)]+", "", line).strip()
-            if clean and len(clean) > 10 and clean.lower() not in (
-                "san diagnostic report", "array health and status", "host details",
-                "recommendation", "health summary", "host zoning status", "tpd version"
-            ):
-                final_desc = clean[:137] + "..." if len(clean) > 140 else clean
-                break
-
-        self._step(steps, "final", "Final result", final_desc)
+        # ── Cypher ──────────────────────────────────────────────────────────
+        neo4j_rows = self._run_cypher_safe(cypher, steps, use_ollama, disable_think) if cypher else []
+        
+        # ── Synthesis ────────────────────────────────────────────────────────
+        answer = self._llm_synthesize(query, array_name, san_facts, neo4j_rows, steps, use_ollama, disable_think, stream)
+        self._step(steps, "final", "Final result", "Successfully completed SAN diagnostics.")
 
         return {
-            "answer": answer,
-            "steps": steps,
-            "cypher": cypher,
-            "table": neo4j_rows,
-            "graph": self._build_subgraph(array_name, neo4j_rows),
-            "array": {"name": array_name, "ip": ip},
+            "answer": answer, "steps": steps, "cypher": cypher, "table": neo4j_rows,
+            "graph": self._build_subgraph(array_name, neo4j_rows), "array": {"name": array_name, "ip": ip},
             "neo4j_connected": bool(self.neo4j and self.neo4j.available),
             "elapsed_ms": int((time.time() - t0) * 1000),
         }
 
-    # ── Batch analysis helper (kept for token-overflow fallback) ──────────────
+    # ── Batch analysis helper ────────────────────────────────────────────────
 
     def _analyze_batch(self, entity_type: str, items: list, chunk_size: int = 30,
                        use_ollama=False, disable_think=False) -> list:
