@@ -16,10 +16,11 @@ NEO4J_PASS = os.environ.get("NEO4J_PASS", "hpe_san_password")
 
 
 class Neo4jStore:
-    def __init__(self, uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASS):
+    def __init__(self, uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASS, is_real=False):
         self.uri = uri
         self.user = user
         self.password = password
+        self.is_real = is_real
         self._driver = None
         self._available = False
         self._init_driver()
@@ -42,17 +43,22 @@ class Neo4jStore:
             self._available = False
 
     def _run(self, cypher, **params):
+        if self.is_real:
+            labels = ["ArraySystem", "Node", "Port", "Switch", "Host", "Cage", "PhysicalDisk", "CageSlot"]
+            for label in labels:
+                cypher = cypher.replace(f":{label}", f":Real{label}")
         with self._driver.session() as session:
             return session.run(cypher, **params).data()
 
     def _create_constraints(self):
+        prefix = "Real" if self.is_real else ""
         constraints = [
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:ArraySystem) REQUIRE n.ip_address IS UNIQUE",
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Host) REQUIRE n.ip_address IS UNIQUE",
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Switch) REQUIRE n.serial IS UNIQUE",
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:PhysicalDisk) REQUIRE n.serial IS UNIQUE",
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Port) REQUIRE n.port_id IS UNIQUE",
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:CageSlot) REQUIRE n.slot_id IS UNIQUE",
+            f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{prefix}ArraySystem) REQUIRE n.ip_address IS UNIQUE",
+            f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{prefix}Host) REQUIRE n.ip_address IS UNIQUE",
+            f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{prefix}Switch) REQUIRE n.serial IS UNIQUE",
+            f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{prefix}PhysicalDisk) REQUIRE n.serial IS UNIQUE",
+            f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{prefix}Port) REQUIRE n.port_id IS UNIQUE",
+            f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{prefix}CageSlot) REQUIRE n.slot_id IS UNIQUE",
         ]
         for c in constraints:
             try:

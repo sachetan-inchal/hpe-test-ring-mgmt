@@ -7,6 +7,37 @@ import NodeCard from '../components/NodeCard'
 import { AuthContext } from '../context/AuthContext'
 import teamConfig from '../teamconfig.json'
 
+const SIM_DEVICE_IDS = [
+  "ARR-01", "SW-01", "HOST-01", "ARR-04", "SW-04", "HOST-04", "SW-ETH-01", "SW-SAS-01", "SW-MONGO-NEW",
+  "ARR-02", "SW-02", "HOST-02", "ARR-B03", "SW-B03", "HOST-B03", "SW-IB-01",
+  "ARR-03", "SW-03", "HOST-03", "ARR-B04", "SW-B04", "HOST-B04", "SW-FCOE-01"
+];
+
+function isVirtualNode(node, deviceKindMap) {
+  if (!node) return false;
+  if (node.device_kind === 'mock' || node.is_mock === true || node.virtual === true) return true;
+  if (node.device_kind === 'real') return false;
+  
+  const nameKey = node.name || node.id;
+  if (deviceKindMap && nameKey in deviceKindMap) {
+    return deviceKindMap[nameKey] === 'mock';
+  }
+  if (deviceKindMap && node.id in deviceKindMap) {
+    return deviceKindMap[node.id] === 'mock';
+  }
+  if (deviceKindMap && node.ip && node.ip in deviceKindMap) {
+    return deviceKindMap[node.ip] === 'mock';
+  }
+  if (deviceKindMap && node.ip_address && node.ip_address in deviceKindMap) {
+    return deviceKindMap[node.ip_address] === 'mock';
+  }
+  
+  if (SIM_DEVICE_IDS.includes(node.id) || SIM_DEVICE_IDS.includes(nameKey)) {
+    return true;
+  }
+  return false;
+}
+
 // Build a lookup: deviceId -> clusterId, clusterId -> teamId
 const deviceToCluster = {}
 const clusterToTeam = {}
@@ -28,7 +59,7 @@ function getNodeCluster(nodeId) {
   return deviceToCluster[nodeId] || null
 }
 
-export default function TopologyPage({ apiBase }) {
+export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
   const [data, setData] = useState({ nodes: [], edges: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -68,18 +99,19 @@ export default function TopologyPage({ apiBase }) {
             const res = await fetch(url, { signal: controller.signal })
             if (!res.ok) return null
             const data = await res.json()
-            if (!data.nodes || data.nodes.length === 0) return null
+            if (!data.nodes) return null
             return data
           } catch { return null }
           finally { clearTimeout(timer) }
         }
 
         let json = null
+        const suffix = deviceFilter === 'real' ? '?real=true' : ''
         if (selectedSource === 'all') {
-          json = await fetchWithData(`${apiBase}/api/graph/mongo`)
+          json = await fetchWithData(`${apiBase}/api/graph/mongo${suffix}`)
         } else {
           // Fetch only the selected ingestion source's data
-          json = await fetchWithData(`${apiBase}/api/ontology/topology?source=${selectedSource}`)
+          json = await fetchWithData(`${apiBase}/api/ontology/topology?source=${selectedSource}${suffix ? '&real=true' : ''}`)
         }
 
         if (!json) throw new Error('Failed to load topology from any source or databases are empty')
@@ -101,7 +133,7 @@ export default function TopologyPage({ apiBase }) {
       finally { setLoading(false) }
     }
     load()
-  }, [apiBase, selectedSource])
+  }, [apiBase, selectedSource, deviceFilter])
 
   const { user } = useContext(AuthContext)
 
@@ -234,7 +266,7 @@ export default function TopologyPage({ apiBase }) {
     }
 
     return nodes
-  }, [data.nodes, searchQuery, activeTab, role, selectedTeamId, userTeamId, nodesById])
+  }, [data.nodes, searchQuery, activeTab, role, selectedTeamId, userTeamId, nodesById, deviceFilter, deviceKindMap])
 
   const activeEdges = useMemo(() => {
     const ids = new Set(activeNodes.map(n => n.id))
@@ -411,7 +443,7 @@ export default function TopologyPage({ apiBase }) {
   }, [activeNodes])
 
   if (loading) return <div className="loading-screen"><div className="loading-spinner" /><span>Loading topology...</span></div>
-  if (error) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--accent-rose)' }}><h3>Error</h3><p>{error}</p></div>
+  if (error) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--foreground)' }}><h3>Error</h3><p>{error}</p></div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

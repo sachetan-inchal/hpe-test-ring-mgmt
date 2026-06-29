@@ -26,9 +26,15 @@ class ElasticsearchIndexer:
         self.host = host
         self._client = None
         self._available = False
+        if os.environ.get("DISABLE_ES", "false").lower() == "true":
+            log.info("[indexer] Elasticsearch is explicitly disabled via DISABLE_ES.")
+            return
         self._init_client()
 
     def _init_client(self):
+        if os.environ.get("DISABLE_ES", "false").lower() == "true":
+            self._available = False
+            return
         try:
             from elasticsearch import Elasticsearch
             # For ES 8.x/9.x, explicitly handle security-disabled environments

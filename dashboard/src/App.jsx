@@ -12,7 +12,7 @@ import HealthPage from './pages/HealthPage'
 import InventoryPage from './pages/InventoryPage'
 import SSHRingPage from './pages/SSHRingPage'
 import SANAutonomousAgentPage from './pages/SANAutonomousAgentPage'
-import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check } from 'lucide-react'
+import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check, Cpu } from 'lucide-react'
 
 const FLASK_API = `http://${window.location.hostname}:5005`
 const CHATBOT_API = '/chatbot'
@@ -428,11 +428,56 @@ export default function App() {
   const [visibleTabs, setVisibleTabs] = useState(() => {
     try {
       const saved = localStorage.getItem('visible_tabs')
-      return saved ? JSON.parse(saved) : {}
+      return saved ? JSON.parse(saved) : {
+        '/ssh-ring': true,
+        '/topology': true,
+        '/inventory': true,
+        '/chat': true,
+        '/autonomous-agent': false,
+        '/admin': false,
+        '/health': false,
+        '/discovery': false,
+        '/emulator': false,
+      }
     } catch {
-      return {}
+      return {
+        '/ssh-ring': true,
+        '/topology': true,
+        '/inventory': true,
+        '/chat': true,
+        '/autonomous-agent': false,
+        '/admin': false,
+        '/health': false,
+        '/discovery': false,
+        '/emulator': false,
+      }
     }
   })
+
+  const [deviceFilter, setDeviceFilter] = useState('virtual')
+  const [deviceKindMap, setDeviceKindMap] = useState({})
+
+  useEffect(() => {
+    async function fetchDevices() {
+      try {
+        const res = await fetch(`${FLASK_API}/api/ssh-ring/devices`)
+        if (res.ok) {
+          const devices = await res.json()
+          const map = {}
+          devices.forEach(d => {
+            const kind = d.device_kind || 'real'
+            if (d.device_name) map[d.device_name] = kind
+            if (d.ip_address) map[d.ip_address] = kind
+            if (d.ip) map[d.ip] = kind
+          })
+          setDeviceKindMap(map)
+        }
+      } catch (err) {
+        console.error("Failed to fetch devices for kind mapping", err)
+      }
+    }
+    fetchDevices()
+  }, [])
 
   const toggleTabVisibility = (path) => {
     setVisibleTabs(prev => {
@@ -480,6 +525,54 @@ export default function App() {
                   </NavLink>
                 ))}
               </nav>
+
+              {/* Universal Device Filter Toggle */}
+              <div style={{ padding: sidebarCollapsed ? '8px' : '12px 16px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', margin: '8px 0', display: 'flex', flexDirection: 'column', alignItems: sidebarCollapsed ? 'center' : 'stretch' }}>
+                {!sidebarCollapsed && (
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 8 }}>
+                    Device Filter
+                  </div>
+                )}
+                {sidebarCollapsed ? (
+                  <button
+                    onClick={() => setDeviceFilter(f => f === 'real' ? 'virtual' : 'real')}
+                    title={`Switch to ${deviceFilter === 'real' ? 'Virtual' : 'Real'} devices`}
+                    style={{
+                      width: 36, height: 36, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.15)',
+                      background: 'rgba(255,255,255,0.05)', color: 'var(--hpe-green)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {deviceFilter === 'real' ? <Layers size={16} /> : <Cpu size={16} />}
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 2 }}>
+                    <button
+                      onClick={() => setDeviceFilter('real')}
+                      style={{
+                        flex: 1, padding: '6px 12px', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        background: deviceFilter === 'real' ? 'var(--hpe-green)' : 'transparent',
+                        color: deviceFilter === 'real' ? 'white' : 'var(--muted)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      Real
+                    </button>
+                    <button
+                      onClick={() => setDeviceFilter('virtual')}
+                      style={{
+                        flex: 1, padding: '6px 12px', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        background: deviceFilter === 'virtual' ? 'var(--hpe-green)' : 'transparent',
+                        color: deviceFilter === 'virtual' ? 'white' : 'var(--muted)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      Virtual
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <div className="sidebar-footer">
                 <div className="user-badge" title={user?.username || user?.email || 'User'}>
@@ -540,8 +633,8 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<Navigate to="/ssh-ring" replace />} />
                   <Route path="/discovery" element={<DiscoveryPage apiBase={FLASK_API} />} />
-                  <Route path="/topology" element={<TopologyPage apiBase={FLASK_API} />} />
-                  <Route path="/inventory" element={<InventoryPage apiBase={FLASK_API} />} />
+                  <Route path="/topology" element={<TopologyPage apiBase={FLASK_API} deviceFilter={deviceFilter} deviceKindMap={deviceKindMap} />} />
+                  <Route path="/inventory" element={<InventoryPage apiBase={FLASK_API} deviceFilter={deviceFilter} deviceKindMap={deviceKindMap} />} />
                   <Route path="/ssh-ring" element={<SSHRingPage apiBase={FLASK_API} />} />
                   <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} />} />
                   <Route path="/chat" element={<ChatPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />

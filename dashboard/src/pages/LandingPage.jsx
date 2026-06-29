@@ -7,8 +7,8 @@ export default function LandingPage() {
   const navigate = useNavigate()
   const { user } = useContext(AuthContext)
 
-  // Redirect logged-in users to dashboard
-  if (user) return <Navigate to="/discovery" replace />
+  // Redirect logged-in users to ssh-ring
+  if (user) return <Navigate to="/ssh-ring" replace />
 
   const features = [
     { icon: Activity, title: 'Real-time Monitoring', desc: 'Live network discovery and health tracking' },
@@ -31,13 +31,13 @@ export default function LandingPage() {
 
       {/* Header */}
       <header className="landing-header">
-        <img 
-          src="/images/HPE_logo_transparent.png" 
-          alt="Hewlett Packard Enterprise" 
+        <img
+          src="/images/HPE_logo_transparent.png"
+          alt="Hewlett Packard Enterprise"
           className="header-logo"
         />
         <div className="header-buttons">
-          <button 
+          <button
             className="header-btn secondary"
             onClick={() => {
               console.log('Navigate to /login')
@@ -46,7 +46,7 @@ export default function LandingPage() {
           >
             Sign In
           </button>
-          <button 
+          <button
             className="header-btn primary"
             onClick={() => {
               console.log('Navigate to /login')
@@ -64,14 +64,14 @@ export default function LandingPage() {
           <h1 className="landing-title">
             HPE SAN Unified Platform
           </h1>
-          
+
           <p className="landing-subtitle">
             Comprehensive Test Ring Management for Storage Area Networks
           </p>
-          
+
           <p className="landing-description">
-            Monitor, discover, and manage your SAN infrastructure with our unified platform. 
-            Real-time topology visualization, automated discovery, and intelligent health monitoring 
+            Monitor, discover, and manage your SAN infrastructure with our unified platform.
+            Real-time topology visualization, automated discovery, and intelligent health monitoring
             all in one place.
           </p>
 
@@ -99,7 +99,7 @@ export default function LandingPage() {
           </div>
 
           <div className="landing-buttons">
-            <button 
+            <button
               className="landing-btn primary"
               onClick={() => {
                 console.log('Navigate to /login from main button')
@@ -109,7 +109,7 @@ export default function LandingPage() {
               Login
               <ArrowRight size={18} />
             </button>
-            <button 
+            <button
               className="landing-btn secondary"
               onClick={() => alert('Demo video coming soon!')}
             >
@@ -120,9 +120,9 @@ export default function LandingPage() {
 
         {/* Right side - Image */}
         <div className="landing-image-wrapper">
-          <img 
-            src="/images/landing_page_image.png" 
-            alt="HPE Platform Dashboard" 
+          <img
+            src="/images/landing_page_image.png"
+            alt="HPE Platform Dashboard"
             className="landing-image"
           />
         </div>

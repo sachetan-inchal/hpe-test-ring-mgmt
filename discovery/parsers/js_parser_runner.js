@@ -31,11 +31,8 @@ const COMMAND_TO_FUNC = {
  * Extracts and returns all 'function parseX(...)' definitions in testcases.txt
  */
 function loadParsers() {
-    const baseDir = path.resolve(__dirname, '../../../beta-analysis-tools');
-    let filePath = path.join(baseDir, 'testcases-markdown.md');
-    if (!fs.existsSync(filePath)) {
-        filePath = path.join(baseDir, 'testcases.txt');
-    }
+    const baseDir = __dirname;
+    const filePath = path.join(baseDir, 'testcases-markdown.md');
     if (!fs.existsSync(filePath)) {
         throw new Error(`HPE SAN testcases file not found in ${baseDir}`);
     }

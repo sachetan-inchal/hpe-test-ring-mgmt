@@ -860,11 +860,10 @@ def save_ssh_credentials():
         if mongo.available:
             db = mongo.db
             db.ssh_credentials.update_one(
-                {"ip": ip or dns_name},
+                {"ip": ip or dns_name, "port": int(port)},
                 {"$set": {
                     "username": username,
                     "password": encrypted,
-                    "port": int(port),
                     "device_name": device_name or ip or dns_name,
                     "dns_name": dns_name,
                     "dns_server": dns_server,
@@ -877,7 +876,7 @@ def save_ssh_credentials():
                 }},
                 upsert=True
             )
-            return jsonify({"status": "saved", "message": f"SSH credentials indexed for {ip or dns_name}"})
+            return jsonify({"status": "saved", "message": f"SSH credentials indexed for {ip or dns_name}:{port}"})
         return jsonify({"error": "MongoDB unavailable"}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -945,13 +944,13 @@ def list_ssh_credentials():
         except Exception as e:
             log.error(f"Failed to list simulator devices: {e}")
 
-        # Merge by IP so persisted entries win.
-        by_ip = {d.get("ip"): d for d in injected if d.get("ip")}
+        # Merge by IP + Port so persisted entries win and do not overwrite each other.
+        by_key = {f"{d.get('ip')}:{d.get('port', 22)}": d for d in injected if d.get("ip")}
         for d in persisted:
             if d.get("ip"):
-                by_ip[d.get("ip")] = d
+                by_key[f"{d.get('ip')}:{d.get('port', 22)}"] = d
 
-        devices = list(by_ip.values())
+        devices = list(by_key.values())
         return jsonify({"devices": devices})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -963,6 +962,7 @@ def delete_ssh_credentials():
     data = request.json or {}
     ip = data.get("ip") or data.get("ip_address")
     device_name = data.get("device_name")
+    port = data.get("port")
     
     if not ip and not device_name:
         return jsonify({"error": "ip or device_name is required"}), 400
@@ -973,6 +973,8 @@ def delete_ssh_credentials():
             query = {}
             if ip:
                 query["ip"] = ip
+                if port is not None:
+                    query["port"] = int(port)
             elif device_name:
                 query["device_name"] = device_name
                 
@@ -1255,6 +1257,52 @@ def ssh_ring_discover_all():
 
             device_result["commands"] = results
             device_result["status"] = status
+
+            # If it is a real device, parse and save it exclusively!
+            if device_kind == "real" and status == "success":
+                raw_outputs = {cmd: r.get("stdout", "") for cmd, r in results.items()}
+                parsed = None
+                
+                if category == "Array":
+                    try:
+                        from discovery.parsers.sim_parser import parse_sim_array_output
+                        parsed = parse_sim_array_output(raw_outputs)
+                        parsed["_ip"] = ip
+                        parsed["_device_type"] = "hpe_array"
+                    except Exception as pe:
+                        log.error(f"Failed to parse real Array output: {pe}")
+                elif category == "Host":
+                    is_windows = "windows" in (results.get("systeminfo") or {}).get("stdout", "").lower()
+                    try:
+                        if is_windows:
+                            from discovery.parsers.windows_parser import parse_windows_output
+                            parsed = parse_windows_output(raw_outputs, ip=ip)
+                            parsed["_ip"] = ip
+                            parsed["_device_type"] = "windows_host"
+                        else:
+                            from discovery.parsers.linux_parser import parse_linux_output
+                            parsed = parse_linux_output(raw_outputs, ip=ip)
+                            parsed["_ip"] = ip
+                            parsed["_device_type"] = "linux_host"
+                    except Exception as pe:
+                        log.error(f"Failed to parse real Host output: {pe}")
+                
+                if parsed:
+                    try:
+                        from discovery.neo4j_store import Neo4jStore
+                        from discovery.mongo_store import MongoStore
+                        
+                        real_neo4j = Neo4jStore(is_real=True)
+                        real_mongo = MongoStore(is_real=True)
+                        
+                        if real_neo4j.available:
+                            real_neo4j.store(parsed)
+                        if real_mongo.available:
+                            real_mongo.load_existing_state()
+                            real_mongo.store(parsed)
+                        log.info(f"Successfully stored real device {device_name} ({ip}) to real_sandatas and Real Neo4j labels")
+                    except Exception as se:
+                        log.error(f"Failed to save real device to stores: {se}")
 
         except Exception as e:
             device_result["status"] = "error"
@@ -2609,7 +2657,9 @@ def mongo_graph():
         return jsonify({"error": "MongoDB not available", "nodes": [], "edges": []}), 503
     try:
         db = mongo.db
-        doc = db.sandatas.find_one({})
+        is_real = request.args.get("real", "false").lower() == "true"
+        collection = db.real_sandatas if is_real else db.sandatas
+        doc = collection.find_one({})
         if not doc:
             return jsonify({"nodes": [], "edges": []})
         
@@ -3184,6 +3234,14 @@ def schema_fields():
 @app.route("/api/ontology/topology", methods=["GET"])
 def get_ontology_topology():
     try:
+        is_real = request.args.get("real", "false").lower() == "true"
+        if is_real:
+            db = mongo.db
+            doc = db.real_sandatas.find_one({})
+            if not doc:
+                return jsonify({"nodes": [], "edges": []})
+            return jsonify(doc)
+
         data = _topology_db.get_topology()
         source = request.args.get("source", "all")
         if source and source != "all":
@@ -4024,18 +4082,19 @@ def serve_react(path):
 def wait_for_services(timeout=60):
     """Wait for Neo4j and Elasticsearch to be ready before starting."""
     start_time = time.time()
+    is_es_disabled = os.environ.get("DISABLE_ES", "false").lower() == "true"
     log.info("Waiting for infrastructure (Neo4j/Elasticsearch) to be ready...")
     while time.time() - start_time < timeout:
         if not neo4j.available:
             neo4j._init_driver()
-        if not es.available:
+        if not is_es_disabled and not es.available:
             es._init_client()
         
-        if neo4j.available and es.available:
+        if neo4j.available and (is_es_disabled or es.available):
             log.info("All infrastructure services are online!")
             return True
         
-        log.info(f"Still waiting... (Neo4j: {'ok' if neo4j.available else 'wait'}, ES: {'ok' if es.available else 'wait'})")
+        log.info(f"Still waiting... (Neo4j: {'ok' if neo4j.available else 'wait'}, ES: {'disabled' if is_es_disabled else ('ok' if es.available else 'wait')})")
         time.sleep(5)
     return False
 
@@ -4104,6 +4163,6 @@ if __name__ == "__main__":
                 
         threading.Thread(target=_run_scheduled_discovery, daemon=True).start()
     
-    app.run(debug=True, host="0.0.0.0", port=port, threaded=True)
+    app.run(debug=True, host="0.0.0.0", port=port, threaded=True, use_reloader=False)
 
 # Nodemon trigger restart comment

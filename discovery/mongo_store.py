@@ -19,8 +19,9 @@ MONGO_URI = os.environ.get("MONGO_URI", "mongodb://127.0.0.1:27017/hpe_san")
 
 
 class MongoStore:
-    def __init__(self, uri=MONGO_URI):
+    def __init__(self, uri=MONGO_URI, is_real=False):
         self.uri = uri
+        self.is_real = is_real
         self.client = None
         self.db = None
         self._available = False
@@ -36,7 +37,8 @@ class MongoStore:
         if not self._available:
             return
         try:
-            doc = self.db.sandatas.find_one({})
+            collection = self.db.real_sandatas if self.is_real else self.db.sandatas
+            doc = collection.find_one({})
             if doc:
                 self.nodes = {}
                 self.edges = set()
@@ -364,16 +366,17 @@ class MongoStore:
             nodes_list = list(self.nodes.values())
             
             doc = {
-                "name": "HPE SAN Infrastructure",
-                "description": "Dynamically discovered SAN data via crawler",
+                "name": "HPE SAN Infrastructure" if not self.is_real else "HPE SAN Real Infrastructure",
+                "description": "Dynamically discovered SAN data via crawler" if not self.is_real else "Dynamically discovered Real SAN data",
                 "nodes": nodes_list,
                 "edges": edges_list,
                 "lastUpdated": datetime.utcnow(),
                 "version": "1.0"
             }
             
-            # Upsert into sandatas (default collection for Mongoose 'SANData' model)
-            self.db.sandatas.replace_one({}, doc, upsert=True)
+            # Upsert into collection
+            collection = self.db.real_sandatas if self.is_real else self.db.sandatas
+            collection.replace_one({}, doc, upsert=True)
             log.debug(f"[mongo] Synced {len(nodes_list)} nodes and {len(edges_list)} edges to MongoDB.")
         except Exception as e:
             log.error(f"[mongo] Sync failed: {e}")

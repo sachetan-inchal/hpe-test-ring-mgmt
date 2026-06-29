@@ -22,6 +22,8 @@ This monorepo unifies the SAN Simulator, Discovery Engine, React Dashboard, AI A
 
 ## 2. Infrastructure
 
+### Option A: Running via Docker (Recommended)
+
 Start the graph and search engines via Docker. **IMPORTANT**: Only start the database services if you plan to run the API and Chatbot locally.
 
 ```powershell
@@ -37,6 +39,27 @@ docker-compose up -d neo4j elasticsearch mongo
 - **Neo4j Browser**: [http://localhost:7474](http://localhost:7474) (User: `neo4j`, Pass: `hpe_san_password`)
 - **Elasticsearch**: [http://localhost:9200](http://localhost:9200)
 - **MongoDB**: [mongodb://localhost:27017](mongodb://localhost:27017)
+
+---
+
+### Option B: Running without Docker (Neo4j Desktop & MongoDB Desktop)
+
+If you prefer to run the databases locally without Docker:
+
+1. **MongoDB Desktop / Compass**:
+   - Download and install [MongoDB Community Server](https://www.mongodb.com/try/download/community) and [MongoDB Compass](https://www.mongodb.com/products/tools/compass).
+   - Start the local MongoDB service. It will run on `mongodb://localhost:27017` by default with no authentication required.
+   - This matches the default `MONGO_URI` in `.env`.
+
+2. **Neo4j Desktop**:
+   - Download and install [Neo4j Desktop](https://neo4j.com/download/).
+   - Create a new Local DBMS (version 5.x or 4.x).
+   - Set a password (e.g., `password`).
+   - Start the DBMS. It will listen on `bolt://localhost:7687` by default.
+   - Update `NEO4J_PASS` in your `.env` file to match this password.
+
+3. **Elasticsearch (Optional)**:
+   - You do not need to run Elasticsearch. The application automatically detects if Elasticsearch is offline, marks it as `"unavailable"` in the health dashboard, and gracefully bypasses search indexing. You can install it later if needed.
 
 ## 3. Application Execution
 
