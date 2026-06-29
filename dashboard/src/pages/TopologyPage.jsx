@@ -304,7 +304,11 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
   }
 
   const handleNodeClick = (id, toggleExpand) => {
-    setFocusedId(id)
+    if (focusedId === id) {
+      setFocusedId(null)
+    } else {
+      setFocusedId(id)
+    }
     if (toggleExpand) {
       setExpandedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
     }
