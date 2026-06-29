@@ -135,8 +135,8 @@
       "node_wwn_ip": "C1:6C:3A:80:80:E7:2E:21",
       "port_wwn_hw": "0D:86:CC:95:50:E1",
       "type": "host",
-      "protocol": "NVMe",
-      "label": "P024   25G"
+      "protocol": "FC",
+      "label": "P024   32G"
     },
     {
       "port_id": "0:3:1",
@@ -256,6 +256,32 @@
       "label": "P131   25G"
     },
     {
+      "port_id": "1:2:4",
+      "node": 1,
+      "slot": 2,
+      "port_num": 4,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "82:5B:37:E8:98:A8:CE:B2",
+      "port_wwn_hw": "B2:77:2F:D6:E4:4C:A1:B0",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P124   32G"
+    },
+    {
+      "port_id": "1:3:1",
+      "node": 1,
+      "slot": 3,
+      "port_num": 1,
+      "mode": "target",
+      "state": "ready",
+      "node_wwn_ip": "01:AC:DA:BE:A4:D8:80:0A",
+      "port_wwn_hw": "48:9C:4C:E7:7E:8B:75:DE",
+      "type": "host",
+      "protocol": "FC",
+      "label": "P131   32G"
+    },
+    {
       "port_id": "1:3:2",
       "node": 1,
       "slot": 3,
@@ -350,7 +376,7 @@
       "serial": "DRV95702731",
       "fw_rev": "0002",
       "protocol": "SAS",
-      "disk_type": "SSD",
+      "disk_type": "HDD",
       "admission_time": "2026-05-18_13:12:33"
     },
     {

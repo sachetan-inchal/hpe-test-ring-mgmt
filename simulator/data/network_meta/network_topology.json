@@ -92,6 +92,10 @@
           "name": "host-prod-a-07",
           "ip_address": "10.20.47.129",
           "os_type": "linux"
+=======
+          "ip_address": "10.20.128.39",
+          "os_type": "windows"
+>>>>>>> Stashed changes
         }
       ]
     },
