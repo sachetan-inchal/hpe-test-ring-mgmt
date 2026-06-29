@@ -4129,39 +4129,9 @@ if __name__ == "__main__":
                         pass
         threading.Thread(target=_auto_index, daemon=True).start()
 
-        # Daily automated discovery interval execution scheduler
-        def _run_scheduled_discovery():
-            # Wait for startup initialization to complete
-            time.sleep(30)
-            log.info("[Scheduler] Daily discovery scheduler thread is online.")
-            while True:
-                try:
-                    # Default seed IP fallback
-                    seed_ips = ["10.20.10.5"]
-                    
-                    # Dynamically load from our master index to seed discovery
-                    index_path = os.path.join(MONOREPO, "data", "master_index.json")
-                    if os.path.exists(index_path):
-                        try:
-                            with open(index_path, "r") as f:
-                                idx = json.load(f)
-                            # Find arrays to seed
-                            all_devs = virtual_network.list_devices()
-                            array_ips = [d["ip"] for d in all_devs if d.get("type") == "array" or d.get("ip") in idx.get("arrays", [])]
-                            if array_ips:
-                                seed_ips = array_ips
-                        except Exception:
-                            pass
-                    
-                    log.info(f"[Scheduler] Starting daily automated discovery crawl. Seeds: {seed_ips}")
-                    discovery_crawler.discover(seed_ips, delay_ms=20)
-                except Exception as ex:
-                    log.error(f"[Scheduler] Daily crawl failed: {ex}")
-                
-                # Run once every 24 hours (86400 seconds)
-                time.sleep(86400)
-                
-        threading.Thread(target=_run_scheduled_discovery, daemon=True).start()
+        # Daily automated discovery interval execution scheduler has been disabled at user request.
+        # Discovery should only run when manually triggered via the UI.
+        pass
     
     app.run(debug=True, host="0.0.0.0", port=port, threaded=True, use_reloader=False)
 
