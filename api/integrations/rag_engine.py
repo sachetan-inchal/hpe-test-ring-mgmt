@@ -263,45 +263,94 @@ Return ONLY the category word, nothing else."""
         return result
 
     def standard_rag(self, query, history=None, use_ollama=False, disable_think=False, stream=False):
-        if not self.json_store:
-            return {"answer": "No JSON store configured for standard RAG.", "sources": []}
-
-        all_data = self.json_store.load_all()
-        if not all_data:
-            return {"answer": "No arrays in json_store. Add *.json under data/json_store or use graph mode.", "sources": []}
-
         context_parts = []
-        for name, data in all_data.items():
-            summary = {
-                "array_name": data.get("name"),
-                "model": data.get("model"),
-                "serial": data.get("serial"),
-                "version": data.get("release_version"),
-                "release_type": data.get("release_type"),
-                "config_type": data.get("config_type"),
-                "node_count": data.get("node_count"),
-                "total_cap_mib": data.get("total_cap_mib"),
-                "free_cap_mib": data.get("free_cap_mib"),
-                "failed_cap_mib": data.get("failed_cap_mib"),
-                "protocols": data.get("protocols_supported"),
-                "num_ports": len(data.get("ports", [])),
-                "num_switches": len(data.get("switches", [])),
-                "num_hosts": len(data.get("hosts", [])),
-                "num_cages": len(data.get("cages", [])),
-                "num_drives": len(data.get("drives", [])),
-                "nodes_summary": [{"node_id": n.get("node_id"), "name": n.get("name")} for n in data.get("nodes", [])],
-                "switches": [s.get("name") for s in data.get("switches", [])],
-                "cage_states": [{"id": c.get("cage_id"), "state": c.get("state")} for c in data.get("cages", [])],
-                "drive_states": {},
-                "failed_drives": [],
-            }
-            for d in data.get("drives", []):
-                st = d.get("state", "unknown")
-                summary["drive_states"][st] = summary["drive_states"].get(st, 0) + 1
-                if st in ("failed", "degraded"):
-                    summary["failed_drives"].append({"pd_id": d["pd_id"], "state": st, "model": d.get("model")})
+        sources = []
 
+        # 1. Try to load from MongoDB real_sandatas first
+        mongo_data = None
+        mongo_uri = os.environ.get("MONGO_URI", "mongodb://127.0.0.1:27017/hpe_san")
+        try:
+            from pymongo import MongoClient
+            client = MongoClient(mongo_uri, serverSelectionTimeoutMS=1000)
+            db = client.get_database()
+            doc = db.real_sandatas.find_one({})
+            if doc and doc.get("nodes"):
+                mongo_data = doc
+        except Exception:
+            pass
+
+        if mongo_data:
+            sources.append("MongoDB (real_sandatas)")
+            nodes = mongo_data.get("nodes", [])
+            summary = {
+                "arrays": [],
+                "switches": [],
+                "hosts": [],
+                "disks": [],
+                "cages": [],
+                "ports": [],
+                "other": []
+            }
+            for n in nodes:
+                ntype = n.get("type", "").lower()
+                props = {k: v for k, v in n.items() if k not in ("type", "category")}
+                if ntype == "array":
+                    summary["arrays"].append(props)
+                elif ntype == "switch":
+                    summary["switches"].append(props)
+                elif ntype == "host":
+                    summary["hosts"].append(props)
+                elif ntype == "disk":
+                    summary["disks"].append(props)
+                elif ntype == "cage":
+                    summary["cages"].append(props)
+                elif ntype == "port":
+                    summary["ports"].append(props)
+                else:
+                    summary["other"].append(props)
+            
+            context_parts.append("Real SAN Infrastructure (from MongoDB real_sandatas):")
             context_parts.append(json.dumps(summary, indent=2, default=str))
+        else:
+            # 2. Fallback to json_store
+            if not self.json_store:
+                return {"answer": "No JSON store configured for standard RAG.", "sources": []}
+            all_data = self.json_store.load_all()
+            if not all_data:
+                return {"answer": "No arrays in json_store. Add *.json under data/json_store or use graph mode.", "sources": []}
+
+            sources.extend(list(all_data.keys()))
+            for name, data in all_data.items():
+                summary = {
+                    "array_name": data.get("name"),
+                    "model": data.get("model"),
+                    "serial": data.get("serial"),
+                    "version": data.get("release_version"),
+                    "release_type": data.get("release_type"),
+                    "config_type": data.get("config_type"),
+                    "node_count": data.get("node_count"),
+                    "total_cap_mib": data.get("total_cap_mib"),
+                    "free_cap_mib": data.get("free_cap_mib"),
+                    "failed_cap_mib": data.get("failed_cap_mib"),
+                    "protocols": data.get("protocols_supported"),
+                    "num_ports": len(data.get("ports", [])),
+                    "num_switches": len(data.get("switches", [])),
+                    "num_hosts": len(data.get("hosts", [])),
+                    "num_cages": len(data.get("cages", [])),
+                    "num_drives": len(data.get("drives", [])),
+                    "nodes_summary": [{"node_id": n.get("node_id"), "name": n.get("name")} for n in data.get("nodes", [])],
+                    "switches": [s.get("name") for s in data.get("switches", [])],
+                    "cage_states": [{"id": c.get("cage_id"), "state": c.get("state")} for c in data.get("cages", [])],
+                    "drive_states": {},
+                    "failed_drives": [],
+                }
+                for d in data.get("drives", []):
+                    st = d.get("state", "unknown")
+                    summary["drive_states"][st] = summary["drive_states"].get(st, 0) + 1
+                    if st in ("failed", "degraded"):
+                        summary["failed_drives"].append({"pd_id": d["pd_id"], "state": st, "model": d.get("model")})
+
+                context_parts.append(json.dumps(summary, indent=2, default=str))
 
         # Add Ontology context if available
         if self.ontology_traversal:
