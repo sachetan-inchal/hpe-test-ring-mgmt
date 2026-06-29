@@ -1329,9 +1329,9 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         return
       }
 
-      if (useOllama && (aiMode === 'graphrag' || aiMode === 'standard')) {
-        // SSE Streaming for Ollama
-        setMessages(prev => [...prev, { role: 'assistant', text: '', isStreaming: true, isOllama: true }])
+      if (aiMode === 'graphrag' || aiMode === 'standard') {
+        // SSE Streaming for Ollama / Groq RAG Engine
+        setMessages(prev => [...prev, { role: 'assistant', text: '', isStreaming: true, isOllama: useOllama }])
         setLlmCallsCount(prev => prev + 1)
         
         try {

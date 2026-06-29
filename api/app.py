@@ -3121,6 +3121,14 @@ def chat():
         if stream and "stream_generator" in result:
             def generate():
                 try:
+                    # Prepend MongoDB Query and Context Retrieved in the stream if present
+                    mongo_query = result.get("mongo_query")
+                    context_raw = result.get("context_raw")
+                    if mongo_query:
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': '### 🔍 MongoDB Query\\n```javascript\\n' + mongo_query + '\\n```\\n\\n'})}\n\n"
+                    if context_raw:
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': '### 📦 Context Retrieved\\n```json\\n' + context_raw + '\\n```\\n\\n---\\n\\n### 💬 Response\\n'})}\n\n"
+
                     for chunk in result["stream_generator"]:
                         if req_id in _cancelled_requests:
                             log.info(f"SSE chat stream aborted via cancel request: {req_id}")
@@ -3153,6 +3161,15 @@ def chat():
                     log.exception("Error yielding final result in SSE")
                 
             return Response(generate(), mimetype="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+        # Prepend MongoDB Query and Context Retrieved to the final non-stream answer if present
+        prefix = ""
+        if result.get("mongo_query"):
+            prefix += f"### 🔍 MongoDB Query\n```javascript\n{result['mongo_query']}\n```\n\n"
+        if result.get("context_raw"):
+            prefix += f"### 📦 Context Retrieved\n```json\n{result['context_raw']}\n```\n\n---\n\n### 💬 Response\n"
+        if prefix and "answer" in result:
+            result["answer"] = prefix + result["answer"]
 
         return jsonify(result)
     except Exception as ex:

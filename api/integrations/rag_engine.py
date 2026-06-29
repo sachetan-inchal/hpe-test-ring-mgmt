@@ -438,9 +438,25 @@ Available array data:
 {context}"""
 
         answer = self._llm_call(system, query, history=history, use_ollama=use_ollama, disable_think=disable_think, stream=stream)
+        
+        mongo_query = "db.real_sandatas.findOne({})" if mongo_data else "data/json_store/*.json"
+        context_raw = json.dumps(summary, indent=2, default=str) if mongo_data else context
+
         if stream:
-            return {"stream_generator": answer, "sources": list(all_data.keys()), "rag_type": "standard"}
-        return {"answer": answer, "sources": list(all_data.keys()), "rag_type": "standard"}
+            return {
+                "stream_generator": answer, 
+                "sources": sources, 
+                "rag_type": "standard",
+                "mongo_query": mongo_query,
+                "context_raw": context_raw
+            }
+        return {
+            "answer": answer, 
+            "sources": sources, 
+            "rag_type": "standard",
+            "mongo_query": mongo_query,
+            "context_raw": context_raw
+        }
 
     def graph_rag(self, query, history=None, use_ollama=False, disable_think=False, stream=False):
         if not self.neo4j_loader:
