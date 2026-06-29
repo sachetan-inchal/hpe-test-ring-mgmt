@@ -534,9 +534,13 @@ def _filter_graph_payload(payload, actor):
     return payload
 
 
+_real_neo4j = Neo4jStore(is_real=True)
+
 class _Neo4jRagBridge:
     def run_cypher(self, query, params=None):
-        return neo4j_run_cypher(neo4j, query, params)
+        if not _real_neo4j.available:
+            _real_neo4j._init_driver()
+        return _real_neo4j._run(query, **(params or {}))
 
 
 _json_store = JsonStore(os.path.join(MONOREPO, "data", "json_store"))
