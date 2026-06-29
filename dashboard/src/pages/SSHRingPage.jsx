@@ -16,6 +16,7 @@ export default function SSHRingPage({ apiBase }) {
       "shownode",
       "showport",
       "showhost",
+      "showswitch",
       "showcage -pci",
       "showcage -sfp",
       "showcage -state",
