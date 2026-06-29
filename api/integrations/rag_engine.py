@@ -282,34 +282,100 @@ Return ONLY the category word, nothing else."""
         if mongo_data:
             sources.append("MongoDB (real_sandatas)")
             nodes = mongo_data.get("nodes", [])
+            
+            # Smart Aggregator to prevent LLM context window overflow
             summary = {
                 "arrays": [],
                 "switches": [],
-                "hosts": [],
-                "disks": [],
-                "cages": [],
-                "ports": [],
-                "other": []
+                "hosts_summary": {
+                    "total_hosts": 0,
+                    "os_distribution": {},
+                    "hosts": [] # We list names and IPs
+                },
+                "disks_summary": {
+                    "total_disks": 0,
+                    "states": {},
+                    "unhealthy_disks": [] # Only list details for failed/degraded drives
+                },
+                "ports_summary": {
+                    "total_ports": 0,
+                    "states": {},
+                    "unhealthy_ports": [] # Only list details for offline/down ports
+                },
+                "cages_summary": {
+                    "total_cages": 0,
+                    "states": {},
+                    "unhealthy_cages": []
+                }
             }
+
             for n in nodes:
                 ntype = n.get("type", "").lower()
-                props = {k: v for k, v in n.items() if k not in ("type", "category")}
+                status = n.get("status", "normal").lower()
+                
                 if ntype == "array":
-                    summary["arrays"].append(props)
+                    summary["arrays"].append({
+                        "name": n.get("name"),
+                        "model": n.get("model"),
+                        "serial": n.get("serialNumber"),
+                        "ip": n.get("ipAddress"),
+                        "firmware": n.get("firmware"),
+                        "status": n.get("status"),
+                        "free_capacity": n.get("freeCapacityTb"),
+                        "total_capacity": n.get("totalCapacityTb")
+                    })
                 elif ntype == "switch":
-                    summary["switches"].append(props)
+                    summary["switches"].append({
+                        "name": n.get("name"),
+                        "model": n.get("model"),
+                        "serial": n.get("serialNumber"),
+                        "ip": n.get("ipAddress"),
+                        "status": n.get("status")
+                    })
                 elif ntype == "host":
-                    summary["hosts"].append(props)
+                    summary["hosts_summary"]["total_hosts"] += 1
+                    os_type = n.get("osType") or "Unknown"
+                    summary["hosts_summary"]["os_distribution"][os_type] = summary["hosts_summary"]["os_distribution"].get(os_type, 0) + 1
+                    summary["hosts_summary"]["hosts"].append({
+                        "name": n.get("name"),
+                        "ip": n.get("ipAddress"),
+                        "status": n.get("status")
+                    })
                 elif ntype == "disk":
-                    summary["disks"].append(props)
-                elif ntype == "cage":
-                    summary["cages"].append(props)
+                    summary["disks_summary"]["total_disks"] += 1
+                    summary["disks_summary"]["states"][status] = summary["disks_summary"]["states"].get(status, 0) + 1
+                    if status in ("failed", "degraded", "offline", "error"):
+                        summary["disks_summary"]["unhealthy_disks"].append({
+                            "id": n.get("id"),
+                            "pdId": n.get("pdId"),
+                            "model": n.get("diskModel"),
+                            "status": n.get("status"),
+                            "cage_pos": n.get("cagePos"),
+                            "capacity": n.get("capacity")
+                        })
                 elif ntype == "port":
-                    summary["ports"].append(props)
-                else:
-                    summary["other"].append(props)
+                    summary["ports_summary"]["total_ports"] += 1
+                    summary["ports_summary"]["states"][status] = summary["ports_summary"]["states"].get(status, 0) + 1
+                    if status in ("failed", "degraded", "offline", "down", "error"):
+                        summary["ports_summary"]["unhealthy_ports"].append({
+                            "id": n.get("id"),
+                            "name": n.get("name"),
+                            "nsp": n.get("nsp"),
+                            "status": n.get("status"),
+                            "label": n.get("label")
+                        })
+                elif ntype == "cage":
+                    summary["cages_summary"]["total_cages"] += 1
+                    summary["cages_summary"]["states"][status] = summary["cages_summary"]["states"].get(status, 0) + 1
+                    if status in ("failed", "degraded", "offline", "error"):
+                        summary["cages_summary"]["unhealthy_cages"].append({
+                            "id": n.get("id"),
+                            "name": n.get("name"),
+                            "status": n.get("status"),
+                            "temp": n.get("temperature")
+                        })
             
-            context_parts.append("Real SAN Infrastructure (from MongoDB real_sandatas):")
+            context_parts.append("Real SAN Infrastructure Summary (from MongoDB real_sandatas):")
             context_parts.append(json.dumps(summary, indent=2, default=str))
         else:
             # 2. Fallback to json_store
