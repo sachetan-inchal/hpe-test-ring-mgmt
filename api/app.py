@@ -849,6 +849,7 @@ def save_ssh_credentials():
     custom_commands = data.get("custom_commands", [])
     team = data.get("team", "team-alpha")
     oob_ip = data.get("oob_ip", "")
+    connected_to = data.get("connected_to", "")
     
     if not ip and not dns_name:
         return jsonify({"error": "ip or dns_name is required"}), 400
@@ -880,7 +881,8 @@ def save_ssh_credentials():
                     "custom_commands": custom_commands,
                     "mock_commands": mock_commands,
                     "team": team,
-                    "oob_ip": oob_ip
+                    "oob_ip": oob_ip,
+                    "connected_to": connected_to
                 }},
                 upsert=True
             )
@@ -1117,12 +1119,73 @@ def delete_team():
 def list_ssh_credentials():
     """List all saved SSH credentials, decrypted for client use."""
     try:
+        # Load topology mappings to detect parent switches/arrays
+        topology_edges = []
+        node_categories = {}
+        if mongo.available:
+            try:
+                db = mongo.db
+                for col in (db.sandatas, db.real_sandatas):
+                    doc = col.find_one({})
+                    if doc:
+                        if "edges" in doc:
+                            topology_edges.extend(doc["edges"])
+                        if "nodes" in doc:
+                            for n in doc["nodes"]:
+                                if "data" in n and isinstance(n["data"], dict):
+                                    nid = str(n["data"].get("id") or "").lower()
+                                    cat = str(n["data"].get("category") or n["data"].get("label") or n["data"].get("type") or "").lower()
+                                    name = str(n["data"].get("name") or "").lower()
+                                else:
+                                    nid = str(n.get("id") or "").lower()
+                                    cat = str(n.get("category") or n.get("label") or n.get("type") or "").lower()
+                                    name = str(n.get("name") or "").lower()
+                                
+                                norm_cat = "host"
+                                if "array" in cat:
+                                    norm_cat = "array"
+                                elif "switch" in cat:
+                                    norm_cat = "switch"
+                                    
+                                if nid:
+                                    node_categories[nid] = norm_cat
+                                if name:
+                                    node_categories[name] = norm_cat
+            except Exception as ex:
+                log.warning(f"Failed to load node categories for connection mapping: {ex}")
+
+        # Map child -> parent based on edges (Switch -> Array or Host -> Switch)
+        detected_connections = {}
+        for e in topology_edges:
+            f = str(e.get("from") or e.get("source") or "").lower()
+            t = str(e.get("to") or e.get("target") or "").lower()
+            if f and t:
+                f_cat = node_categories.get(f)
+                t_cat = node_categories.get(t)
+                
+                if f_cat == "host" and t_cat == "switch":
+                    detected_connections[f] = t
+                elif t_cat == "host" and f_cat == "switch":
+                    detected_connections[t] = f
+                elif f_cat == "switch" and t_cat == "array":
+                    detected_connections[f] = t
+                elif t_cat == "switch" and f_cat == "array":
+                    detected_connections[t] = f
+
         persisted = []
         if mongo.available:
             db = mongo.db
             creds = list(db.ssh_credentials.find({}))
             for c in creds:
                 decrypted = _decrypt_password(c.get("password", ""))
+                dev_name_lower = str(c.get("device_name") or "").lower()
+                dev_ip_lower = str(c.get("ip") or "").lower()
+                
+                # Check stored connected_to first, fallback to detected
+                connected_to = c.get("connected_to", "")
+                if not connected_to:
+                    connected_to = detected_connections.get(dev_name_lower) or detected_connections.get(dev_ip_lower) or ""
+                    
                 persisted.append({
                     "device_name": c.get("device_name") or c.get("ip"),
                     "ip_address": c.get("ip"),
@@ -1139,7 +1202,8 @@ def list_ssh_credentials():
                     "custom_commands": c.get("custom_commands", []),
                     "mock_commands": c.get("mock_commands", {}),
                     "team": c.get("team", "team-alpha"),
-                    "oob_ip": c.get("oob_ip", "")
+                    "oob_ip": c.get("oob_ip", ""),
+                    "connected_to": connected_to
                 })
 
         # Inject simulator-derived mock devices
@@ -1150,13 +1214,16 @@ def list_ssh_credentials():
                 ip = d.get("ip")
                 name = d.get("name") or d.get("device_name") or ip
                 category = d.get("type") or d.get("category") or "Host"
-                # Normalize category to Host, Switch, Array
                 if "array" in category.lower():
                     category = "Array"
                 elif "switch" in category.lower():
                     category = "Switch"
                 else:
                     category = "Host"
+
+                dev_name_lower = name.lower()
+                dev_ip_lower = ip.lower()
+                connected_to = detected_connections.get(dev_name_lower) or detected_connections.get(dev_ip_lower) or ""
 
                 injected.append({
                     "device_name": name,
@@ -1172,7 +1239,8 @@ def list_ssh_credentials():
                     "vsan_device_type": category.lower(),
                     "selected_commands": [],
                     "custom_commands": [],
-                    "mock_commands": {}
+                    "mock_commands": {},
+                    "connected_to": connected_to
                 })
         except Exception as e:
             log.error(f"Failed to list simulator devices: {e}")

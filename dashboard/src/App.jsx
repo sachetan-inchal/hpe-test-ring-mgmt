@@ -692,7 +692,7 @@ export default function App() {
               {/* Page content */}
               <div className="app-content">
                 <Routes>
-                  <Route path="/" element={<Navigate to="/ssh-ring" replace />} />
+                  <Route path="/" element={<Navigate to="/topology" replace />} />
                   <Route path="/discovery" element={<DiscoveryPage apiBase={FLASK_API} />} />
                   <Route path="/topology" element={<TopologyPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} deviceFilter={deviceFilter} deviceKindMap={deviceKindMap} />} />
                   <Route path="/inventory" element={<InventoryPage apiBase={FLASK_API} deviceFilter={deviceFilter} deviceKindMap={deviceKindMap} />} />

@@ -148,6 +148,14 @@ export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeCl
       node.type?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const getTeamAccentColor = (teamName) => {
+      const colors = ['#58a6ff', '#3fb950', '#bc8cff', '#f0883e', '#ff7b72'];
+      if (!teamName) return null;
+      const idx = teamName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      return colors[Math.abs(idx) % colors.length];
+    }
+    const teamAccent = getTeamAccentColor(node.team || node.owner_team);
+
     return (
       <div key={node.id} style={{ position: 'relative', width: '100%', marginBottom: 24 }}>
         <div 
@@ -157,10 +165,13 @@ export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeCl
           }}
           className={`san-node ${focused ? "focused" : highlight ? "expanded" : ""} ${isSearchMatch ? "search-match-pulse" : ""}`}
           style={{
-            position: 'relative', zIndex: 10, width: '100%', cursor: 'pointer', border: '1px solid var(--line)', padding: isSub ? 12 : 16,
+            position: 'relative', zIndex: 10, width: '100%', cursor: 'pointer',
+            border: '1px solid var(--line)',
+            borderLeft: teamAccent ? `5px solid ${teamAccent}` : '1px solid var(--line)',
+            padding: isSub ? 12 : 16,
             borderRadius: isSub ? 6 : 12, transition: 'all 0.3s ease',
             background: isSub ? 'var(--surface-1)' : 'var(--surface-2)',
-            boxShadow: focused ? '0 0 0 2px var(--accent-blue)' : highlight ? '0 0 0 1px var(--accent-blue)' : 'none'
+            boxShadow: focused ? `0 0 0 2px ${teamAccent || 'var(--accent-blue)'}` : highlight ? `0 0 0 1px ${teamAccent || 'var(--accent-blue)'}` : 'none'
           }}
         >
           <div 

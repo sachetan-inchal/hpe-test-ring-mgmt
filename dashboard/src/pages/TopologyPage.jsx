@@ -170,7 +170,7 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
   const [role, setRole] = useState(initialRole)
   const [userTeamId, setUserTeamId] = useState(initialTeamId)  // the locked team for 'user' role sim
   const [selectedTeamId, setSelectedTeamId] = useState(
-    initialRole === 'admin' ? 'all' : initialTeamId
+    (initialRole === 'admin' || initialRole === 'user') ? 'all' : initialTeamId
   )
 
   const managerTeamIds = useMemo(() => {
@@ -218,14 +218,7 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
     setSelectedSimUserId(userId)
     const simUser = allUsers.find(u => u._id === userId)
     if (simUser) {
-      const base = normalizeTeamId(simUser.team)
-      const managed = (simUser.managedTeams || []).map(t => normalizeTeamId(t))
-      const available = Array.from(new Set([base, ...managed])).filter(Boolean)
-      if (available.length > 0) {
-        setSelectedTeamId(available[0])
-      } else {
-        setSelectedTeamId(base || 'all')
-      }
+      setSelectedTeamId('all')
     }
   }
 
@@ -252,18 +245,54 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
 
   // Array nodes visible given current scope
   const arrayNodes = useMemo(() => {
-    return data.nodes.filter(n => (n.type || n.label || '').toLowerCase().includes('array'))
-  }, [data.nodes])
+    let filtered = data.nodes.filter(n => (n.type || n.label || '').toLowerCase().includes('array'))
+    if (selectedTeamId && selectedTeamId !== 'all') {
+      const selectedTeamName = allTeamsList.find(t => t.id === selectedTeamId)?.name || selectedTeamId || ''
+      filtered = filtered.filter(n => {
+        const tName = n.team || n.owner_team || ''
+        return tName.toLowerCase() === selectedTeamName.toLowerCase()
+      })
+    }
+    return filtered
+  }, [data.nodes, selectedTeamId, allTeamsList])
 
   const activeNodes = useMemo(() => {
     let nodes = data.nodes.filter(n =>
       activeTab === 'decommissioned' ? n.isDecommissioned : !n.isDecommissioned
     )
 
-    // Array filter override (bypasses team filter completely)
+    // Array filter override (bypasses team filter completely, shows array + connected switches & hosts)
     if (selectedArrayId && selectedArrayId !== 'all') {
       const target = nodes.find(n => n.id === selectedArrayId)
-      return target ? [target] : []
+      if (!target) return []
+      
+      const connectedIds = new Set([selectedArrayId])
+      
+      // 1-hop connections (e.g. array -> switch)
+      const directConnected = new Set()
+      data.edges.forEach(e => {
+        const fromId = e.from || e.source
+        const toId = e.to || e.target
+        if (fromId === selectedArrayId) directConnected.add(toId)
+        if (toId === selectedArrayId) directConnected.add(fromId)
+      })
+      directConnected.forEach(id => connectedIds.add(id))
+      
+      // 2-hop connections (e.g. switch -> host)
+      data.edges.forEach(e => {
+        const fromId = e.from || e.source
+        const toId = e.to || e.target
+        if (directConnected.has(fromId)) connectedIds.add(toId)
+        if (directConnected.has(toId)) connectedIds.add(fromId)
+      })
+      
+      // Parent / child relations
+      nodes.forEach(n => {
+        if (n.parentId && connectedIds.has(n.parentId)) connectedIds.add(n.id)
+        if (n.parentId && connectedIds.has(n.id)) connectedIds.add(n.parentId)
+      })
+
+      return nodes.filter(n => connectedIds.has(n.id))
     }
 
     const userTeamName = allTeamsList.find(t => t.id === userTeamId)?.name || user?.team || ''
@@ -278,11 +307,14 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
         })
       }
     } else if (role === 'user') {
-      // Team Member: strictly filter to their own team only
-      nodes = nodes.filter(n => {
-        const tName = n.team || n.owner_team || ''
-        return tName.toLowerCase() === userTeamName.toLowerCase()
-      })
+      // Team Member: can view all or filter by selected team
+      if (selectedTeamId && selectedTeamId !== 'all') {
+        const selectedTeamName = allTeamsList.find(t => t.id === selectedTeamId)?.name || selectedTeamId || ''
+        nodes = nodes.filter(n => {
+          const tName = n.team || n.owner_team || ''
+          return tName.toLowerCase() === selectedTeamName.toLowerCase()
+        })
+      }
     } else if (role === 'manager' || role === 'director') {
       // Manager & Director: filter to selected team or all managed teams
       if (selectedTeamId && selectedTeamId !== 'all') {
@@ -320,7 +352,7 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
     }
 
     return nodes
-  }, [data.nodes, searchQuery, activeTab, role, selectedTeamId, userTeamId, nodesById, deviceFilter, deviceKindMap])
+  }, [data.nodes, data.edges, searchQuery, activeTab, role, selectedTeamId, userTeamId, nodesById, deviceFilter, deviceKindMap, selectedArrayId])
 
   const activeEdges = useMemo(() => {
     const ids = new Set(activeNodes.map(n => n.id))
@@ -600,48 +632,94 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
           </>
         )}
 
-        {/* Team selector — admin & manager can switch; user is locked */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team:</span>
-          {role === 'user' ? (
-            <span style={{ fontSize: 11, color: '#58a6ff', background: 'rgba(58,166,255,0.1)', border: '1px solid rgba(58,166,255,0.2)', padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>
-              🔒 {teamIdToName[selectedTeamId] || selectedTeamId}
-            </span>
-          ) : (role === 'manager' || role === 'director' || user?.role === 'manager' || user?.role === 'director' || user?.role === 'senior_manager') ? (
-            // Manager/Director: can switch team but only among their managed teams
-            <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
-              value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
-              {managerTeamIds.map(tid => (
-                <option key={tid} value={tid}>{teamIdToName[tid] || tid}</option>
-              ))}
-            </select>
-          ) : (
-            // Admin: can pick all or specific team
-            <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
-              value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
-              <option value="all">All Teams</option>
-              {allTeamsList.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          )}
-        </div>
+        {/* Team selector — all roles can switch teams */}
+        {(() => {
+          const getTeamAccentColor = (teamIdOrName) => {
+            const colors = ['#58a6ff', '#3fb950', '#bc8cff', '#f0883e', '#ff7b72']
+            if (!teamIdOrName || teamIdOrName === 'all') return ''
+            const clean = teamIdOrName.toLowerCase().replace(/ /g, '-')
+            const tObj = allTeamsList.find(x => x.id === clean || x.name?.toLowerCase() === teamIdOrName.toLowerCase())
+            const name = tObj ? tObj.name : teamIdOrName
+            const idx = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+            return colors[Math.abs(idx) % colors.length]
+          }
 
-        {/* Array selector — available to all roles, filters to single array view */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Array:</span>
-          <select
-            className="input"
-            style={{ width: 160, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
-            value={selectedArrayId}
-            onChange={e => setSelectedArrayId(e.target.value)}
-          >
-            <option value="all">All Arrays</option>
-            {arrayNodes.map(a => (
-              <option key={a.id} value={a.id}>{a.name || a.id}</option>
-            ))}
-          </select>
-        </div>
+          const currentTeamColor = getTeamAccentColor(selectedTeamId)
+
+          return (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team:</span>
+                {(role === 'manager' || role === 'director' || user?.role === 'manager' || user?.role === 'director' || user?.role === 'senior_manager') ? (
+                  // Manager/Director: can switch team but only among their managed teams
+                  <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer', color: currentTeamColor || 'var(--foreground)', fontWeight: currentTeamColor ? 600 : 400 }}
+                    value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
+                    <option value="all" style={{ background: '#1a1a1a', color: '#fff' }}>All Managed Teams</option>
+                    {managerTeamIds.map(tid => {
+                      const col = getTeamAccentColor(tid)
+                      return (
+                        <option key={tid} value={tid} style={{ background: '#1a1a1a', color: col || '#fff', fontWeight: col ? 600 : 400 }}>
+                          {teamIdToName[tid] || tid}
+                        </option>
+                      )
+                    })}
+                  </select>
+                ) : (
+                  // Admin and normal User: can pick all or specific team
+                  <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer', color: currentTeamColor || 'var(--foreground)', fontWeight: currentTeamColor ? 600 : 400 }}
+                    value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
+                    <option value="all" style={{ background: '#1a1a1a', color: '#fff' }}>All Teams</option>
+                    {allTeamsList.map(t => {
+                      const col = getTeamAccentColor(t.id)
+                      return (
+                        <option key={t.id} value={t.id} style={{ background: '#1a1a1a', color: col || '#fff', fontWeight: col ? 600 : 400 }}>
+                          {t.name}
+                        </option>
+                      )
+                    })}
+                  </select>
+                )}
+              </div>
+
+              {/* Array selector — available to all roles, filters to single array view */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Array:</span>
+                {(() => {
+                  const getArrayTeamColor = (arrId) => {
+                    const node = data.nodes.find(n => n.id === arrId)
+                    return node ? getTeamAccentColor(node.team || node.owner_team) : ''
+                  }
+                  const currentArrayColor = getArrayTeamColor(selectedArrayId)
+                  
+                  return (
+                    <select
+                      className="input"
+                      style={{ width: 160, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer', color: currentArrayColor || 'var(--foreground)', fontWeight: currentArrayColor ? 600 : 400 }}
+                      value={selectedArrayId}
+                      onChange={e => {
+                        const val = e.target.value
+                        setSelectedArrayId(val)
+                        if (val !== 'all') {
+                          setFocusedId(val)
+                        }
+                      }}
+                    >
+                      <option value="all" style={{ background: '#1a1a1a', color: '#fff' }}>All Arrays</option>
+                      {arrayNodes.map(a => {
+                        const col = getArrayTeamColor(a.id)
+                        return (
+                          <option key={a.id} value={a.id} style={{ background: '#1a1a1a', color: col || '#fff', fontWeight: col ? 600 : 400 }}>
+                            {a.name || a.id}
+                          </option>
+                        )
+                      })}
+                    </select>
+                  )
+                })()}
+              </div>
+            </>
+          )
+        })()}
 
         {/* Role badge (Legacy Square Boxes, no pulsing dot) */}
         {role === 'user' && (

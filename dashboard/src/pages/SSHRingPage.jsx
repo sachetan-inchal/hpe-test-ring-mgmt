@@ -72,6 +72,8 @@ export default function SSHRingPage({ apiBase }) {
   const [deviceTeam, setDeviceTeam] = useState('')
   const [availableTeams, setAvailableTeams] = useState([])
   const [oobIp, setOobIp] = useState('')
+  const [connectedTo, setConnectedTo] = useState('')
+  const [targetInbandIp, setTargetInbandIp] = useState('')
 
   // Run Form State
   const [targetIp, setTargetIp] = useState('')
@@ -191,7 +193,8 @@ export default function SSHRingPage({ apiBase }) {
           selected_commands: selectedCommands,
           custom_commands: customCommands,
           mock_commands: mockCommands,
-          team: deviceTeam
+          team: deviceTeam,
+          connected_to: connectedTo
         }),
       })
 
@@ -228,6 +231,7 @@ export default function SSHRingPage({ apiBase }) {
       setMockStderr('')
       setDeviceTeam(availableTeams[0]?.name || '')
       setOobIp('')
+      setConnectedTo('')
       setIsEditing(false)
       setOriginalDeviceName('')
 
@@ -271,6 +275,7 @@ export default function SSHRingPage({ apiBase }) {
     setMockCommands(device.mock_commands || {})
     setDeviceTeam(device.team || 'team-alpha')
     setOobIp(device.oob_ip || '')
+    setConnectedTo(device.connected_to || '')
     setIsEditing(true)
     setOriginalDeviceName(device.device_name || '')
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -278,7 +283,9 @@ export default function SSHRingPage({ apiBase }) {
 
   // Handle Use Action
   const handleUse = (device) => {
-    setTargetIp(device.ip_address || device.ip || '')
+    const primaryIp = device.ip_address || device.ip || ''
+    setTargetIp(primaryIp)
+    setTargetInbandIp(primaryIp)
     setTargetUser(device.username || '')
     setTargetPort(String(device.port ?? 22))
     setTargetPassword(device.password || '')
@@ -457,11 +464,40 @@ export default function SSHRingPage({ apiBase }) {
   const handleToggleSelectDevice = (ip) => {
     setSelectedDeviceIps(prev => {
       const next = new Set(prev)
-      if (next.has(ip)) {
-        next.delete(ip)
-      } else {
-        next.add(ip)
+      const clickedDev = devices.find(d => (d.ip_address || d.ip) === ip)
+      const isChecking = !next.has(ip)
+      
+      const affectedIps = [ip]
+      if (clickedDev && clickedDev.category === 'Array') {
+        const arrayName = clickedDev.device_name
+        const dependentSwitches = devices.filter(d => d.category === 'Switch' && d.connected_to === arrayName)
+        dependentSwitches.forEach(s => {
+          const sIp = s.ip_address || s.ip
+          if (sIp) affectedIps.push(sIp)
+          
+          const dependentHosts = devices.filter(h => h.category === 'Host' && h.connected_to === s.device_name)
+          dependentHosts.forEach(h => {
+            const hIp = h.ip_address || h.ip
+            if (hIp) affectedIps.push(hIp)
+          })
+        })
+      } else if (clickedDev && clickedDev.category === 'Switch') {
+        const switchName = clickedDev.device_name
+        const dependentHosts = devices.filter(h => h.category === 'Host' && h.connected_to === switchName)
+        dependentHosts.forEach(h => {
+          const hIp = h.ip_address || h.ip
+          if (hIp) affectedIps.push(hIp)
+        })
       }
+      
+      affectedIps.forEach(targetIp => {
+        if (isChecking) {
+          next.add(targetIp)
+        } else {
+          next.delete(targetIp)
+        }
+      })
+      
       return next
     })
   }
@@ -694,24 +730,121 @@ export default function SSHRingPage({ apiBase }) {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Team Scope</label>
-                <select
-                  value={deviceTeam}
-                  onChange={(e) => setDeviceTeam(e.target.value)}
-                  style={{
-                    width: '100%', padding: '9px 12px', borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
-                    color: 'var(--foreground)', outline: 'none'
-                  }}
-                >
-                  {availableTeams.length > 0 ? (
-                    availableTeams.map(t => (
-                      <option key={t.id || t.name} value={t.name} style={{ background: '#1a1a1a', color: '#fff' }}>{t.name}</option>
-                    ))
-                  ) : (
-                    <option value="" style={{ background: '#1a1a1a', color: '#fff' }}>Loading teams...</option>
-                  )}
-                </select>
+                {(() => {
+                  const getTeamAccentColor = (teamName) => {
+                    const colors = ['#58a6ff', '#3fb950', '#bc8cff', '#f0883e', '#ff7b72']
+                    if (!teamName) return ''
+                    const idx = teamName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+                    return colors[Math.abs(idx) % colors.length]
+                  }
+
+                  const activeColor = getTeamAccentColor(deviceTeam)
+
+                  return (
+                    <select
+                      value={deviceTeam}
+                      onChange={(e) => setDeviceTeam(e.target.value)}
+                      style={{
+                        width: '100%', padding: '9px 12px', borderRadius: 8,
+                        border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
+                        color: activeColor || 'var(--foreground)', fontWeight: activeColor ? 600 : 400,
+                        outline: 'none'
+                      }}
+                    >
+                      {availableTeams.length > 0 ? (
+                        availableTeams.map(t => {
+                          const col = getTeamAccentColor(t.name)
+                          return (
+                            <option key={t.id || t.name} value={t.name} style={{ background: '#1a1a1a', color: col || '#fff', fontWeight: col ? 600 : 400 }}>
+                              {t.name}
+                            </option>
+                          )
+                        })
+                      ) : (
+                        <option value="" style={{ background: '#1a1a1a', color: '#fff' }}>Loading teams...</option>
+                      )}
+                    </select>
+                  )
+                })()}
               </div>
+              {category === 'Switch' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Dependent Array</label>
+                  {(() => {
+                    const getTeamAccentColor = (teamName) => {
+                      const colors = ['#58a6ff', '#3fb950', '#bc8cff', '#f0883e', '#ff7b72']
+                      if (!teamName) return ''
+                      const idx = teamName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+                      return colors[Math.abs(idx) % colors.length]
+                    }
+
+                    const parentDev = devices.find(d => d.device_name === connectedTo)
+                    const activeColor = parentDev ? getTeamAccentColor(parentDev.team) : ''
+
+                    return (
+                      <select
+                        value={connectedTo}
+                        onChange={(e) => setConnectedTo(e.target.value)}
+                        style={{
+                          width: '100%', padding: '9px 12px', borderRadius: 8,
+                          border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
+                          color: activeColor || 'var(--foreground)', fontWeight: activeColor ? 600 : 400,
+                          outline: 'none'
+                        }}
+                      >
+                        <option value="" style={{ background: '#1a1a1a', color: '#fff' }}>None</option>
+                        {devices.filter(d => d.category === 'Array').map(d => {
+                          const col = getTeamAccentColor(d.team)
+                          return (
+                            <option key={d.device_name} value={d.device_name} style={{ background: '#1a1a1a', color: col || '#fff', fontWeight: col ? 600 : 400 }}>
+                              {d.device_name}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    )
+                  })()}
+                </div>
+              )}
+              {category === 'Host' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Dependent Switch</label>
+                  {(() => {
+                    const getTeamAccentColor = (teamName) => {
+                      const colors = ['#58a6ff', '#3fb950', '#bc8cff', '#f0883e', '#ff7b72']
+                      if (!teamName) return ''
+                      const idx = teamName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+                      return colors[Math.abs(idx) % colors.length]
+                    }
+
+                    const parentDev = devices.find(d => d.device_name === connectedTo)
+                    const activeColor = parentDev ? getTeamAccentColor(parentDev.team) : ''
+
+                    return (
+                      <select
+                        value={connectedTo}
+                        onChange={(e) => setConnectedTo(e.target.value)}
+                        style={{
+                          width: '100%', padding: '9px 12px', borderRadius: 8,
+                          border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
+                          color: activeColor || 'var(--foreground)', fontWeight: activeColor ? 600 : 400,
+                          outline: 'none'
+                        }}
+                      >
+                        <option value="" style={{ background: '#1a1a1a', color: '#fff' }}>None</option>
+                        {devices.filter(d => d.category === 'Switch').map(d => {
+                          const col = getTeamAccentColor(d.team)
+                          return (
+                            <option key={d.device_name} value={d.device_name} style={{ background: '#1a1a1a', color: col || '#fff', fontWeight: col ? 600 : 400 }}>
+                              {d.device_name}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    )
+                  })()}
+                </div>
+              )}
               <div>
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Username</label>
                 <input
@@ -932,7 +1065,10 @@ export default function SSHRingPage({ apiBase }) {
                     <span style={{ fontSize: 10, color: 'var(--muted)' }}>Route via:</span>
                     <button
                       type="button"
-                      onClick={() => setUseOobIp(false)}
+                      onClick={() => {
+                        setUseOobIp(false)
+                        if (targetInbandIp) setTargetIp(targetInbandIp)
+                      }}
                       style={{
                         padding: '3px 8px', borderRadius: 4, fontSize: 10, cursor: 'pointer',
                         border: '1px solid var(--line)',
@@ -941,11 +1077,14 @@ export default function SSHRingPage({ apiBase }) {
                         fontWeight: !useOobIp ? 600 : 400
                       }}
                     >
-                      In-band ({targetIp})
+                      In-band ({targetInbandIp})
                     </button>
                     <button
                       type="button"
-                      onClick={() => setUseOobIp(true)}
+                      onClick={() => {
+                        setUseOobIp(true)
+                        if (targetOobIp) setTargetIp(targetOobIp)
+                      }}
                       style={{
                         padding: '3px 8px', borderRadius: 4, fontSize: 10, cursor: 'pointer',
                         border: '1px solid var(--line)',
@@ -1286,6 +1425,7 @@ export default function SSHRingPage({ apiBase }) {
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Kind</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Category</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Team</th>
+                  <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Connected to</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>IP Address</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>DNS Name</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>DNS Server</th>
@@ -1353,6 +1493,19 @@ export default function SSHRingPage({ apiBase }) {
                             </span>
                           );
                         })()}
+                      </td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
+                        {device.category === 'Host' || device.category === 'Switch' ? (
+                          device.connected_to ? (
+                            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, fontSize: '11px' }}>
+                              {device.connected_to}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--muted)', fontSize: '11px' }}>None</span>
+                          )
+                        ) : (
+                          <span style={{ color: 'var(--muted)', fontSize: '11px' }}>-</span>
+                        )}
                       </td>
                       <td style={{ padding: '12px 8px', fontSize: '13px' }}>
                         <div style={{ fontFamily: 'var(--font-mono)' }}>{device.ip_address || device.ip || '-'}</div>
