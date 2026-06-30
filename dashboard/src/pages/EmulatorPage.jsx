@@ -140,10 +140,10 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
     setHistory(prev => [...prev, { type, text }]), [])
 
   // ── Sidebar Click Shortcut ─────────────────────────────────────────────────
-  const handleSidebarClick = async (device) => {
+  const handleSidebarClick = async (device, forcedIp = null) => {
     try {
       const user = device.username || getSSHUserForDevice(device)
-      const ip = device.ip || device.ip_address
+      const ip = forcedIp || device.ip || device.ip_address
 
       if (sshState === 'connected' && (activeDevice?.ip === ip || activeDevice?.ip_address === ip)) {
         addLine('info', `Already connected to ${device.name || device.device_name || ip}`)
@@ -157,7 +157,7 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
 
       setSshState('disconnected')
       setInput('')
-      await startSSHHandshake(user, ip, histText, device)
+      await startSSHHandshake(user, ip, histText, { ...device, ip: ip, ip_address: ip })
     } catch (err) {
       addLine('error', `Sidebar redirect error: ${err.message}`)
     }
@@ -470,7 +470,7 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
           <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Server size={16} style={{ color: 'var(--hpe-green)' }} />
             <span style={{ fontSize: 12, fontWeight: 700 }}>
-              {filterType === 'virtual' ? 'Available Host IPs' : 'Available IPs'}
+              Available IPs
             </span>
             <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 10 }}>
               {filterType === 'virtual' ? virtualDevices.length : realDevices.length}
@@ -491,9 +491,113 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
             {(filterType === 'virtual' ? virtualDevices : realDevices).map(d => {
               const name = d.name || d.device_name || d.ip || d.ip_address
               const ip = d.ip || d.ip_address
-              const isCurrent = activeDevice?.ip === ip || activeDevice?.ip_address === ip
+              const oobIp = d.oob_ip
+              const isCurrentInband = activeDevice?.ip === ip || activeDevice?.ip_address === ip
+              const isCurrentOob = oobIp && (activeDevice?.ip === oobIp || activeDevice?.ip_address === oobIp)
+              const isCurrent = isCurrentInband || isCurrentOob
               const category = d.type || d.category || 'host'
               const user = d.username || getSSHUserForDevice(d)
+
+              if (oobIp) {
+                // Render Split IP Card
+                return (
+                  <div
+                    key={name + '-' + ip}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      width: '100%',
+                      borderRadius: 8,
+                      border: isCurrent ? '1px solid var(--hpe-green)' : '1px solid var(--line)',
+                      background: 'rgba(255,255,255,0.02)',
+                      marginBottom: 8,
+                      overflow: 'hidden',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <Monitor size={13} style={{ color: isCurrent ? 'var(--hpe-green)' : 'var(--muted)' }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontSize: 11 }}>{name}</span>
+                      <span style={{ fontSize: 8, opacity: 0.7, textTransform: 'uppercase', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 3 }}>{category}</span>
+                    </div>
+
+                    {/* Split Clickable Halves */}
+                    <div style={{ display: 'flex', width: '100%' }}>
+                      {/* Left Side: In-Band */}
+                      <button
+                        type="button"
+                        onClick={() => handleSidebarClick(d, ip)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 4px',
+                          background: isCurrentInband ? 'rgba(1,169,130,0.15)' : 'transparent',
+                          border: 'none',
+                          borderRight: '1px solid rgba(255,255,255,0.04)',
+                          color: isCurrentInband ? 'var(--hpe-green)' : 'var(--muted)',
+                          fontSize: 9,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-mono)',
+                          textAlign: 'center',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={e => {
+                          if (!isCurrentInband) {
+                            e.currentTarget.style.background = 'rgba(1,169,130,0.08)'
+                            e.currentTarget.style.color = 'var(--foreground)'
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!isCurrentInband) {
+                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.color = 'var(--muted)'
+                          }
+                        }}
+                        title={`Connect via In-band IP: ${ip}`}
+                      >
+                        In-Band
+                        <div style={{ fontSize: 8, opacity: 0.6, marginTop: 1 }}>{ip}</div>
+                      </button>
+
+                      {/* Right Side: OOB */}
+                      <button
+                        type="button"
+                        onClick={() => handleSidebarClick(d, oobIp)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 4px',
+                          background: isCurrentOob ? 'rgba(88,166,255,0.15)' : 'transparent',
+                          border: 'none',
+                          color: isCurrentOob ? '#58a6ff' : 'var(--muted)',
+                          fontSize: 9,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-mono)',
+                          textAlign: 'center',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={e => {
+                          if (!isCurrentOob) {
+                            e.currentTarget.style.background = 'rgba(88,166,255,0.08)'
+                            e.currentTarget.style.color = 'var(--foreground)'
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!isCurrentOob) {
+                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.color = 'var(--muted)'
+                          }
+                        }}
+                        title={`Connect via Out-of-band IP: ${oobIp}`}
+                      >
+                        OOB IP
+                        <div style={{ fontSize: 8, opacity: 0.6, marginTop: 1 }}>{oobIp}</div>
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+
+              // Standard single IP card
               return (
                 <button
                   key={name + '-' + ip}

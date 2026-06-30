@@ -694,7 +694,7 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<Navigate to="/ssh-ring" replace />} />
                   <Route path="/discovery" element={<DiscoveryPage apiBase={FLASK_API} />} />
-                  <Route path="/topology" element={<TopologyPage apiBase={FLASK_API} deviceFilter={deviceFilter} deviceKindMap={deviceKindMap} />} />
+                  <Route path="/topology" element={<TopologyPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} deviceFilter={deviceFilter} deviceKindMap={deviceKindMap} />} />
                   <Route path="/inventory" element={<InventoryPage apiBase={FLASK_API} deviceFilter={deviceFilter} deviceKindMap={deviceKindMap} />} />
                   <Route path="/ssh-ring" element={<SSHRingPage apiBase={FLASK_API} />} />
                   <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} deviceFilter={deviceFilter} />} />

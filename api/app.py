@@ -845,9 +845,10 @@ def save_ssh_credentials():
     device_kind = data.get("device_kind", "real")
     vsan_device_type = data.get("vsan_device_type", "host")
     selected_commands = data.get("selected_commands", [])
-    custom_commands = data.get("custom_commands", [])
     mock_commands = data.get("mock_commands", {})
+    custom_commands = data.get("custom_commands", [])
     team = data.get("team", "team-alpha")
+    oob_ip = data.get("oob_ip", "")
     
     if not ip and not dns_name:
         return jsonify({"error": "ip or dns_name is required"}), 400
@@ -878,7 +879,8 @@ def save_ssh_credentials():
                     "selected_commands": selected_commands,
                     "custom_commands": custom_commands,
                     "mock_commands": mock_commands,
-                    "team": team
+                    "team": team,
+                    "oob_ip": oob_ip
                 }},
                 upsert=True
             )
@@ -1136,7 +1138,8 @@ def list_ssh_credentials():
                     "selected_commands": c.get("selected_commands", []),
                     "custom_commands": c.get("custom_commands", []),
                     "mock_commands": c.get("mock_commands", {}),
-                    "team": c.get("team", "team-alpha")
+                    "team": c.get("team", "team-alpha"),
+                    "oob_ip": c.get("oob_ip", "")
                 })
 
         # Inject simulator-derived mock devices
@@ -1271,7 +1274,7 @@ def ssh_ring_exec():
     if mongo.available:
         try:
             db = mongo.db
-            cred = db.ssh_credentials.find_one({"ip": ip})
+            cred = db.ssh_credentials.find_one({"$or": [{"ip": ip}, {"oob_ip": ip}]})
             if cred and cred.get("device_kind") == "mock":
                 is_mock = True
                 mock_commands = cred.get("mock_commands") or {}
@@ -2879,6 +2882,43 @@ def neo4j_graph():
         return jsonify({"error": str(ex), "nodes": [], "edges": []}), 500
 
 
+def _inject_teams_into_topology(data):
+    if not data or "nodes" not in data:
+        return data
+    if not mongo.available:
+        return data
+    try:
+        db = mongo.db
+        creds_map = {}
+        creds = list(db.ssh_credentials.find({}, {"device_name": 1, "ip": 1, "team": 1}))
+        for c in creds:
+            team = c.get("team")
+            if team:
+                if c.get("device_name"):
+                    creds_map[c["device_name"].lower()] = team
+                if c.get("ip"):
+                    creds_map[c["ip"].lower()] = team
+                    
+        for n in data["nodes"]:
+            n_id = str(n.get("id") or "").lower()
+            if "data" in n and isinstance(n["data"], dict):
+                n_id = str(n["data"].get("id") or "").lower()
+                n_name = str(n["data"].get("name") or n["data"].get("device_name") or "").lower()
+                matched_team = creds_map.get(n_name) or creds_map.get(n_id)
+                if matched_team:
+                    n["data"]["team"] = matched_team
+                    n["data"]["owner_team"] = matched_team
+            else:
+                n_name = str(n.get("name") or n.get("device_name") or "").lower()
+                matched_team = creds_map.get(n_name) or creds_map.get(n_id)
+                if matched_team:
+                    n["team"] = matched_team
+                    n["owner_team"] = matched_team
+    except Exception as ex:
+        log.warning(f"Failed to inject teams into topology: {ex}")
+    return data
+
+
 @app.route("/api/graph/mongo")
 def mongo_graph():
     """Retrieve topology graph from MongoDB sandatas collection."""
@@ -2903,7 +2943,8 @@ def mongo_graph():
             if "to" in e and "target" not in e:
                 e["target"] = e["to"]
                 
-        return jsonify({"nodes": nodes, "edges": edges})
+        graph_data = _inject_teams_into_topology({"nodes": nodes, "edges": edges})
+        return jsonify(graph_data)
     except Exception as ex:
         log.exception("Failed to query mongo_graph")
         return jsonify({"error": str(ex), "nodes": [], "edges": []}), 500
@@ -3487,7 +3528,7 @@ def get_ontology_topology():
             doc = db.real_sandatas.find_one({})
             if not doc:
                 return jsonify({"nodes": [], "edges": []})
-            return jsonify(doc)
+            return jsonify(_inject_teams_into_topology(doc))
 
         data = _topology_db.get_topology()
         source = request.args.get("source", "all")
@@ -3506,7 +3547,7 @@ def get_ontology_topology():
                 "edges": filtered_edges,
                 "sources": data.get("sources", [])
             }
-        return jsonify(data)
+        return jsonify(_inject_teams_into_topology(data))
     except Exception as ex:
         return jsonify({"error": str(ex)}), 500
 

@@ -37,7 +37,7 @@ function isVirtualNode(node, deviceKindMap) {
   return false;
 }
 
-export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
+export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, deviceKindMap }) {
   const [data, setData] = useState({ nodes: [], edges: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -118,6 +118,22 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
   const [allTeamsList, setAllTeamsList] = useState([])
   const [selectedArrayId, setSelectedArrayId] = useState('all')
 
+  const [allUsers, setAllUsers] = useState([])
+  const [selectedSimUserId, setSelectedSimUserId] = useState('')
+
+  useEffect(() => {
+    if (chatbotApi) {
+      fetch(`${chatbotApi}/auth/users`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.users && Array.isArray(data.users)) {
+            setAllUsers(data.users)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [chatbotApi])
+
   useEffect(() => {
     fetch(`${apiBase}/api/teams`)
       .then(r => r.json())
@@ -158,6 +174,15 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
   )
 
   const managerTeamIds = useMemo(() => {
+    if (role !== 'admin' && selectedSimUserId) {
+      const simUser = allUsers.find(u => u._id === selectedSimUserId)
+      if (simUser) {
+        const base = normalizeTeamId(simUser.team)
+        const managed = (simUser.managedTeams || []).map(t => normalizeTeamId(t))
+        return Array.from(new Set([base, ...managed])).filter(Boolean)
+      }
+    }
+
     if (!user) return []
     if (user.role === 'admin') {
       return allTeamsList.map(t => t.id)
@@ -165,7 +190,7 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
     const base = normalizeTeamId(user.team)
     const managed = (user.managedTeams || []).map(t => normalizeTeamId(t))
     return Array.from(new Set([base, ...managed])).filter(Boolean)
-  }, [user, allTeamsList])
+  }, [user, allTeamsList, role, selectedSimUserId, allUsers])
 
   // Sync initial values when user or allTeamsList changes
   useEffect(() => {
@@ -181,10 +206,26 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
   // When role changes, reset team selection
   const handleRoleChange = (newRole) => {
     setRole(newRole)
+    setSelectedSimUserId('') // Reset simulated user
     if (newRole === 'admin') {
       setSelectedTeamId('all')
     } else {
       setSelectedTeamId(userTeamId)
+    }
+  }
+
+  const handleSimUserChange = (userId) => {
+    setSelectedSimUserId(userId)
+    const simUser = allUsers.find(u => u._id === userId)
+    if (simUser) {
+      const base = normalizeTeamId(simUser.team)
+      const managed = (simUser.managedTeams || []).map(t => normalizeTeamId(t))
+      const available = Array.from(new Set([base, ...managed])).filter(Boolean)
+      if (available.length > 0) {
+        setSelectedTeamId(available[0])
+      } else {
+        setSelectedTeamId(base || 'all')
+      }
     }
   }
 
@@ -218,6 +259,12 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
     let nodes = data.nodes.filter(n =>
       activeTab === 'decommissioned' ? n.isDecommissioned : !n.isDecommissioned
     )
+
+    // Array filter override (bypasses team filter completely)
+    if (selectedArrayId && selectedArrayId !== 'all') {
+      const target = nodes.find(n => n.id === selectedArrayId)
+      return target ? [target] : []
+    }
 
     const userTeamName = allTeamsList.find(t => t.id === userTeamId)?.name || user?.team || ''
 
@@ -256,13 +303,6 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
           return allowedTeamNames.has(tName)
         })
       }
-    }
-
-    // Array filter (applied on top of team filter)
-    if (selectedArrayId && selectedArrayId !== 'all') {
-      // When an array is selected: show that array node + all nodes connected to it
-      const target = nodes.find(n => n.id === selectedArrayId)
-      if (target) nodes = [target]
     }
 
     // Search
@@ -469,8 +509,8 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
         <div>
           <h2 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             Test Ring Viewer
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, background: 'var(--surface-1)', padding: '3px 10px', borderRadius: 20, border: '1px solid var(--line)' }}>
-              <span className="pulse-dot green" /> Live DB
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, background: 'var(--surface-1)', padding: '3px 10px', borderRadius: 4, border: '1px solid var(--line)' }}>
+              Live DB
             </span>
           </h2>
         </div>
@@ -526,6 +566,36 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
                 <option value="user">👥 Team Member</option>
               </select>
             </div>
+            
+            {['manager', 'director'].includes(role) && (
+              <>
+                <div style={{ height: 16, width: 1, background: 'var(--line)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Select {role === 'director' ? 'Director' : 'Manager'}:
+                  </span>
+                  <select
+                    className="input"
+                    style={{ width: 150, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
+                    value={selectedSimUserId}
+                    onChange={e => handleSimUserChange(e.target.value)}
+                  >
+                    <option value="">Select User...</option>
+                    {allUsers
+                      .filter(u => {
+                        const uRole = u.role || 'team_member'
+                        if (role === 'director') return uRole === 'director'
+                        if (role === 'manager') return ['manager', 'senior_manager'].includes(uRole)
+                        return false
+                      })
+                      .map(u => (
+                        <option key={u._id} value={u._id}>{u.name || u.username}</option>
+                      ))
+                    }
+                  </select>
+                </div>
+              </>
+            )}
             <div style={{ height: 16, width: 1, background: 'var(--line)' }} />
           </>
         )}
@@ -573,22 +643,19 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
           </select>
         </div>
 
-        {/* Role badge */}
+        {/* Role badge (Legacy Square Boxes, no pulsing dot) */}
         {role === 'user' && (
-          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(88,166,255,0.1)', color: '#58a6ff', border: '1px solid rgba(88,166,255,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#58a6ff', boxShadow: '0 0 8px #58a6ff' }} />
+          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(88,166,255,0.1)', color: '#58a6ff', border: '1px solid rgba(88,166,255,0.2)', padding: '4px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
             Team-Scoped View
           </div>
         )}
         {(role === 'manager' || role === 'director') && (
-          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(210,153,34,0.1)', color: '#d29922', border: '1px solid rgba(210,153,34,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d29922', boxShadow: '0 0 8px #d29922' }} />
+          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(210,153,34,0.1)', color: '#d29922', border: '1px solid rgba(210,153,34,0.2)', padding: '4px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
             {role === 'director' ? 'Director View' : 'Manager View'}
           </div>
         )}
         {role === 'admin' && (
-          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(63,185,80,0.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3fb950', boxShadow: '0 0 8px #3fb950' }} />
+          <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(63,185,80,0.1)', color: '#3fb950', border: '1px solid rgba(63,185,80,0.2)', padding: '4px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
             Administrator Override
           </div>
         )}

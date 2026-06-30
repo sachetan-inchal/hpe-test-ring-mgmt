@@ -71,9 +71,12 @@ export default function SSHRingPage({ apiBase }) {
   // Team Scoping for Device Registration
   const [deviceTeam, setDeviceTeam] = useState('')
   const [availableTeams, setAvailableTeams] = useState([])
+  const [oobIp, setOobIp] = useState('')
 
   // Run Form State
   const [targetIp, setTargetIp] = useState('')
+  const [targetOobIp, setTargetOobIp] = useState('')
+  const [useOobIp, setUseOobIp] = useState(false)
   const [targetUser, setTargetUser] = useState('')
   const [targetPort, setTargetPort] = useState('22')
   const [targetPassword, setTargetPassword] = useState('')
@@ -176,6 +179,7 @@ export default function SSHRingPage({ apiBase }) {
         body: JSON.stringify({
           device_name: deviceName.trim(),
           ip: ip.trim(),
+          oob_ip: oobIp.trim(),
           port: parseInt(port || '22', 10),
           username: username.trim(),
           password: password,
@@ -223,6 +227,7 @@ export default function SSHRingPage({ apiBase }) {
       setMockStdout('')
       setMockStderr('')
       setDeviceTeam(availableTeams[0]?.name || '')
+      setOobIp('')
       setIsEditing(false)
       setOriginalDeviceName('')
 
@@ -265,6 +270,7 @@ export default function SSHRingPage({ apiBase }) {
     setCustomCommands(device.custom_commands || [])
     setMockCommands(device.mock_commands || {})
     setDeviceTeam(device.team || 'team-alpha')
+    setOobIp(device.oob_ip || '')
     setIsEditing(true)
     setOriginalDeviceName(device.device_name || '')
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -279,6 +285,8 @@ export default function SSHRingPage({ apiBase }) {
     setTargetDnsName(device.dns_name || '')
     setTargetDnsServer(device.dns_server || '')
     setTargetCategory(device.category || 'Host')
+    setTargetOobIp(device.oob_ip || '')
+    setUseOobIp(false)
 
     // Load presets
     if (device.selected_commands && device.selected_commands.length > 0) {
@@ -308,12 +316,14 @@ export default function SSHRingPage({ apiBase }) {
     setCmdOutput('(Connecting...)')
     setIsExecuting(true)
 
+    const ipToUse = (useOobIp && targetOobIp) ? targetOobIp : targetIp;
+
     try {
       const res = await fetch(`${API}/api/ssh/exec`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ip: targetIp.trim(),
+          ip: ipToUse.trim(),
           username: targetUser.trim(),
           password: targetPassword,
           port: parseInt(targetPort || '22', 10),
@@ -595,11 +605,24 @@ export default function SSHRingPage({ apiBase }) {
                 />
               </div>
               <div style={{ flex: 2 }}>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>IP Address</label>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>In-band IP Address</label>
                 <input
                   value={ip}
                   onChange={(e) => setIp(e.target.value)}
                   placeholder="e.g. 192.168.1.50"
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
+                    color: 'var(--foreground)', outline: 'none'
+                  }}
+                />
+              </div>
+              <div style={{ flex: 2 }}>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Out-of-band IP (Optional)</label>
+                <input
+                  value={oobIp}
+                  onChange={(e) => setOobIp(e.target.value)}
+                  placeholder="e.g. 192.168.2.50"
                   style={{
                     width: '100%', padding: '9px 12px', borderRadius: 8,
                     border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(255, 255, 255, 0.04)',
@@ -769,9 +792,34 @@ export default function SSHRingPage({ apiBase }) {
 
             {/* Selected Commands to Persist */}
             <div style={{ marginTop: 5 }}>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 6 }}>
-                Commands to Persist / Execute ({selectedCommands.length} selected)
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+                  Commands to Persist / Execute ({selectedCommands.length} selected)
+                </label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCommands(allAvailableCommands)}
+                    style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--line)', color: 'var(--foreground)', padding: '2px 6px', borderRadius: 4, cursor: 'pointer' }}
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCommands([])}
+                    style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--line)', color: 'var(--foreground)', padding: '2px 6px', borderRadius: 4, cursor: 'pointer' }}
+                  >
+                    Deselect All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCommands(prev => allAvailableCommands.filter(c => !prev.includes(c)))}
+                    style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--line)', color: 'var(--foreground)', padding: '2px 6px', borderRadius: 4, cursor: 'pointer' }}
+                  >
+                    Invert
+                  </button>
+                </div>
+              </div>
               <div style={{
                 display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '6px',
                 padding: '10px', borderRadius: 8, border: '1px solid rgba(1, 169, 130, 0.2)',
@@ -879,6 +927,37 @@ export default function SSHRingPage({ apiBase }) {
                     color: 'var(--foreground)', outline: 'none'
                   }}
                 />
+                {targetOobIp && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>Route via:</span>
+                    <button
+                      type="button"
+                      onClick={() => setUseOobIp(false)}
+                      style={{
+                        padding: '3px 8px', borderRadius: 4, fontSize: 10, cursor: 'pointer',
+                        border: '1px solid var(--line)',
+                        background: !useOobIp ? 'rgba(1, 169, 130, 0.15)' : 'transparent',
+                        color: !useOobIp ? 'var(--hpe-green)' : 'var(--muted)',
+                        fontWeight: !useOobIp ? 600 : 400
+                      }}
+                    >
+                      In-band ({targetIp})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUseOobIp(true)}
+                      style={{
+                        padding: '3px 8px', borderRadius: 4, fontSize: 10, cursor: 'pointer',
+                        border: '1px solid var(--line)',
+                        background: useOobIp ? 'rgba(1, 169, 130, 0.15)' : 'transparent',
+                        color: useOobIp ? 'var(--hpe-green)' : 'var(--muted)',
+                        fontWeight: useOobIp ? 600 : 400
+                      }}
+                    >
+                      OOB ({targetOobIp})
+                    </button>
+                  </div>
+                )}
               </div>
               <div style={{ flex: 2 }}>
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>DNS Name</label>
@@ -968,9 +1047,34 @@ export default function SSHRingPage({ apiBase }) {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 6 }}>
-                Preset Commands for {targetCategory} (Connect & Run will use checked ones)
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+                  Preset Commands for {targetCategory} ({selectedPresets.length} selected)
+                </label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPresets(PRESET_COMMANDS[targetCategory] || [])}
+                    style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--line)', color: 'var(--foreground)', padding: '2px 6px', borderRadius: 4, cursor: 'pointer' }}
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPresets([])}
+                    style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--line)', color: 'var(--foreground)', padding: '2px 6px', borderRadius: 4, cursor: 'pointer' }}
+                  >
+                    Deselect All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPresets(prev => (PRESET_COMMANDS[targetCategory] || []).filter(c => !prev.includes(c)))}
+                    style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--line)', color: 'var(--foreground)', padding: '2px 6px', borderRadius: 4, cursor: 'pointer' }}
+                  >
+                    Invert
+                  </button>
+                </div>
+              </div>
               <div style={{
                 display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px',
                 padding: '12px', borderRadius: 8, border: '1px solid rgba(1, 169, 130, 0.2)',
@@ -1250,7 +1354,14 @@ export default function SSHRingPage({ apiBase }) {
                           );
                         })()}
                       </td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.ip_address || '-'}</td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
+                        <div style={{ fontFamily: 'var(--font-mono)' }}>{device.ip_address || device.ip || '-'}</div>
+                        {device.oob_ip && (
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: 2 }}>
+                            OOB: <span style={{ fontFamily: 'var(--font-mono)' }}>{device.oob_ip}</span>
+                          </div>
+                        )}
+                      </td>
                       <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_name || '-'}</td>
                       <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_server || '-'}</td>
                       <td style={{ padding: '12px 8px', fontSize: '13px' }}>{device.username}</td>
