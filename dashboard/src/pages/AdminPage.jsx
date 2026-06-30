@@ -575,8 +575,596 @@ function OntologyBackupSection({ apiBase }) {
   )
 }
 
+// ====== Manage Teams Section ======
+function ManageTeamsSection({ apiBase, onTeamChange }) {
+  const [teams, setTeams] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [editingTeam, setEditingTeam] = useState(null)
+  const [newTeamName, setNewTeamName] = useState('')
+  const [newManagerUsername, setNewManagerUsername] = useState('')
+  
+  // Create Team Form State
+  const [createName, setCreateName] = useState('')
+  const [createManager, setCreateManager] = useState('')
+
+  const [msg, setMsg] = useState('')
+
+  const fetchTeams = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${apiBase}/api/teams`)
+      const data = await res.json()
+      setTeams(data.teams || [])
+    } catch (e) {
+      console.error('Failed to fetch teams', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchTeams()
+  }, [apiBase])
+
+  const handleEditClick = (team) => {
+    setEditingTeam(team)
+    setNewTeamName(team.name)
+    setNewManagerUsername(team.manager_username || '')
+    setMsg('')
+  }
+
+  const handleCreateTeam = async (e) => {
+    e.preventDefault()
+    if (!createName.trim()) return
+    setMsg('Creating team...')
+    try {
+      const res = await fetch(`${apiBase}/api/teams/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: createName.trim(),
+          manager_username: createManager.trim() || 'Test'
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Creation failed')
+      setMsg('✓ Team created successfully')
+      setCreateName('')
+      setCreateManager('')
+      fetchTeams()
+      if (onTeamChange) onTeamChange()
+    } catch (e) {
+      setMsg(`✗ ${e.message}`)
+    }
+  }
+
+  const handleUpdate = async (e) => {
+    e.preventDefault()
+    if (!editingTeam) return
+    setMsg('Updating...')
+    try {
+      const res = await fetch(`${apiBase}/api/teams/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          old_name: editingTeam.name,
+          new_name: newTeamName,
+          manager_username: newManagerUsername
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Update failed')
+      setMsg('✓ Team updated successfully')
+      setEditingTeam(null)
+      fetchTeams()
+      if (onTeamChange) onTeamChange()
+    } catch (e) {
+      setMsg(`✗ ${e.message}`)
+    }
+  }
+
+  const handleDeleteTeam = async (teamName) => {
+    if (!window.confirm(`Are you sure you want to delete team "${teamName}"?\nThis will remove it from all users and nodes.`)) return
+    setMsg('Deleting...')
+    try {
+      const res = await fetch(`${apiBase}/api/teams/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: teamName })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Delete failed')
+      setMsg(`✓ ${data.message || 'Team deleted successfully'}`)
+      fetchTeams()
+      if (onTeamChange) onTeamChange()
+    } catch (e) {
+      setMsg(`✗ ${e.message}`)
+    }
+  }
+
+  return (
+    <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, gridColumn: '1 / -1' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 20 }}>🗂️</span>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Manage & Create Teams</h3>
+      </div>
+
+      {/* Create Team Form */}
+      <form onSubmit={handleCreateTeam} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', background: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>New Team Name</label>
+          <input className="input" style={{ height: 32 }} placeholder="e.g. team-gamma" value={createName} onChange={e => setCreateName(e.target.value)} required />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Manager Username (Optional)</label>
+          <input className="input" style={{ height: 32 }} placeholder="e.g. Test" value={createManager} onChange={e => setCreateManager(e.target.value)} />
+        </div>
+        <button type="submit" className="btn btn-primary" style={{ height: 32, padding: '0 12px', fontSize: 12 }}>Create Team</button>
+      </form>
+
+      {loading ? (
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Loading teams...</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '200px', overflowY: 'auto' }}>
+          {teams.map(t => (
+            <div key={t.id || t.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid var(--line)' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{t.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  Manager: {t.manager_name ? `${t.manager_name} (${t.manager_username})` : 'None'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-sm" onClick={() => handleEditClick(t)}>Rename/Edit</button>
+                <button className="btn btn-sm btn-danger" onClick={() => handleDeleteTeam(t.name)}>Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editingTeam && (
+        <form onSubmit={handleUpdate} style={{ borderTop: '1px solid var(--line)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Editing Team: {editingTeam.name}</h4>
+          <div className="form-group">
+            <label>Team Name</label>
+            <input className="input" value={newTeamName} onChange={e => setNewTeamName(e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label>Manager Username (current: {editingTeam.manager_username || 'None'})</label>
+            <input className="input" placeholder="e.g. jdoe" value={newManagerUsername} onChange={e => setNewManagerUsername(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" className="btn btn-primary btn-sm">Save Changes</button>
+            <button type="button" className="btn btn-sm" onClick={() => setEditingTeam(null)}>Cancel</button>
+          </div>
+        </form>
+      )}
+
+      {msg && <div style={{ fontSize: 12, color: msg.startsWith('✓') ? 'var(--status-ok)' : 'var(--accent-rose)' }}>{msg}</div>}
+    </div>
+  )
+}
+
+// ====== Manage Users Section ======
+function ManageUsersSection({ apiBase, chatbotApi, refreshKey }) {
+  const [users, setUsers] = useState([])
+  const [teams, setTeams] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
+  const [userRole, setUserRole] = useState('team_member')
+  const [userTeam, setUserTeam] = useState('')
+  const [userManagedTeams, setUserManagedTeams] = useState([])
+  const [msg, setMsg] = useState('')
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const uRes = await fetch(`${chatbotApi}/auth/users`)
+      const uData = await uRes.json()
+      setUsers(uData.users || [])
+
+      const tRes = await fetch(`${apiBase}/api/teams`)
+      const tData = await tRes.json()
+      setTeams(tData.teams || [])
+    } catch (e) {
+      console.error('Failed to load user management data', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (chatbotApi && apiBase) {
+      loadData()
+    }
+  }, [chatbotApi, apiBase, refreshKey])
+
+  const handleEditClick = (u) => {
+    setEditingUser(u)
+    setUserRole(u.role || 'team_member')
+    setUserTeam(u.team || '')
+    setUserManagedTeams(u.managedTeams || [])
+    setMsg('')
+  }
+
+  const handleToggleManagedTeam = (tName) => {
+    setUserManagedTeams(prev => 
+      prev.includes(tName) ? prev.filter(x => x !== tName) : [...prev, tName]
+    )
+  }
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    if (!editingUser) return
+    setMsg('Updating user...')
+    try {
+      const res = await fetch(`${chatbotApi}/auth/users/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: editingUser._id,
+          role: userRole,
+          team: userTeam,
+          managedTeams: (userRole === 'manager' || userRole === 'director') ? userManagedTeams : []
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Update failed')
+      setMsg('✓ User updated successfully')
+      setEditingUser(null)
+      loadData()
+    } catch (e) {
+      setMsg(`✗ ${e.message}`)
+    }
+  }
+
+  return (
+    <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, gridColumn: '1 / -1' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 20 }}>👥</span>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>User Scoping & Assignments</h3>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
+        Assign users to teams, change roles, and assign managed teams for Managers/Directors.
+      </p>
+
+      {loading ? (
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Loading users...</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '250px', overflowY: 'auto' }}>
+          {users.map(u => (
+            <div key={u._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid var(--line)' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>
+                  {u.name || u.username} <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>({u.username})</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--hpe-green)', textTransform: 'capitalize', marginTop: 2 }}>
+                  Role: <strong>{u.role?.replace('_', ' ')}</strong> | Team: <strong>{u.team || 'None'}</strong>
+                </div>
+                {u.managedTeams && u.managedTeams.length > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                    Managed: {u.managedTeams.join(', ')}
+                  </div>
+                )}
+              </div>
+              <button className="btn btn-sm" onClick={() => handleEditClick(u)}>Edit Scope</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editingUser && (
+        <form onSubmit={handleSave} style={{ borderTop: '1px solid var(--line)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Assign Scope: {editingUser.name || editingUser.username}</h4>
+          
+          <div className="form-group">
+            <label>Role</label>
+            <select className="input" value={userRole} onChange={e => setUserRole(e.target.value)} style={{ background: '#161b22', color: '#fff' }}>
+              <option value="team_member">Team Member</option>
+              <option value="manager">Manager</option>
+              <option value="director">Director</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>Primary Assigned Team</label>
+            <select className="input" value={userTeam} onChange={e => setUserTeam(e.target.value)} style={{ background: '#161b22', color: '#fff' }}>
+              <option value="">None</option>
+              {teams.map(t => (
+                <option key={t.id || t.name} value={t.name}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {(userRole === 'manager' || userRole === 'director') && (
+            <div className="form-group">
+              <label style={{ marginBottom: 6, display: 'block' }}>Managed Teams (select multiple)</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, background: 'rgba(0,0,0,0.1)', padding: 10, borderRadius: 6, border: '1px solid var(--line)' }}>
+                {teams.map(t => (
+                  <label key={t.id || t.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={userManagedTeams.includes(t.name)}
+                      onChange={() => handleToggleManagedTeam(t.name)}
+                      style={{ accentColor: 'var(--hpe-green)' }}
+                    />
+                    {t.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" className="btn btn-primary btn-sm">Save Assignments</button>
+            <button type="button" className="btn btn-sm" onClick={() => setEditingUser(null)}>Cancel</button>
+          </div>
+        </form>
+      )}
+
+      {msg && <div style={{ fontSize: 12, color: msg.startsWith('✓') ? 'var(--status-ok)' : 'var(--accent-rose)' }}>{msg}</div>}
+    </div>
+  )
+}
+
+// ====== Manage Device Teams Section ======
+function ManageDeviceTeamsSection({ apiBase, refreshKey, onTeamChange }) {
+  const [devices, setDevices] = useState([])
+  const [teams, setTeams] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [selectedDevices, setSelectedDevices] = useState([])
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const dRes = await fetch(`${apiBase}/api/credentials/list`)
+      const dData = await dRes.json()
+      setDevices(dData.devices || [])
+
+      const tRes = await fetch(`${apiBase}/api/teams`)
+      const tData = await tRes.json()
+      setTeams(tData.teams || [])
+    } catch (e) {
+      console.error('Failed to load device mapping data', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (apiBase) {
+      loadData()
+    }
+  }, [apiBase, refreshKey])
+
+  const handleDeviceClick = (e, device) => {
+    if (e.shiftKey) {
+      setSelectedDevices(prev => {
+        const alreadySelected = prev.some(d => d.device_name === device.device_name)
+        if (alreadySelected) {
+          return prev.filter(d => d.device_name !== device.device_name)
+        } else {
+          return [...prev, device]
+        }
+      })
+    } else {
+      setSelectedDevices(prev => {
+        const alreadySelected = prev.length === 1 && prev[0].device_name === device.device_name
+        return alreadySelected ? [] : [device]
+      })
+    }
+  }
+
+  const handleDragStart = (e, device) => {
+    // If the dragged device is not part of current selection, make it the only selected item
+    let itemsToDrag = selectedDevices
+    const isPart = selectedDevices.some(d => d.device_name === device.device_name)
+    if (!isPart) {
+      itemsToDrag = [device]
+      setSelectedDevices([device])
+    }
+    e.dataTransfer.setData('text/plain', JSON.stringify(itemsToDrag))
+  }
+
+  const handleDrop = async (e, targetTeamName) => {
+    e.preventDefault()
+    try {
+      const dataStr = e.dataTransfer.getData('text/plain')
+      if (!dataStr) return
+      const items = JSON.parse(dataStr)
+      if (!Array.isArray(items) || items.length === 0) return
+
+      setMsg(`Mapping ${items.length} devices to ${targetTeamName}...`)
+      let successCount = 0
+
+      for (const device of items) {
+        if ((device.team || 'team-alpha') !== targetTeamName) {
+          const res = await fetch(`${apiBase}/api/credentials/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...device,
+              ip: device.ip_address || device.ip,
+              team: targetTeamName
+            })
+          })
+          if (res.ok) successCount++
+        }
+      }
+
+      setMsg(`✓ Successfully mapped ${successCount} devices to ${targetTeamName}`)
+      setSelectedDevices([])
+      loadData()
+      if (onTeamChange) onTeamChange() // Trigger refresh across other panels
+    } catch (err) {
+      setMsg(`✗ Drop failed: ${err.message}`)
+    }
+  }
+
+  // Lane Colors based on index
+  const getLaneColors = (index) => {
+    const palettes = [
+      { bg: 'rgba(56, 139, 253, 0.04)', border: 'rgba(56, 139, 253, 0.2)', text: '#58a6ff' },
+      { bg: 'rgba(46, 160, 67, 0.04)', border: 'rgba(46, 160, 67, 0.2)', text: '#3fb950' },
+      { bg: 'rgba(187, 128, 250, 0.04)', border: 'rgba(187, 128, 250, 0.2)', text: '#bc8cff' },
+      { bg: 'rgba(219, 109, 40, 0.04)', border: 'rgba(219, 109, 40, 0.2)', text: '#f0883e' },
+      { bg: 'rgba(244, 63, 94, 0.04)', border: 'rgba(244, 63, 94, 0.2)', text: '#ff7b72' }
+    ]
+    return palettes[index % palettes.length]
+  }
+
+  return (
+    <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, gridColumn: '1 / -1' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 20 }}>🔌</span>
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Registered Device Team Mapping</h3>
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: '2px 0 0 0' }}>
+              Hold <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: 4, fontSize: 10 }}>Shift</kbd> to select multiple devices. Drag and drop to move them.
+            </p>
+          </div>
+        </div>
+        {selectedDevices.length > 0 && (
+          <span style={{ fontSize: 12, color: 'var(--hpe-green)', fontWeight: 600, background: 'rgba(1,169,130,0.1)', padding: '4px 12px', borderRadius: 20, border: '1px solid rgba(1,169,130,0.2)' }}>
+            {selectedDevices.length} Selected
+          </span>
+        )}
+        {msg && (
+          <div style={{
+            fontSize: 12,
+            padding: '4px 12px',
+            borderRadius: 20,
+            background: msg.startsWith('✓') ? 'rgba(46, 160, 67, 0.1)' : 'rgba(244, 63, 94, 0.1)',
+            border: `1px solid ${msg.startsWith('✓') ? 'rgba(46, 160, 67, 0.2)' : 'rgba(244, 63, 94, 0.2)'}`,
+            color: msg.startsWith('✓') ? 'var(--status-ok)' : 'var(--accent-rose)',
+            transition: 'all 0.2s'
+          }}>
+            {msg}
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Loading board...</div>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(auto-fit, minmax(240px, 1fr))`,
+          gap: 16,
+          minHeight: 320,
+          overflowX: 'auto',
+          paddingBottom: 8
+        }}>
+          {teams.map((t, idx) => {
+            const colors = getLaneColors(idx)
+            const teamDevices = devices.filter(d => (d.team || 'team-alpha') === t.name)
+
+            return (
+              <div
+                key={t.id || t.name}
+                onDragOver={(e) => e.preventDefault()}
+                onDragEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)' }}
+                onDragLeave={(e) => { e.currentTarget.style.background = colors.bg }}
+                onDrop={(e) => handleDrop(e, t.name)}
+                style={{
+                  background: colors.bg,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: 12,
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  transition: 'background 0.2s ease, transform 0.2s ease'
+                }}
+              >
+                {/* Column Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>{t.name}</span>
+                  <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.05)', color: 'var(--muted)', padding: '2px 6px', borderRadius: 10, fontWeight: 500 }}>
+                    {teamDevices.length}
+                  </span>
+                </div>
+
+                {/* Column Content */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 180 }}>
+                  {teamDevices.length === 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, border: '1px dashed rgba(255,255,255,0.05)', borderRadius: 8, color: 'var(--muted)', fontSize: 11, minHeight: 120 }}>
+                      Drop devices here
+                    </div>
+                  ) : (
+                    teamDevices.map((d, dIdx) => {
+                      const isSelected = selectedDevices.some(sel => sel.device_name === d.device_name)
+                      return (
+                        <div
+                          key={dIdx}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, d)}
+                          onDragEnd={(e) => {
+                            e.currentTarget.style.opacity = '1'
+                          }}
+                          onClick={(e) => handleDeviceClick(e, d)}
+                          style={{
+                            background: isSelected ? 'rgba(1, 169, 130, 0.15)' : 'rgba(22, 27, 34, 0.6)',
+                            border: isSelected ? '1px solid var(--hpe-green)' : '1px solid rgba(255,255,255,0.08)',
+                            boxShadow: isSelected ? '0 0 12px rgba(1, 169, 130, 0.25)' : '0 2px 8px rgba(0,0,0,0.15)',
+                            borderRadius: 8,
+                            padding: '10px 12px',
+                            cursor: 'grab',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.borderColor = colors.text
+                              e.currentTarget.style.transform = 'translateY(-1px)'
+                              e.currentTarget.style.background = 'rgba(22, 27, 34, 0.8)'
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'
+                              e.currentTarget.style.transform = 'none'
+                              e.currentTarget.style.background = 'rgba(22, 27, 34, 0.6)'
+                            }
+                          }}
+                        >
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>{d.device_name}</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
+                            <span style={{ fontSize: 10, color: 'var(--muted)' }}>{d.ip_address || d.ip || 'DNS'}</span>
+                            <span style={{
+                              fontSize: 9,
+                              background: d.device_kind === 'mock' ? 'rgba(57,197,207,0.1)' : 'rgba(1,169,130,0.1)',
+                              color: d.device_kind === 'mock' ? '#39c5cf' : '#01a982',
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              fontWeight: 600,
+                              textTransform: 'uppercase'
+                            }}>
+                              {d.device_kind || 'real'}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ====== Main Admin Page ======
-export default function AdminPage({ apiBase }) {
+export default function AdminPage({ apiBase, chatbotApi }) {
   const [allNodes, setAllNodes] = useState([])
   const [refreshKey, setRefreshKey] = useState(0)
   const [visible, setVisible] = useState(true)
@@ -600,14 +1188,9 @@ export default function AdminPage({ apiBase }) {
             <button className="btn" onClick={refresh}><RefreshCw size={14} /> Refresh</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
-            {/* Full-width log ingest section always first */}
-            <LogFileIngestSection apiBase={apiBase} />
-            <FakerSection apiBase={apiBase} />
-            <AddNodeSection apiBase={apiBase} onRefresh={refresh} />
-            <CsvIngestSection apiBase={apiBase} />
-            <FieldSchemaSection apiBase={apiBase} />
-            <OntologyBackupSection apiBase={apiBase} />
-            <DeleteSection apiBase={apiBase} allNodes={allNodes} onRefresh={refresh} />
+            <ManageTeamsSection apiBase={apiBase} onTeamChange={refresh} />
+            <ManageUsersSection apiBase={apiBase} chatbotApi={chatbotApi} refreshKey={refreshKey} />
+            <ManageDeviceTeamsSection apiBase={apiBase} refreshKey={refreshKey} onTeamChange={refresh} />
           </div>
         </>
       )}

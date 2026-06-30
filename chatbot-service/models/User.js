@@ -7,13 +7,17 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  name: {
+    type: String,
+    default: ''
+  },
   password: {
     type: String,
     required: true
   },
   role: {
     type: String,
-    enum: ['team_member', 'manager', 'senior_manager', 'admin'],
+    enum: ['team_member', 'manager', 'director', 'senior_manager', 'admin'],
     default: 'team_member'
   },
   team: {
@@ -35,9 +39,9 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Hash password before saving
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function () {
   if (!this.isModified('password')) {
-    return next();
+    return;
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);

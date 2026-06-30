@@ -5,7 +5,6 @@ import TopologyCanvas from '../components/TopologyCanvas'
 import SANDiagram from '../components/SANDiagram'
 import NodeCard from '../components/NodeCard'
 import { AuthContext } from '../context/AuthContext'
-import teamConfig from '../teamconfig.json'
 
 const SIM_DEVICE_IDS = [
   "ARR-01", "SW-01", "HOST-01", "ARR-04", "SW-04", "HOST-04", "SW-ETH-01", "SW-SAS-01", "SW-MONGO-NEW",
@@ -36,27 +35,6 @@ function isVirtualNode(node, deviceKindMap) {
     return true;
   }
   return false;
-}
-
-// Build a lookup: deviceId -> clusterId, clusterId -> teamId
-const deviceToCluster = {}
-const clusterToTeam = {}
-teamConfig.clusters.forEach(c => {
-  c.devices.forEach(d => { deviceToCluster[d] = c.id })
-})
-teamConfig.teams.forEach(t => {
-  clusterToTeam[t.clusterId] = t.id
-})
-
-// Given a node id, what team does it belong to?
-function getNodeTeam(nodeId) {
-  const clusterId = deviceToCluster[nodeId]
-  return clusterId ? clusterToTeam[clusterId] : null
-}
-
-// Given a node id, what cluster does it belong to?
-function getNodeCluster(nodeId) {
-  return deviceToCluster[nodeId] || null
 }
 
 export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
@@ -137,23 +115,41 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
 
   const { user } = useContext(AuthContext)
 
-  // Roles: 'admin', 'manager', 'user'
-  const initialRole = user?.role === 'admin' ? 'admin' : (user?.role === 'manager' || user?.role === 'senior_manager') ? 'manager' : 'user'
+  const [allTeamsList, setAllTeamsList] = useState([])
+  const [selectedArrayId, setSelectedArrayId] = useState('all')
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/teams`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.teams && Array.isArray(data.teams)) {
+          setAllTeamsList(data.teams.map(t => ({
+            id: t.id || t.name?.toLowerCase().replace(/ /g, '-'),
+            name: t.name,
+            manager_name: t.manager_name
+          })))
+        }
+      })
+      .catch(() => {})
+  }, [apiBase])
+
+  // Roles: 'admin', 'manager', 'director', 'user'
+  const initialRole = user?.role === 'admin' ? 'admin' : (user?.role === 'manager' || user?.role === 'director' || user?.role === 'senior_manager') ? 'manager' : 'user'
   
   // Normalize team id -> display name
   const teamIdToName = useMemo(() => {
     const m = {}
-    teamConfig.teams.forEach(t => { m[t.id] = t.name })
+    allTeamsList.forEach(t => { m[t.id] = t.name })
     return m
-  }, [])
+  }, [allTeamsList])
 
   const normalizeTeamId = (t) => {
-    if (!t) return 'team-alpha'
+    if (!t) return t || ''
     const low = t.toLowerCase().replace(/[\s]/g, '-')
-    return teamConfig.teams.find(x => x.id === low || x.name.toLowerCase() === t.toLowerCase())?.id || 'team-alpha'
+    return allTeamsList.find(x => x.id === low || x.name?.toLowerCase() === t.toLowerCase())?.id || low
   }
 
-  const initialTeamId = normalizeTeamId(user?.team || 'team-alpha')
+  const initialTeamId = user?.team ? normalizeTeamId(user.team) : ''
 
   const [role, setRole] = useState(initialRole)
   const [userTeamId, setUserTeamId] = useState(initialTeamId)  // the locked team for 'user' role sim
@@ -163,10 +159,24 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
 
   const managerTeamIds = useMemo(() => {
     if (!user) return []
+    if (user.role === 'admin') {
+      return allTeamsList.map(t => t.id)
+    }
     const base = normalizeTeamId(user.team)
     const managed = (user.managedTeams || []).map(t => normalizeTeamId(t))
     return Array.from(new Set([base, ...managed])).filter(Boolean)
-  }, [user])
+  }, [user, allTeamsList])
+
+  // Sync initial values when user or allTeamsList changes
+  useEffect(() => {
+    if (user) {
+      const normId = normalizeTeamId(user.team)
+      setUserTeamId(normId)
+      if (role !== 'admin') {
+        setSelectedTeamId(normId)
+      }
+    }
+  }, [user, allTeamsList])
 
   // When role changes, reset team selection
   const handleRoleChange = (newRole) => {
@@ -199,23 +209,22 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
     return [...new Set(conns)]
   }, [focusedId, data, nodesById])
 
-  // The cluster that the currently selected team owns (for manager/user auto-lock)
-  const selectedTeamClusterId = useMemo(() => {
-    if (selectedTeamId === 'all') return null
-    return teamConfig.teams.find(t => t.id === selectedTeamId)?.clusterId || null
-  }, [selectedTeamId])
+  // Array nodes visible given current scope
+  const arrayNodes = useMemo(() => {
+    return data.nodes.filter(n => (n.type || n.label || '').toLowerCase().includes('array'))
+  }, [data.nodes])
 
   const activeNodes = useMemo(() => {
     let nodes = data.nodes.filter(n =>
       activeTab === 'decommissioned' ? n.isDecommissioned : !n.isDecommissioned
     )
 
-    const userTeamName = teamConfig.teams.find(t => t.id === userTeamId)?.name || 'Team Alpha'
+    const userTeamName = allTeamsList.find(t => t.id === userTeamId)?.name || user?.team || ''
 
     // Apply team/cluster filter based on role
     if (role === 'admin') {
       if (selectedTeamId !== 'all') {
-        const selectedTeamName = teamConfig.teams.find(t => t.id === selectedTeamId)?.name || ''
+        const selectedTeamName = allTeamsList.find(t => t.id === selectedTeamId)?.name || selectedTeamId || ''
         nodes = nodes.filter(n => {
           const tName = n.team || n.owner_team || ''
           return tName.toLowerCase() === selectedTeamName.toLowerCase()
@@ -227,28 +236,33 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
         const tName = n.team || n.owner_team || ''
         return tName.toLowerCase() === userTeamName.toLowerCase()
       })
-    } else if (role === 'manager') {
-      // Manager: filter to teams under their cluster
-      const managerClusterId = teamConfig.teams.find(t => t.id === userTeamId)?.clusterId
-      if (managerClusterId) {
-        const clusterTeams = new Set(
-          teamConfig.teams
-            .filter(t => t.clusterId === managerClusterId)
-            .map(t => t.name.toLowerCase())
+    } else if (role === 'manager' || role === 'director') {
+      // Manager & Director: filter to selected team or all managed teams
+      if (selectedTeamId && selectedTeamId !== 'all') {
+        const selectedTeamName = allTeamsList.find(t => t.id === selectedTeamId)?.name || selectedTeamId || ''
+        nodes = nodes.filter(n => {
+          const tName = n.team || n.owner_team || ''
+          return tName.toLowerCase() === selectedTeamName.toLowerCase()
+        })
+      } else {
+        const allowedTeamNames = new Set(
+          managerTeamIds.map(tid => {
+            const tObj = allTeamsList.find(x => x.id === tid)
+            return tObj ? tObj.name.toLowerCase() : tid.toLowerCase()
+          })
         )
-        if (selectedTeamId && selectedTeamId !== 'all') {
-          const selectedTeamName = teamConfig.teams.find(t => t.id === selectedTeamId)?.name || ''
-          nodes = nodes.filter(n => {
-            const tName = n.team || n.owner_team || ''
-            return tName.toLowerCase() === selectedTeamName.toLowerCase()
-          })
-        } else {
-          nodes = nodes.filter(n => {
-            const tName = (n.team || n.owner_team || '').toLowerCase()
-            return clusterTeams.has(tName)
-          })
-        }
+        nodes = nodes.filter(n => {
+          const tName = (n.team || n.owner_team || '').toLowerCase()
+          return allowedTeamNames.has(tName)
+        })
       }
+    }
+
+    // Array filter (applied on top of team filter)
+    if (selectedArrayId && selectedArrayId !== 'all') {
+      // When an array is selected: show that array node + all nodes connected to it
+      const target = nodes.find(n => n.id === selectedArrayId)
+      if (target) nodes = [target]
     }
 
     // Search
@@ -507,6 +521,7 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
               <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
                 value={role} onChange={e => handleRoleChange(e.target.value)}>
                 <option value="admin">🔒 Administrator</option>
+                <option value="director">🎬 Director</option>
                 <option value="manager">🗂️ Manager</option>
                 <option value="user">👥 Team Member</option>
               </select>
@@ -522,8 +537,8 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
             <span style={{ fontSize: 11, color: '#58a6ff', background: 'rgba(58,166,255,0.1)', border: '1px solid rgba(58,166,255,0.2)', padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>
               🔒 {teamIdToName[selectedTeamId] || selectedTeamId}
             </span>
-          ) : (role === 'manager' || user?.role === 'manager' || user?.role === 'senior_manager') ? (
-            // Manager: can switch team but only among their managed teams
+          ) : (role === 'manager' || role === 'director' || user?.role === 'manager' || user?.role === 'director' || user?.role === 'senior_manager') ? (
+            // Manager/Director: can switch team but only among their managed teams
             <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
               value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
               {managerTeamIds.map(tid => (
@@ -535,28 +550,27 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
             <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
               value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
               <option value="all">All Teams</option>
-              {teamConfig.teams.map(t => (
+              {allTeamsList.map(t => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
           )}
         </div>
 
-        {/* Cluster display — always read-only for manager/user, derived from their team */}
+        {/* Array selector — available to all roles, filters to single array view */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cluster:</span>
-          {role === 'admin' && selectedTeamId === 'all' ? (
-            <span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-strong)', padding: '4px 8px', borderRadius: 4 }}>All Clusters</span>
-          ) : (
-            // For all roles: cluster is auto-derived from selected team — no control for manager/user
-            <span style={{ fontSize: 11, color: role === 'admin' ? 'var(--muted)' : '#58a6ff',
-              background: role === 'admin' ? 'var(--line-strong)' : 'rgba(58,166,255,0.1)',
-              border: role !== 'admin' ? '1px solid rgba(58,166,255,0.2)' : 'none',
-              padding: '3px 8px', borderRadius: 4, fontWeight: role !== 'admin' ? 600 : 400 }}>
-              {role !== 'admin' && '🔒 '}
-              {teamConfig.clusters.find(c => c.id === selectedTeamClusterId)?.name || selectedTeamClusterId || '—'}
-            </span>
-          )}
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Array:</span>
+          <select
+            className="input"
+            style={{ width: 160, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
+            value={selectedArrayId}
+            onChange={e => setSelectedArrayId(e.target.value)}
+          >
+            <option value="all">All Arrays</option>
+            {arrayNodes.map(a => (
+              <option key={a.id} value={a.id}>{a.name || a.id}</option>
+            ))}
+          </select>
         </div>
 
         {/* Role badge */}
@@ -566,10 +580,10 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
             Team-Scoped View
           </div>
         )}
-        {role === 'manager' && (
+        {(role === 'manager' || role === 'director') && (
           <div style={{ marginLeft: 'auto', fontSize: 10, background: 'rgba(210,153,34,0.1)', color: '#d29922', border: '1px solid rgba(210,153,34,0.2)', padding: '4px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d29922', boxShadow: '0 0 8px #d29922' }} />
-            Manager View
+            {role === 'director' ? 'Director View' : 'Manager View'}
           </div>
         )}
         {role === 'admin' && (
@@ -629,7 +643,7 @@ export default function TopologyPage({ apiBase, deviceFilter, deviceKindMap }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--muted)' }}>Scope Cluster:</span>
                     <span style={{ fontWeight: 600, color: '#58a6ff' }}>
-                      {selectedTeamId === 'all' ? 'All Clusters' : (teamConfig.clusters.find(c => c.id === selectedTeamClusterId)?.name || selectedTeamClusterId || '—')}
+                      {selectedTeamId === 'all' ? 'All' : (selectedTeamId || '—')}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>

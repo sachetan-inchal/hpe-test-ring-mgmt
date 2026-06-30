@@ -18,15 +18,15 @@ const FLASK_API = `http://${window.location.hostname}:5005`
 const CHATBOT_API = '/chatbot'
 
 const NAV_ITEMS = [
-  { path: '/ssh-ring', label: 'SSH Ring Manager', icon: Layers, desc: 'Configure and discover SSH rings' },
-  { path: '/topology', label: 'Test Ring Viewer', icon: Map, desc: 'SAN diagram & ring topology' },
-  { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
+  { path: '/topology', label: 'Dashboard', icon: Map, desc: 'SAN diagram & ring topology' },
+  { path: '/ssh-ring', label: 'Inventory', icon: Layers, desc: 'Configure and discover SSH rings' },
   { path: '/chat', label: 'AI Assistant', icon: MessageSquare, desc: 'Intelligent chat' },
   { path: '/autonomous-agent', label: 'Autonomous Agent', icon: Activity, desc: 'SAN LangGraph tool clockwork' },
+  { path: '/emulator', label: 'SSH Console', icon: Terminal, desc: 'CLI terminal' },
   { path: '/admin', label: 'Admin', icon: Settings, desc: 'Device & schema mgmt' },
   { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
   { path: '/discovery', label: '(Virtual demo) Discovery', icon: Radar, desc: 'Live BFS network scan' },
-  { path: '/emulator', label: '(Virtual demo) Emulator', icon: Terminal, desc: 'CLI terminal' },
+  { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
 ]
 
 function ProtectedRoute({ children }) {
@@ -456,13 +456,45 @@ export default function App() {
 
   const [deviceFilter, setDeviceFilter] = useState('virtual')
   const [deviceKindMap, setDeviceKindMap] = useState({})
+  
+  // User Profile Settings States
+  const [userSettingsOpen, setUserSettingsOpen] = useState(false)
+  const [userSettingsTeam, setUserSettingsTeam] = useState('')
+  const [userSettingsManagedTeams, setUserSettingsManagedTeams] = useState([])
+  const [allTeams, setAllTeams] = useState([])
+
+  useEffect(() => {
+    if (userSettingsOpen) {
+      setUserSettingsTeam(user?.team || '')
+      setUserSettingsManagedTeams(Array.isArray(user?.managedTeams) ? user.managedTeams : [])
+      fetch(`${FLASK_API}/api/teams`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.teams && Array.isArray(data.teams)) {
+            const normalized = data.teams.map(t => {
+              if (typeof t === 'string') {
+                return { id: t.toLowerCase().replace(/ /g, '-'), name: t, manager_name: 'Test' }
+              }
+              return {
+                id: t.id || t.name?.toLowerCase().replace(/ /g, '-'),
+                name: t.name || t,
+                manager_name: t.manager_name || 'Test'
+              }
+            })
+            setAllTeams(normalized)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [userSettingsOpen, user])
 
   useEffect(() => {
     async function fetchDevices() {
       try {
-        const res = await fetch(`${FLASK_API}/api/ssh-ring/devices`)
+        const res = await fetch(`${FLASK_API}/api/credentials/list`)
         if (res.ok) {
-          const devices = await res.json()
+          const data = await res.json()
+          const devices = data.devices || []
           const map = {}
           devices.forEach(d => {
             const kind = d.device_kind || 'real'
@@ -574,16 +606,45 @@ export default function App() {
                 )}
               </div>
 
-              <div className="sidebar-footer">
-                <div className="user-badge" title={user?.username || user?.email || 'User'}>
-                  <div className="user-avatar-small">{(user?.username || user?.email || 'U')[0].toUpperCase()}</div>
+              <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <div className="user-badge" title={user?.username || 'User'} style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: 'transparent', padding: 0 }}>
+                    <div className="user-avatar-small" style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--hpe-green)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 12 }}>
+                      {(user?.name || user?.username || 'U')[0].toUpperCase()}
+                    </div>
+                    {!sidebarCollapsed && (
+                      <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                        <span className="user-name" style={{ fontWeight: 600, fontSize: 12, color: 'var(--foreground)' }}>{user?.name || user?.username}</span>
+                        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{user?.team || 'No Team'}</span>
+                      </div>
+                    )}
+                  </div>
                   {!sidebarCollapsed && (
-                    <span className="user-name">{user?.username || user?.email || 'User'}</span>
+                    <button
+                      onClick={() => setUserSettingsOpen(true)}
+                      title="Profile Settings"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 4,
+                        borderRadius: 4
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = 'var(--foreground)'}
+                      onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
+                    >
+                      <Settings size={16} />
+                    </button>
                   )}
                 </div>
-                <button className="nav-item logout-btn" onClick={logout} title="Logout">
-                  <LogOut size={18} />
-                  {!sidebarCollapsed && <span className="nav-label">Logout</span>}
+                
+                <button className="nav-item logout-btn" onClick={logout} title="Logout" style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', borderRadius: 6 }}>
+                  <LogOut size={16} />
+                  {!sidebarCollapsed && <span style={{ fontSize: 12 }}>Logout</span>}
                 </button>
               </div>
             </aside>
@@ -636,10 +697,10 @@ export default function App() {
                   <Route path="/topology" element={<TopologyPage apiBase={FLASK_API} deviceFilter={deviceFilter} deviceKindMap={deviceKindMap} />} />
                   <Route path="/inventory" element={<InventoryPage apiBase={FLASK_API} deviceFilter={deviceFilter} deviceKindMap={deviceKindMap} />} />
                   <Route path="/ssh-ring" element={<SSHRingPage apiBase={FLASK_API} />} />
-                  <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} />} />
+                  <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} deviceFilter={deviceFilter} />} />
                   <Route path="/chat" element={<ChatPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="/autonomous-agent" element={<SANAutonomousAgentPage apiBase={FLASK_API} />} />
-                  <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} /> : <Navigate to="/ssh-ring" replace />} />
+                  <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} /> : <Navigate to="/ssh-ring" replace />} />
                   <Route path="/health" element={<HealthPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="*" element={<Navigate to="/ssh-ring" replace />} />
                 </Routes>
@@ -662,8 +723,8 @@ export default function App() {
                     return (
                       <div key={item.path} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <item.icon size={16} style={{ color: 'var(--muted)' }} />
-                          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{item.label}</span>
+                           <item.icon size={16} style={{ color: 'var(--muted)' }} />
+                           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{item.label}</span>
                         </div>
                         <label style={{ position: 'relative', display: 'inline-block', width: 34, height: 18 }}>
                           <input 
@@ -693,6 +754,100 @@ export default function App() {
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button className="btn btn-primary" onClick={() => setSettingsOpen(false)}>Done</button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* User Profile Settings Modal */}
+          {userSettingsOpen && (
+            <div className="modal-backdrop" onClick={() => setUserSettingsOpen(false)}>
+              <div className="glass-card rise-in" onClick={e => e.stopPropagation()} style={{ padding: 24, width: 400, maxWidth: '90vw' }}>
+                <h3 style={{ fontSize: 16, marginBottom: 12, color: 'var(--foreground)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 8 }}>
+                  User Profile Settings
+                </h3>
+                <form onSubmit={async (e) => {
+                  e.preventDefault()
+                  try {
+                    const res = await fetch(`${CHATBOT_API}/auth/update`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        userId: user._id,
+                        team: userSettingsTeam,
+                        managedTeams: userSettingsManagedTeams
+                      })
+                    })
+                    if (res.ok) {
+                      const updatedUser = await res.json()
+                      login({ ...user, ...updatedUser })
+                      setUserSettingsOpen(false)
+                    } else {
+                      alert('Failed to update settings')
+                    }
+                  } catch (err) {
+                    console.error(err)
+                  }
+                }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  
+                  <div className="form-group">
+                    <label>Assigned Team</label>
+                    <select
+                      className="input"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', background: '#161b22', border: '1px solid rgba(255,255,255,0.1)', color: '#ffffff', outline: 'none' }}
+                      value={userSettingsTeam}
+                      onChange={e => setUserSettingsTeam(e.target.value)}
+                    >
+                      <option value="" style={{ background: '#161b22', color: '#ffffff' }}>None</option>
+                      {allTeams.map(t => (
+                        <option key={t.id || t.name} value={t.name} style={{ background: '#161b22', color: '#ffffff' }}>
+                          {t.name}{t.manager_name ? ` (${t.manager_name})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {(user?.role === 'manager' || user?.role === 'director') && (
+                    <div className="form-group">
+                      <label style={{ marginBottom: 8, display: 'block' }}>Managed Teams</label>
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                        maxHeight: 150,
+                        overflowY: 'auto',
+                        background: 'rgba(255,255,255,0.03)',
+                        padding: '10px 16px',
+                        borderRadius: 6,
+                        border: '1px solid rgba(255,255,255,0.1)'
+                      }}>
+                        {allTeams.map(t => {
+                          const isChecked = userSettingsManagedTeams.includes(t.name)
+                          return (
+                            <label key={t.id || t.name} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={e => {
+                                  if (e.target.checked) {
+                                    setUserSettingsManagedTeams(prev => [...prev, t.name])
+                                  } else {
+                                    setUserSettingsManagedTeams(prev => prev.filter(item => item !== t.name))
+                                  }
+                                }}
+                              />
+                              {t.name}{t.manager_name ? ` (${t.manager_name})` : ''}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                    <button type="submit" className="btn btn-primary">Save Settings</button>
+                    <button type="button" className="btn" onClick={() => setUserSettingsOpen(false)}>Cancel</button>
+                  </div>
+                </form>
               </div>
             </div>
           )}

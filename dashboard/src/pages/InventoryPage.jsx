@@ -4,7 +4,6 @@ import HierarchyTree from '../components/HierarchyTree'
 import NodeCard from '../components/NodeCard'
 import SearchBar from '../components/SearchBar'
 import { AuthContext } from '../context/AuthContext'
-import teamConfig from '../teamconfig.json'
 
 const SIM_DEVICE_IDS = [
   "ARR-01", "SW-01", "HOST-01", "ARR-04", "SW-04", "HOST-04", "SW-ETH-01", "SW-SAS-01", "SW-MONGO-NEW",
@@ -131,23 +130,42 @@ export default function InventoryPage({ apiBase, deviceFilter, deviceKindMap }) 
 
   const { user } = useContext(AuthContext)
 
-  // Roles: 'admin', 'manager', 'user'
-  const initialRole = user?.role === 'admin' ? 'admin' : (user?.role === 'manager' || user?.role === 'senior_manager') ? 'manager' : 'user'
-  
+  const [allTeamsList, setAllTeamsList] = useState([])
+
+  useEffect(() => {
+    if (apiBase) {
+      fetch(`${apiBase}/api/teams`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.teams && Array.isArray(d.teams)) {
+            setAllTeamsList(d.teams.map(t => ({
+              id: t.id || t.name?.toLowerCase().replace(/ /g, '-'),
+              name: t.name,
+              manager_name: t.manager_name
+            })))
+          }
+        })
+        .catch(() => {})
+    }
+  }, [apiBase])
+
   // Normalize team id -> display name
   const teamIdToName = useMemo(() => {
     const m = {}
-    teamConfig.teams.forEach(t => { m[t.id] = t.name })
+    allTeamsList.forEach(t => { m[t.id] = t.name })
     return m
-  }, [])
+  }, [allTeamsList])
 
   const normalizeTeamId = (t) => {
-    if (!t) return 'team-alpha'
+    if (!t) return t || ''
     const low = t.toLowerCase().replace(/[\s]/g, '-')
-    return teamConfig.teams.find(x => x.id === low || x.name.toLowerCase() === t.toLowerCase())?.id || 'team-alpha'
+    return allTeamsList.find(x => x.id === low || x.name?.toLowerCase() === t.toLowerCase())?.id || low
   }
 
-  const initialTeamId = normalizeTeamId(user?.team || 'team-alpha')
+  const initialTeamId = user?.team ? normalizeTeamId(user.team) : ''
+
+  // Roles: 'admin', 'manager', 'user'
+  const initialRole = user?.role === 'admin' ? 'admin' : (user?.role === 'manager' || user?.role === 'director' || user?.role === 'senior_manager') ? 'manager' : 'user'
 
   const [role, setRole] = useState(initialRole)
   const [userTeamId, setUserTeamId] = useState(initialTeamId)  
@@ -164,10 +182,16 @@ export default function InventoryPage({ apiBase, deviceFilter, deviceKindMap }) 
     }
   }
 
-  const selectedTeamClusterId = useMemo(() => {
-    if (selectedTeamId === 'all') return null
-    return teamConfig.teams.find(t => t.id === selectedTeamId)?.clusterId || null
-  }, [selectedTeamId])
+  // Sync initial values when user or allTeamsList changes
+  useEffect(() => {
+    if (user && allTeamsList.length > 0) {
+      const normId = normalizeTeamId(user.team)
+      setUserTeamId(normId)
+      if (role !== 'admin') {
+        setSelectedTeamId(normId)
+      }
+    }
+  }, [user, allTeamsList])
 
   // Build ID lookup map for fast traversal
   const nodesById = useMemo(() => {
@@ -180,48 +204,41 @@ export default function InventoryPage({ apiBase, deviceFilter, deviceKindMap }) 
   const activeNodes = useMemo(() => {
     let nodes = data.nodes
 
-    const userTeamName = teamConfig.teams.find(t => t.id === userTeamId)?.name || 'Team Alpha'
+    const userTeamName = allTeamsList.find(t => t.id === userTeamId)?.name || user?.team || ''
 
     if (role === 'admin') {
       if (selectedTeamId !== 'all') {
-        const selectedTeamName = teamConfig.teams.find(t => t.id === selectedTeamId)?.name || ''
+        const selectedTeamName = allTeamsList.find(t => t.id === selectedTeamId)?.name || ''
         nodes = nodes.filter(n => {
           const tName = n.team || n.owner_team || ''
           return tName.toLowerCase() === selectedTeamName.toLowerCase()
         })
       }
     } else if (role === 'user') {
-      // Team Member: strictly filter to their own team only
       nodes = nodes.filter(n => {
         const tName = n.team || n.owner_team || ''
         return tName.toLowerCase() === userTeamName.toLowerCase()
       })
     } else if (role === 'manager') {
-      // Manager: filter to teams under their cluster
-      const managerClusterId = teamConfig.teams.find(t => t.id === userTeamId)?.clusterId
-      if (managerClusterId) {
-        const clusterTeams = new Set(
-          teamConfig.teams
-            .filter(t => t.clusterId === managerClusterId)
-            .map(t => t.name.toLowerCase())
-        )
-        if (selectedTeamId && selectedTeamId !== 'all') {
-          const selectedTeamName = teamConfig.teams.find(t => t.id === selectedTeamId)?.name || ''
-          nodes = nodes.filter(n => {
-            const tName = n.team || n.owner_team || ''
-            return tName.toLowerCase() === selectedTeamName.toLowerCase()
-          })
-        } else {
-          nodes = nodes.filter(n => {
-            const tName = (n.team || n.owner_team || '').toLowerCase()
-            return clusterTeams.has(tName)
-          })
-        }
+      const managedNames = new Set(
+        (user?.managedTeams || [user?.team]).filter(Boolean).map(t => t.toLowerCase())
+      )
+      if (selectedTeamId && selectedTeamId !== 'all') {
+        const selectedTeamName = allTeamsList.find(t => t.id === selectedTeamId)?.name || ''
+        nodes = nodes.filter(n => {
+          const tName = n.team || n.owner_team || ''
+          return tName.toLowerCase() === selectedTeamName.toLowerCase()
+        })
+      } else {
+        nodes = nodes.filter(n => {
+          const tName = (n.team || n.owner_team || '').toLowerCase()
+          return managedNames.has(tName)
+        })
       }
     }
 
     return nodes
-  }, [data.nodes, role, selectedTeamId, userTeamId, deviceFilter, deviceKindMap])
+  }, [data.nodes, role, selectedTeamId, userTeamId, allTeamsList, user, deviceFilter, deviceKindMap])
 
   const filteredNodes = useMemo(() => {
     if (!searchQuery) return activeNodes
@@ -357,12 +374,12 @@ export default function InventoryPage({ apiBase, deviceFilter, deviceKindMap }) 
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team Scope:</span>
             {role === 'user' ? (
               <span style={{ fontSize: 11, color: '#58a6ff', background: 'rgba(58,166,255,0.1)', border: '1px solid rgba(58,166,255,0.2)', padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>
-                🔒 {teamIdToName[selectedTeamId] || selectedTeamId}
+                🔒 {teamIdToName[selectedTeamId] || user?.team || selectedTeamId}
               </span>
             ) : role === 'manager' ? (
               <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
                 value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
-                {teamConfig.teams.map(t => (
+                {allTeamsList.map(t => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
@@ -370,25 +387,10 @@ export default function InventoryPage({ apiBase, deviceFilter, deviceKindMap }) 
               <select className="input" style={{ width: 140, height: 28, padding: '0 8px', fontSize: 11, background: 'var(--background)', cursor: 'pointer' }}
                 value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
                 <option value="all">All Teams</option>
-                {teamConfig.teams.map(t => (
+                {allTeamsList.map(t => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cluster:</span>
-            {role === 'admin' && selectedTeamId === 'all' ? (
-              <span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-strong)', padding: '4px 8px', borderRadius: 4 }}>All Clusters</span>
-            ) : (
-              <span style={{ fontSize: 11, color: role === 'admin' ? 'var(--muted)' : '#58a6ff',
-                background: role === 'admin' ? 'var(--line-strong)' : 'rgba(58,166,255,0.1)',
-                border: role !== 'admin' ? '1px solid rgba(58,166,255,0.2)' : 'none',
-                padding: '3px 8px', borderRadius: 4, fontWeight: role !== 'admin' ? 600 : 400 }}>
-                {role !== 'admin' && '🔒 '}
-                {teamConfig.clusters.find(c => c.id === selectedTeamClusterId)?.name || selectedTeamClusterId || '—'}
-              </span>
             )}
           </div>
         </div>

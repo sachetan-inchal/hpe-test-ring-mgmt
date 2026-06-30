@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useContext } from 'react'
 import { Plus, Trash2, RefreshCw } from 'lucide-react'
+import { AuthContext } from '../context/AuthContext'
 
 export default function SSHRingPage({ apiBase }) {
+  const { user } = useContext(AuthContext)
   const API = apiBase || ''
 
   // Credentials List
@@ -65,6 +67,10 @@ export default function SSHRingPage({ apiBase }) {
   const [isEditing, setIsEditing] = useState(false)
   const [originalDeviceName, setOriginalDeviceName] = useState('')
   const [saveStatus, setSaveStatus] = useState({ text: '', type: '' })
+  
+  // Team Scoping for Device Registration
+  const [deviceTeam, setDeviceTeam] = useState('')
+  const [availableTeams, setAvailableTeams] = useState([])
 
   // Run Form State
   const [targetIp, setTargetIp] = useState('')
@@ -134,6 +140,19 @@ export default function SSHRingPage({ apiBase }) {
   useEffect(() => {
     if (API) {
       fetchDevices()
+      fetch(`${API}/api/teams`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.teams && Array.isArray(data.teams)) {
+            // Normalize
+            const normalized = data.teams.map(t => typeof t === 'string' ? { id: t.toLowerCase().replace(/ /g, '-'), name: t } : t)
+            setAvailableTeams(normalized)
+            if (normalized.length > 0 && !deviceTeam) {
+              setDeviceTeam(normalized[0].name)
+            }
+          }
+        })
+        .catch(() => {})
     }
   }, [API])
 
@@ -167,7 +186,8 @@ export default function SSHRingPage({ apiBase }) {
           vsan_device_type: vsanDeviceType,
           selected_commands: selectedCommands,
           custom_commands: customCommands,
-          mock_commands: mockCommands
+          mock_commands: mockCommands,
+          team: deviceTeam
         }),
       })
 
@@ -202,6 +222,7 @@ export default function SSHRingPage({ apiBase }) {
       setSelectedMockCmd('')
       setMockStdout('')
       setMockStderr('')
+      setDeviceTeam(availableTeams[0]?.name || '')
       setIsEditing(false)
       setOriginalDeviceName('')
 
@@ -243,6 +264,7 @@ export default function SSHRingPage({ apiBase }) {
     setSelectedCommands(device.selected_commands || [])
     setCustomCommands(device.custom_commands || [])
     setMockCommands(device.mock_commands || {})
+    setDeviceTeam(device.team || 'team-alpha')
     setIsEditing(true)
     setOriginalDeviceName(device.device_name || '')
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -629,8 +651,8 @@ export default function SSHRingPage({ apiBase }) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10 }}>
+              <div>
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Category</label>
                 <select
                   value={category}
@@ -647,7 +669,27 @@ export default function SSHRingPage({ apiBase }) {
                   <option value="Switch" style={{ background: '#1a1a1a', color: '#fff' }}>Switch</option>
                 </select>
               </div>
-              <div style={{ flex: 1 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Team Scope</label>
+                <select
+                  value={deviceTeam}
+                  onChange={(e) => setDeviceTeam(e.target.value)}
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
+                    color: 'var(--foreground)', outline: 'none'
+                  }}
+                >
+                  {availableTeams.length > 0 ? (
+                    availableTeams.map(t => (
+                      <option key={t.id || t.name} value={t.name} style={{ background: '#1a1a1a', color: '#fff' }}>{t.name}</option>
+                    ))
+                  ) : (
+                    <option value="" style={{ background: '#1a1a1a', color: '#fff' }}>Loading teams...</option>
+                  )}
+                </select>
+              </div>
+              <div>
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Username</label>
                 <input
                   value={username}
@@ -661,7 +703,7 @@ export default function SSHRingPage({ apiBase }) {
                   }}
                 />
               </div>
-              <div style={{ flex: 1 }}>
+              <div>
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Password</label>
                 <input
                   type="password"
@@ -1139,6 +1181,7 @@ export default function SSHRingPage({ apiBase }) {
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Device Name</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Kind</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Category</th>
+                  <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Team</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>IP Address</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>DNS Name</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>DNS Server</th>
@@ -1183,6 +1226,30 @@ export default function SSHRingPage({ apiBase }) {
                           {device.category || 'Host'}
                         </span>
                       </td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
+                        {(() => {
+                          const tName = device.team || 'team-alpha';
+                          const palettes = [
+                            { bg: 'rgba(56, 139, 253, 0.1)', border: 'rgba(56, 139, 253, 0.3)', text: '#58a6ff' },
+                            { bg: 'rgba(46, 160, 67, 0.1)', border: 'rgba(46, 160, 67, 0.3)', text: '#3fb950' },
+                            { bg: 'rgba(187, 128, 250, 0.1)', border: 'rgba(187, 128, 250, 0.3)', text: '#bc8cff' },
+                            { bg: 'rgba(219, 109, 40, 0.1)', border: 'rgba(219, 109, 40, 0.3)', text: '#f0883e' },
+                            { bg: 'rgba(244, 63, 94, 0.1)', border: 'rgba(244, 63, 94, 0.3)', text: '#ff7b72' }
+                          ];
+                          const idx = availableTeams.length > 0 
+                            ? availableTeams.findIndex(x => x.name === tName)
+                            : tName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                          const colors = palettes[Math.abs(idx) % palettes.length];
+                          return (
+                            <span style={{
+                              padding: '2px 6px', borderRadius: 4, fontSize: '11px', fontWeight: '600',
+                              background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`
+                            }}>
+                              {tName}
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.ip_address || '-'}</td>
                       <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_name || '-'}</td>
                       <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_server || '-'}</td>
@@ -1210,16 +1277,18 @@ export default function SSHRingPage({ apiBase }) {
                           >
                             Edit
                           </button>
-                          <button
-                            onClick={() => handleDelete(device)}
-                            style={{
-                              padding: '6px 10px', borderRadius: 6, fontSize: '11px',
-                              border: '1px solid rgba(255, 107, 107, 0.3)', background: 'rgba(255, 107, 107, 0.08)',
-                              color: '#ff6b6b', cursor: 'pointer'
-                            }}
-                          >
-                            Delete
-                          </button>
+                          {user?.role !== 'team_member' && (
+                            <button
+                              onClick={() => handleDelete(device)}
+                              style={{
+                                padding: '6px 10px', borderRadius: 6, fontSize: '11px',
+                                border: '1px solid rgba(255, 107, 107, 0.3)', background: 'rgba(255, 107, 107, 0.08)',
+                                color: '#ff6b6b', cursor: 'pointer'
+                              }}
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

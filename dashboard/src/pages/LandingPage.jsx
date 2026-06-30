@@ -157,7 +157,7 @@ export default function LandingPage() {
 
       <div className="landing-footer">
         <Hexagon size={14} />
-        <span>HPE SAN Platform v2.0</span>
+        <span>HPE SAN Platform v0.2</span>
       </div>
     </div>
   )

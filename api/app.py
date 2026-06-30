@@ -847,6 +847,7 @@ def save_ssh_credentials():
     selected_commands = data.get("selected_commands", [])
     custom_commands = data.get("custom_commands", [])
     mock_commands = data.get("mock_commands", {})
+    team = data.get("team", "team-alpha")
     
     if not ip and not dns_name:
         return jsonify({"error": "ip or dns_name is required"}), 400
@@ -876,7 +877,8 @@ def save_ssh_credentials():
                     "vsan_device_type": vsan_device_type,
                     "selected_commands": selected_commands,
                     "custom_commands": custom_commands,
-                    "mock_commands": mock_commands
+                    "mock_commands": mock_commands,
+                    "team": team
                 }},
                 upsert=True
             )
@@ -884,6 +886,229 @@ def save_ssh_credentials():
         return jsonify({"error": "MongoDB unavailable"}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/teams", methods=["GET"])
+def list_all_teams():
+    """List all unique teams present in the topology or user database, along with their manager's name if any."""
+    # Invalid/garbage team values to exclude
+    INVALID_TEAMS = {"", "*", "none", "null", "undefined", "all", "all teams", "all-teams"}
+    teams_set = set()
+    try:
+        if neo4j.available:
+            results = neo4j._run("MATCH (n) WHERE exists(n.team) RETURN DISTINCT n.team AS team")
+            for r in results:
+                val = (r["team"] or "").strip()
+                if val and val.lower() not in INVALID_TEAMS:
+                    teams_set.add(val)
+    except Exception as e:
+        log.warning(f"Failed to fetch teams from Neo4j: {e}")
+        
+    user_list = []
+    try:
+        if mongo.available:
+            users = list(mongo.db.users.find({}, {"username": 1, "team": 1, "name": 1, "role": 1, "managedTeams": 1}))
+            for u in users:
+                user_list.append(u)
+                uteam = (u.get("team") or "").strip()
+                if uteam and uteam.lower() not in INVALID_TEAMS:
+                    teams_set.add(uteam)
+                for mt in u.get("managedTeams", []):
+                    mteam = (mt or "").strip()
+                    if mteam and mteam.lower() not in INVALID_TEAMS:
+                        teams_set.add(mteam)
+    except Exception as e:
+        log.warning(f"Failed to fetch teams from MongoDB: {e}")
+        
+    # Also check the dedicated teams collection for explicit team records
+    try:
+        if mongo.available:
+            team_docs = list(mongo.db.teams.find({}, {"name": 1, "manager_username": 1, "manager_name": 1}))
+            for td in team_docs:
+                tname = (td.get("name") or "").strip()
+                if tname and tname.lower() not in INVALID_TEAMS:
+                    teams_set.add(tname)
+    except Exception as e:
+        log.warning(f"Failed to fetch teams collection: {e}")
+
+    teams_data = []
+    # Build a lookup of manager info from dedicated teams collection
+    team_collection_map = {}
+    try:
+        if mongo.available:
+            for td in mongo.db.teams.find({}, {"name": 1, "manager_username": 1, "manager_name": 1}):
+                if td.get("name"):
+                    team_collection_map[td["name"]] = td
+    except Exception:
+        pass
+
+    for team_name in sorted(list(teams_set)):
+        manager_name = ""
+        manager_username = ""
+        # First check dedicated teams collection
+        if team_name in team_collection_map:
+            td = team_collection_map[team_name]
+            manager_username = td.get("manager_username", "")
+            manager_name = td.get("manager_name", "")
+        if not manager_name:
+            # Fallback to scanning user list
+            for u in user_list:
+                u_role = u.get("role", "")
+                if u_role in ("manager", "director"):
+                    u_team = u.get("team", "")
+                    u_managed = u.get("managedTeams", [])
+                    if u_team == team_name or team_name in u_managed:
+                        manager_name = u.get("name") or u.get("username") or ""
+                        manager_username = u.get("username") or ""
+                        break
+        teams_data.append({
+            "id": team_name.lower().replace(" ", "-"),
+            "name": team_name,
+            "manager_name": manager_name,
+            "manager_username": manager_username
+        })
+        
+    return jsonify({"teams": teams_data})
+        
+@app.route("/api/teams/create", methods=["POST"])
+def create_team():
+    """Admin endpoint to create a new team. Stores in a dedicated teams collection."""
+    data = request.json or {}
+    name = data.get("name")
+    manager_username = (data.get("manager_username") or "").strip()
+    
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+        
+    name = name.strip()
+    try:
+        if mongo.available:
+            db = mongo.db
+            team_doc = {"name": name}
+            if manager_username:
+                team_doc["manager_username"] = manager_username
+                mgr_user = db.users.find_one({"username": manager_username}, {"name": 1, "role": 1})
+                if mgr_user:
+                    team_doc["manager_name"] = mgr_user.get("name", manager_username)
+                    if mgr_user.get("role") not in ("manager", "director", "admin"):
+                        db.users.update_one({"username": manager_username}, {"$set": {"role": "manager"}})
+            db.teams.update_one({"name": name}, {"$set": team_doc}, upsert=True)
+            return jsonify({"status": "created", "message": f"Team '{name}' created successfully"})
+        return jsonify({"error": "Databases unavailable"}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/teams/update", methods=["POST"])
+def update_team():
+    """Admin endpoint to edit a team name and/or its manager."""
+    data = request.json or {}
+    old_name = data.get("old_name")
+    new_name = data.get("new_name")
+    manager_username = data.get("manager_username")
+    
+    if not old_name:
+        return jsonify({"error": "old_name is required"}), 400
+        
+    old_name = old_name.strip()
+    new_name = (new_name or old_name).strip()
+    
+    if new_name != old_name:
+        try:
+            if neo4j.available:
+                neo4j._run(
+                    "MATCH (n) WHERE n.team = $old SET n.team = $new",
+                    old=old_name, new=new_name
+                )
+                neo4j._run(
+                    "MATCH (n) WHERE n.owner_team = $old SET n.owner_team = $new",
+                    old=old_name, new=new_name
+                )
+                neo4j._run(
+                    "MATCH (n) WHERE n.access_team = $old SET n.access_team = $new",
+                    old=old_name, new=new_name
+                )
+        except Exception as e:
+            log.warning(f"Failed to update team name in Neo4j: {e}")
+            
+    try:
+        if mongo.available:
+            db = mongo.db
+            if new_name != old_name:
+                db.users.update_many({"team": old_name}, {"$set": {"team": new_name}})
+                db.users.update_many(
+                    {"managedTeams": old_name},
+                    {"$set": {"managedTeams.$[elem]": new_name}},
+                    array_filters=[{"elem": old_name}]
+                )
+                
+            if manager_username:
+                target_user = db.users.find_one({"username": manager_username.strip()})
+                if target_user:
+                    new_role = target_user.get("role")
+                    if new_role not in ("manager", "director", "admin"):
+                        new_role = "manager"
+                    db.users.update_one(
+                        {"username": manager_username.strip()},
+                        {"$set": {
+                            "team": new_name,
+                            "role": new_role
+                        }}
+                    )
+                else:
+                    return jsonify({"error": f"User '{manager_username}' not found"}), 404
+                    
+            return jsonify({"status": "updated", "message": f"Team '{old_name}' updated successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+        
+    return jsonify({"error": "Databases unavailable"}), 503
+
+
+@app.route("/api/teams/delete", methods=["POST"])
+def delete_team():
+    """Admin endpoint to delete a team."""
+    data = request.json or {}
+    name = data.get("name")
+    
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+        
+    name = name.strip()
+    
+    try:
+        if neo4j.available:
+            neo4j._run("MATCH (n) WHERE n.team = $name REMOVE n.team", name=name)
+            neo4j._run("MATCH (n) WHERE n.owner_team = $name REMOVE n.owner_team", name=name)
+            neo4j._run("MATCH (n) WHERE n.access_team = $name REMOVE n.access_team", name=name)
+    except Exception as e:
+        log.warning(f"Failed to remove team from Neo4j: {e}")
+        
+    try:
+        if mongo.available:
+            db = mongo.db
+            # Delete from teams collection
+            db.teams.delete_one({"name": name})
+            
+            # Check if any devices are mapped to this team, move them to 'deleted-team-devices'
+            device_count = db.ssh_credentials.count_documents({"team": name})
+            if device_count > 0:
+                db.ssh_credentials.update_many({"team": name}, {"$set": {"team": "deleted-team-devices"}})
+                # Ensure the 'deleted-team-devices' team exists in the teams collection
+                db.teams.update_one(
+                    {"name": "deleted-team-devices"},
+                    {"$set": {"name": "deleted-team-devices", "manager_name": "System", "manager_username": "system"}},
+                    upsert=True
+                )
+            
+            # Cleanup users
+            db.users.update_many({"team": name}, {"$set": {"team": "team-alpha"}})
+            db.users.update_many({"managedTeams": name}, {"$pull": {"managedTeams": name}})
+            
+            return jsonify({"status": "deleted", "message": f"Team '{name}' deleted successfully. {device_count} devices moved to 'deleted-team-devices'."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+        
+    return jsonify({"error": "Databases unavailable"}), 503
 
 
 @app.route("/api/credentials/list", methods=["GET"])
@@ -910,7 +1135,8 @@ def list_ssh_credentials():
                     "vsan_device_type": c.get("vsan_device_type", "host"),
                     "selected_commands": c.get("selected_commands", []),
                     "custom_commands": c.get("custom_commands", []),
-                    "mock_commands": c.get("mock_commands", {})
+                    "mock_commands": c.get("mock_commands", {}),
+                    "team": c.get("team", "team-alpha")
                 })
 
         # Inject simulator-derived mock devices
@@ -4154,6 +4380,6 @@ if __name__ == "__main__":
         # Discovery should only run when manually triggered via the UI.
         pass
     
-    app.run(debug=True, host="0.0.0.0", port=port, threaded=True, use_reloader=False)
+    app.run(debug=True, host="0.0.0.0", port=port, threaded=True, use_reloader=True)
 
 # Nodemon trigger restart comment

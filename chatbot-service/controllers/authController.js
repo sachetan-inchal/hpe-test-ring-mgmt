@@ -12,6 +12,7 @@ export const registerUser = async (req, res) => {
     const {
       username,
       password,
+      name = '',
       team = 'team-alpha',
       cluster = 'cluster-1',
       managedTeams = [],
@@ -28,6 +29,7 @@ export const registerUser = async (req, res) => {
     const user = await User.create({
       username,
       password,
+      name,
       role,
       team,
       cluster,
@@ -38,6 +40,7 @@ export const registerUser = async (req, res) => {
       res.status(201).json({
         _id: user._id,
         username: user.username,
+        name: user.name || '',
         role: user.role,
         team: user.team,
         cluster: user.cluster,
@@ -61,6 +64,7 @@ export const loginUser = async (req, res) => {
       res.json({
         _id: user._id,
         username: user.username,
+        name: user.name || '',
         role: user.role || 'team_member',
         team: user.team || 'team-alpha',
         cluster: user.cluster || 'cluster-1',
@@ -78,4 +82,59 @@ export const loginUser = async (req, res) => {
 
 export const logoutUser = (req, res) => {
   res.json({ message: 'Logged out successfully' });
+};
+
+export const updateUserProfile = async (req, res) => {
+  try {
+    const { userId, team, managedTeams } = req.body;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    if (team !== undefined) user.team = team;
+    if (managedTeams !== undefined) {
+      user.managedTeams = Array.isArray(managedTeams) ? managedTeams : (managedTeams ? [managedTeams] : []);
+    }
+    await user.save();
+    res.json({
+      _id: user._id,
+      username: user.username,
+      name: user.name || '',
+      role: user.role,
+      team: user.team,
+      cluster: user.cluster,
+      managedTeams: user.managedTeams || [],
+      managedClusters: user.managedClusters || [],
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const listUsers = async (req, res) => {
+  try {
+    const users = await User.find({}, '-password'); // Exclude password hashes
+    res.json({ users });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const adminUpdateUser = async (req, res) => {
+  try {
+    const { userId, role, team, managedTeams } = req.body;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    if (role !== undefined) user.role = role;
+    if (team !== undefined) user.team = team;
+    if (managedTeams !== undefined) {
+      user.managedTeams = Array.isArray(managedTeams) ? managedTeams : (managedTeams ? [managedTeams] : []);
+    }
+    await user.save();
+    res.json({ status: 'ok', user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };

@@ -60,42 +60,53 @@ function getDeviceKind(device) {
 }
 
 const COL = {
-  cmd:  '#3fb950',
-  out:  '#c9d1d9',
-  error:'#f85149',
+  cmd: '#3fb950',
+  out: '#c9d1d9',
+  error: '#f85149',
   info: '#58a6ff',
   warn: '#e3b341',
-  ssh:  '#d2a8ff',
+  ssh: '#d2a8ff',
 }
 
-export default function EmulatorPage({ apiBase }) {
+export default function EmulatorPage({ apiBase, deviceFilter }) {
   const navigate = useNavigate()
   const API = apiBase || ''
-  const [devices, setDevices] = useState([])
-  
+  const filterType = deviceFilter || 'virtual'
+  const [virtualDevices, setVirtualDevices] = useState([])
+  const [realDevices, setRealDevices] = useState([])
+
   // Terminal states: 'disconnected' | 'ssh_init' | 'awaiting_yes_no' | 'awaiting_password' | 'connected'
   const [sshState, setSshState] = useState('disconnected')
   const [activeDevice, setActiveDevice] = useState(null)
   const [handshake, setHandshake] = useState(null)
   const [prompt, setPrompt] = useState('console-gateway$ ')
-  
+
   const [history, setHistory] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  
+
   const [cmdHistory, setCmdHistory] = useState([])
   const [histIdx, setHistIdx] = useState(-1)
-  
+
   const termBodyRef = useRef(null)
   const inputRef = useRef(null)
 
   // ── Fetch Devices ──────────────────────────────────────────────────────────
   useEffect(() => {
+    // Fetch virtual devices
     fetch(`${API}/api/sim/devices`).then(r => r.json())
       .then(d => {
         const list = d.devices || d
-        setDevices(Array.isArray(list) ? list : [])
-      }).catch(() => {})
+        setVirtualDevices(Array.isArray(list) ? list : [])
+      }).catch(() => { })
+
+    // Fetch real devices
+    fetch(`${API}/api/credentials/list`).then(r => r.json())
+      .then(d => {
+        const list = d.devices || []
+        const real = list.filter(dev => dev.device_kind === 'real')
+        setRealDevices(real)
+      }).catch(() => { })
   }, [API])
 
   // Initialize terminal banner
@@ -103,7 +114,7 @@ export default function EmulatorPage({ apiBase }) {
     setHistory([
       { type: 'info', text: 'HPE SAN Console Gateway v2.0.0 (Jump-Host Server)' },
       { type: 'info', text: '-------------------------------------------------' },
-      { type: 'info', text: 'Type "ssh <user>@<ip>" to establish a secure CLI session to any virtual device.' },
+      { type: 'info', text: 'Type "ssh <user>@<ip>" to establish a secure CLI session to any virtual or real device.' },
       { type: 'info', text: 'Example: ssh root@10.20.10.5' },
       { type: 'info', text: 'Or click a device on the sidebar list to connect automatically.' },
       { type: 'out', text: '' },
@@ -131,33 +142,36 @@ export default function EmulatorPage({ apiBase }) {
   // ── Sidebar Click Shortcut ─────────────────────────────────────────────────
   const handleSidebarClick = async (device) => {
     try {
-      const user = getSSHUserForDevice(device)
-      const ip = device.ip
-      
-      if (sshState === 'connected' && activeDevice?.ip === ip) {
-        addLine('info', `Already connected to ${device.name || ip}`)
+      const user = device.username || getSSHUserForDevice(device)
+      const ip = device.ip || device.ip_address
+
+      if (sshState === 'connected' && (activeDevice?.ip === ip || activeDevice?.ip_address === ip)) {
+        addLine('info', `Already connected to ${device.name || device.device_name || ip}`)
         return
       }
-      
+
       let histText = `ssh ${user}@${ip}`
       if (sshState === 'connected') {
-        addLine('info', `Connection to ${activeDevice?.name || activeDevice?.ip} closed.`)
+        addLine('info', `Connection to ${activeDevice?.name || activeDevice?.device_name || activeDevice?.ip || activeDevice?.ip_address} closed.`)
       }
-      
+
       setSshState('disconnected')
       setInput('')
-      await startSSHHandshake(user, ip, histText)
+      await startSSHHandshake(user, ip, histText, device)
     } catch (err) {
       addLine('error', `Sidebar redirect error: ${err.message}`)
     }
   }
 
   // ── Start SSH Connection Handshake ─────────────────────────────────────────
-  const startSSHHandshake = async (user, ip, originalCmd) => {
+  const startSSHHandshake = async (user, ip, originalCmd, deviceObj = null) => {
     addLine('cmd', `${sshState === 'connected' ? prompt : 'console-gateway$ '}${originalCmd}`)
     setLoading(true)
-    
-    const foundDev = devices.find(d => d.ip === ip)
+
+    const foundDev = deviceObj ||
+      virtualDevices.find(d => d.ip === ip || d.ip_address === ip) ||
+      realDevices.find(d => d.ip === ip || d.ip_address === ip)
+
     if (!foundDev) {
       addLine('error', `ssh: Could not resolve hostname ${ip}: Name or service not known`)
       setPrompt('console-gateway$ ')
@@ -165,15 +179,46 @@ export default function EmulatorPage({ apiBase }) {
       setLoading(false)
       return
     }
-    
+
+    // If it's a real device, establish connection immediately with stored credentials
+    if (foundDev.device_kind === 'real' || filterType === 'real') {
+      try {
+        const devName = foundDev.device_name || foundDev.name || ip
+        const loginUser = foundDev.username || user || 'root'
+        addLine('info', `Establishing secure SSH connection to ${devName} (${ip})...`)
+        setActiveDevice(foundDev)
+
+        const devKind = (foundDev.category || foundDev.type || '').toLowerCase()
+        if (devKind === 'switch') {
+          addLine('out', `${devName}:FID100:admin> `)
+          setPrompt(`${devName}:FID100:admin> `)
+        } else if (devKind === 'array' || devKind === 'arraysystem') {
+          addLine('out', `root@${devName}:~# `)
+          setPrompt(`root@${devName}:~# `)
+        } else {
+          addLine('info', `Linux ${devName} — logged in as ${loginUser}`)
+          addLine('out', '')
+          setPrompt(`root@${devName}:~$ `)
+        }
+        setSshState('connected')
+      } catch (err) {
+        addLine('error', `SSH Connection failed: ${err.message}`)
+        setPrompt('console-gateway$ ')
+        setSshState('disconnected')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     try {
       const res = await fetch(`${API}/api/sim/ssh/connect/${ip}`)
       const data = await res.json()
       if (data.error) throw new Error(data.error)
-      
+
       setHandshake(data)
       setActiveDevice(foundDev)
-      
+
       if (data.key_type) {
         addLine('warn', `Warning: the ${data.key_type} host key for '${data.name || ip}' differs from the key for the IP address '${ip}'`)
         setPrompt('Are you sure you want to continue connecting (yes/no)? ')
@@ -199,7 +244,7 @@ export default function EmulatorPage({ apiBase }) {
       const trimmed = input.trim()
       const currentVal = input
       setInput('')
-      
+
       if (trimmed === 'clear') {
         setHistory([])
         return
@@ -212,7 +257,7 @@ export default function EmulatorPage({ apiBase }) {
             addLine('cmd', prompt)
             return
           }
-          
+
           if (trimmed.startsWith('ssh ')) {
             const parts = trimmed.substring(4).split('@')
             let user = 'root'
@@ -254,7 +299,7 @@ export default function EmulatorPage({ apiBase }) {
         if (sshState === 'awaiting_password') {
           // Linux/Brocade switch hides password completely. Append prompt prefix only.
           addLine('cmd', `${prompt}`)
-          
+
           const devName = handshake?.name || activeDevice?.name || activeDevice?.ip || 'device'
           const loginUser = handshake?.login_user || 'root'
           const devKind = getDeviceKind(activeDevice)
@@ -282,9 +327,9 @@ export default function EmulatorPage({ apiBase }) {
           }
 
           addLine('cmd', `${prompt}${trimmed}`)
-          
+
           if (trimmed === 'exit' || trimmed === 'logout') {
-            addLine('info', `Connection to ${activeDevice?.name || activeDevice?.ip} closed.`)
+            addLine('info', `Connection to ${activeDevice?.name || activeDevice?.device_name || activeDevice?.ip || activeDevice?.ip_address} closed.`)
             addLine('out', '')
             setPrompt('console-gateway$ ')
             setSshState('disconnected')
@@ -297,10 +342,23 @@ export default function EmulatorPage({ apiBase }) {
           setLoading(true)
 
           try {
-            const res = await fetch(`${API}/api/sim/exec`, {
+            const isReal = activeDevice?.device_kind === 'real'
+            const endpoint = isReal ? `${API}/api/ssh/exec` : `${API}/api/sim/exec`
+            const body = isReal ? {
+              ip: activeDevice.ip || activeDevice.ip_address,
+              username: activeDevice.username,
+              password: activeDevice.password,
+              port: activeDevice.port || 22,
+              command: trimmed
+            } : {
+              ip: activeDevice?.ip || activeDevice?.ip_address,
+              command: trimmed
+            }
+
+            const res = await fetch(endpoint, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ip: activeDevice?.ip, command: trimmed })
+              body: JSON.stringify(body)
             })
             const data = await res.json()
             const output = data.output || data.error || 'No output'
@@ -336,10 +394,23 @@ export default function EmulatorPage({ apiBase }) {
     addLine('cmd', `${prompt}${cmd}`)
     setLoading(true)
     try {
-      const res = await fetch(`${API}/api/sim/exec`, {
+      const isReal = activeDevice?.device_kind === 'real'
+      const endpoint = isReal ? `${API}/api/ssh/exec` : `${API}/api/sim/exec`
+      const body = isReal ? {
+        ip: activeDevice.ip || activeDevice.ip_address,
+        username: activeDevice.username,
+        password: activeDevice.password,
+        port: activeDevice.port || 22,
+        command: cmd
+      } : {
+        ip: activeDevice?.ip || activeDevice?.ip_address,
+        command: cmd
+      }
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: activeDevice?.ip, command: cmd })
+        body: JSON.stringify(body)
       })
       const data = await res.json()
       const output = data.output || data.error || 'No output'
@@ -354,7 +425,8 @@ export default function EmulatorPage({ apiBase }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @keyframes blink {
           0%, 100% { opacity: 1; }
           50% { opacity: 0; }
@@ -373,7 +445,7 @@ export default function EmulatorPage({ apiBase }) {
       <div className="page-header">
         <div>
           <h2 className="page-title">HPE SAN Interactive Gateway Console</h2>
-          <p className="page-subtitle">Fully simulated secure SSH terminal interface</p>
+          <p className="page-subtitle">Connect to your devices via SSH</p>
         </div>
         {sshState === 'connected' && activeDevice && (
           <button
@@ -393,23 +465,38 @@ export default function EmulatorPage({ apiBase }) {
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 16 }}>
         {/* Device sidebar list */}
         <div className="glass-card" style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+
           <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Server size={16} style={{ color: 'var(--hpe-green)' }} />
-            <span style={{ fontSize: 12, fontWeight: 700 }}>Available Host IPs</span>
-            <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 10 }}>{devices.length}</span>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>
+              {filterType === 'virtual' ? 'Available Host IPs' : 'Available IPs'}
+            </span>
+            <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 10 }}>
+              {filterType === 'virtual' ? virtualDevices.length : realDevices.length}
+            </span>
           </div>
+
           <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
-            {devices.length === 0 && (
+            {filterType === 'virtual' && virtualDevices.length === 0 && (
               <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-                No active devices found. Ensure simulation containers are running.
+                No active virtual devices found. Ensure simulation is running.
               </div>
             )}
-            {devices.map(d => {
-              const name = d.name || d.ip
-              const isCurrent = activeDevice?.ip === d.ip
+            {filterType === 'real' && realDevices.length === 0 && (
+              <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+                No registered real devices found. Configure them in the Inventory tab.
+              </div>
+            )}
+            {(filterType === 'virtual' ? virtualDevices : realDevices).map(d => {
+              const name = d.name || d.device_name || d.ip || d.ip_address
+              const ip = d.ip || d.ip_address
+              const isCurrent = activeDevice?.ip === ip || activeDevice?.ip_address === ip
+              const category = d.type || d.category || 'host'
+              const user = d.username || getSSHUserForDevice(d)
               return (
                 <button
-                  key={name}
+                  key={name + '-' + ip}
                   onClick={() => handleSidebarClick(d)}
                   style={{
                     display: 'flex',
@@ -436,10 +523,10 @@ export default function EmulatorPage({ apiBase }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, width: '100%' }}>
                     <Monitor size={13} style={{ color: isCurrent ? 'var(--hpe-green)' : 'var(--muted)' }} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{name}</span>
-                    <span style={{ fontSize: 9, opacity: 0.8, textTransform: 'uppercase' }}>{d.type}</span>
+                    <span style={{ fontSize: 9, opacity: 0.8, textTransform: 'uppercase' }}>{category}</span>
                   </div>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: isCurrent ? 'var(--hpe-green)' : 'var(--muted)', marginTop: 4, opacity: 0.9 }}>
-                    ssh {getSSHUserForDevice(d)}@{d.ip}
+                    ssh {user}@{ip}
                   </div>
                 </button>
               )
