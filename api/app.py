@@ -556,8 +556,8 @@ _rag_engine = RAGEngine(
 )
 
 
-def _san_agent_llm(system: str, user: str, use_ollama=False, disable_think=False, stream=False, json_mode=False):
-    return _rag_engine._llm_call(system, user, use_ollama=use_ollama, disable_think=disable_think, stream=stream, json_mode=json_mode)
+def _san_agent_llm(system: str, user: str, use_ollama=False, disable_think=False, stream=False, json_mode=False, ollama_model=None, request_id=None):
+    return _rag_engine._llm_call(system, user, use_ollama=use_ollama, disable_think=disable_think, stream=stream, json_mode=json_mode, ollama_model=ollama_model, request_id=request_id)
 
 
 # Per-command parsers: api REST parsers + sim_parser (simulator / discovery)
@@ -900,7 +900,7 @@ def list_all_teams():
     teams_set = set()
     try:
         if neo4j.available:
-            results = neo4j._run("MATCH (n) WHERE exists(n.team) RETURN DISTINCT n.team AS team")
+            results = neo4j._run("MATCH (n) WHERE n.team IS NOT NULL RETURN DISTINCT n.team AS team")
             for r in results:
                 val = (r["team"] or "").strip()
                 if val and val.lower() not in INVALID_TEAMS:
@@ -1692,9 +1692,35 @@ def _san_agent_executor(ip, cmd):
         return res.get("stdout", "")
 
 
+def _san_agent_list_devices():
+    devices = virtual_network.list_devices() or []
+    if mongo.available:
+        try:
+            creds = list(mongo.db.ssh_credentials.find({}))
+            for c in creds:
+                ip = c.get("ip") or c.get("ip_address") or c.get("oob_ip")
+                name = c.get("device_name") or ip
+                if not ip:
+                    continue
+                # Prevent duplication if already present
+                if not any(d.get("ip") == ip or d.get("name") == name for d in devices):
+                    devices.append({
+                        "id": name,
+                        "name": name,
+                        "ip": ip,
+                        "device_kind": c.get("device_kind", "real"),
+                        "virtual": (c.get("device_kind") == "mock"),
+                        "username": c.get("username", "root"),
+                        "port": int(c.get("port", 22))
+                    })
+        except Exception as e:
+            log.warning(f"Failed to append mongo credentials to list_devices: {e}")
+    return devices
+
+
 _san_agent = SanAgent(
     execute_fn=_san_agent_executor,
-    list_devices_fn=lambda: virtual_network.list_devices(),
+    list_devices_fn=_san_agent_list_devices,
     neo4j_store=neo4j,
     run_cypher_fn=lambda q, params=None: neo4j_run_cypher(neo4j, q, params),
     llm_call=_san_agent_llm,
@@ -3320,6 +3346,7 @@ def agent_run_stream():
     array_hint = request.args.get("array", "").strip()
     use_ollama = str(request.args.get("useOllama", "false")).lower() == "true"
     disable_think = str(request.args.get("disableThink", "false")).lower() == "true"
+    ollama_model = request.args.get("ollamaModel", "").strip()
     req_id = request.args.get("requestId", "").strip()
     if not query:
         return Response("data: {\"error\": \"query is required\"}\n\n", mimetype="text/event-stream")
@@ -3345,6 +3372,8 @@ def agent_run_stream():
                     on_step=on_step, 
                     use_ollama=use_ollama, 
                     disable_think=disable_think,
+                    ollama_model=ollama_model or None,
+                    request_id=req_id,
                     stream=True
                 )
                 result.update(res)

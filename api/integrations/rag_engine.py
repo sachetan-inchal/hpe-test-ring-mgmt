@@ -74,7 +74,7 @@ class RAGEngine:
         self.client = Groq(api_key=key) if HAS_GROQ and key else None
         self.active_ollama_port = detect_ollama()
 
-    def _llm_call_ollama(self, system_prompt, user_prompt, history=None, temperature=0.1, disable_think=False, stream=False, json_mode=False):
+    def _llm_call_ollama(self, system_prompt, user_prompt, history=None, temperature=0.1, disable_think=False, stream=False, json_mode=False, ollama_model=None, request_id=None):
         global LLM_CALL_COUNTER
         LLM_CALL_COUNTER += 1
         messages = [{"role": "system", "content": system_prompt}]
@@ -85,8 +85,8 @@ class RAGEngine:
         messages.append({"role": "user", "content": user_prompt})
         
         # Auto-detect best model from available tags
-        model_to_use = OLLAMA_MODEL
-        if not os.environ.get("OLLAMA_MODEL"):
+        model_to_use = ollama_model or OLLAMA_MODEL
+        if not ollama_model and not os.environ.get("OLLAMA_MODEL"):
             try:
                 r = requests.get(f"http://127.0.0.1:{self.active_ollama_port}/api/tags", timeout=1.0)
                 if r.status_code == 200:
@@ -143,10 +143,18 @@ class RAGEngine:
                 if disable_think:
                     def generator():
                         import json
+                        import sys
+                        from api.app import _cancelled_requests
                         buffer = ""
                         passed_think = False
                         try:
                             for line in response.iter_lines():
+                                if request_id and request_id in _cancelled_requests:
+                                    try:
+                                        response.close()
+                                    except Exception:
+                                        pass
+                                    break
                                 if line:
                                     decoded = line.decode('utf-8')
                                     try:
@@ -179,8 +187,16 @@ class RAGEngine:
                     return generator()
                 else:
                     def generator():
+                        import sys
+                        from api.app import _cancelled_requests
                         try:
                             for line in response.iter_lines():
+                                if request_id and request_id in _cancelled_requests:
+                                    try:
+                                        response.close()
+                                    except Exception:
+                                        pass
+                                    break
                                 if line:
                                     yield line.decode('utf-8')
                         except Exception as stream_err:
@@ -206,9 +222,9 @@ class RAGEngine:
         except Exception as e:
             return f"Ollama LLM Error: {str(e)}"
 
-    def _llm_call(self, system_prompt, user_prompt, history=None, temperature=0.1, use_ollama=False, disable_think=False, stream=False, json_mode=False):
+    def _llm_call(self, system_prompt, user_prompt, history=None, temperature=0.1, use_ollama=False, disable_think=False, stream=False, json_mode=False, ollama_model=None, request_id=None):
         if use_ollama:
-            return self._llm_call_ollama(system_prompt, user_prompt, history, temperature, disable_think, stream, json_mode)
+            return self._llm_call_ollama(system_prompt, user_prompt, history, temperature, disable_think, stream, json_mode, ollama_model=ollama_model, request_id=request_id)
             
         global LLM_CALL_COUNTER
         LLM_CALL_COUNTER += 1

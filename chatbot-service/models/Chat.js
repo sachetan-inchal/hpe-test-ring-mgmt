@@ -9,6 +9,10 @@ const messageSchema = new mongoose.Schema({
   content: {
     type: String,
     required: true
+  },
+  agentSteps: {
+    type: Array,
+    default: []
   }
 }, { _id: false });
 

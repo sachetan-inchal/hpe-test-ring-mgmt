@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useContext } from 'react'
+import { useState, useEffect, useMemo, useContext, useRef } from 'react'
 import { Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import TopologyCanvas from '../components/TopologyCanvas'
@@ -46,6 +46,29 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('diagram')
+  const [sidebarWidth, setSidebarWidth] = useState(340)
+
+  const isResizing = useRef(false)
+
+  const startResizing = (e) => {
+    isResizing.current = true
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', stopResizing)
+  }
+
+  const handleMouseMove = (e) => {
+    if (!isResizing.current) return
+    const nextWidth = window.innerWidth - e.clientX
+    if (nextWidth > 240 && nextWidth < 600) {
+      setSidebarWidth(nextWidth)
+    }
+  }
+
+  const stopResizing = () => {
+    isResizing.current = false
+    document.removeEventListener('mousemove', handleMouseMove)
+    document.removeEventListener('mouseup', stopResizing)
+  }
   const [showImport, setShowImport] = useState(false)
   const [selectedSource, setSelectedSource] = useState('all')
   const [sources, setSources] = useState([])
@@ -773,7 +796,21 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
             </div>
           )}
         </div>
-        <div style={{ width: 340, flexShrink: 0, height: '100%' }}>
+        <div
+          onMouseDown={startResizing}
+          style={{
+            width: '4px',
+            cursor: 'col-resize',
+            background: 'transparent',
+            alignSelf: 'stretch',
+            zIndex: 10,
+            transition: 'background 0.2s',
+            margin: '0 -4px'
+          }}
+          onMouseOver={e => e.target.style.background = 'var(--hpe-green)'}
+          onMouseOut={e => e.target.style.background = 'transparent'}
+        />
+        <div style={{ width: sidebarWidth, flexShrink: 0, height: '100%' }}>
           {focusedNode ? (
             <NodeCard node={focusedNode} connections={focusedConnections} onDecommissionToggle={handleDecommission} onUpdateNode={handleUpdate} />
           ) : (

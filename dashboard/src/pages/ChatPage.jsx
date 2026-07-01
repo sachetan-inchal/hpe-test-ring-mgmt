@@ -388,6 +388,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
   const [emuPanelWidth, setEmuPanelWidth] = useState(480)
   const [aiMode, setAiMode] = useState('agent') // agent | standard | graphrag
   const [useOllama, setUseOllama] = useState(false)
+  const [ollamaModel, setOllamaModel] = useState('qwen3:8b')
   const [disableThink, setDisableThink] = useState(false)
   const [chatHistory, setChatHistory] = useState([])
   const [currentRequestId, setCurrentRequestId] = useState(null)
@@ -573,7 +574,11 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       const res = await fetch(`${chatbotApi}/chat/${chatId}`, { headers: { Authorization: `Bearer ${user?.token}` } })
       const data = await res.json()
       if (data.messages) {
-        setMessages(data.messages.map(m => ({ role: m.role === 'model' ? 'assistant' : m.role, text: m.content })))
+        setMessages(data.messages.map(m => ({ 
+          role: m.role === 'model' ? 'assistant' : m.role, 
+          text: m.content,
+          agentSteps: m.agentSteps || []
+        })))
       }
     } catch {}
   }
@@ -1111,7 +1116,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         const aParam = encodeURIComponent(arrayHint || '')
         const ollamaParam = useOllama ? 'true' : 'false'
         const thinkParam = disableThink ? 'true' : 'false'
-        const es = new EventSource(`${apiBase}/api/agent/run/stream?query=${qParam}&array=${aParam}&useOllama=${ollamaParam}&disableThink=${thinkParam}&requestId=${reqId}`)
+        const es = new EventSource(`${apiBase}/api/agent/run/stream?query=${qParam}&array=${aParam}&useOllama=${ollamaParam}&disableThink=${thinkParam}&requestId=${reqId}&ollamaModel=${encodeURIComponent(ollamaModel)}`)
         activeEsRef.current = es
 
         es.onmessage = (e) => {
@@ -1249,16 +1254,26 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             const handleFinalize = () => {
               setLlmCallsCount(prev => prev + 1) // Final response summary is a real LLM call
               setAgentResult(data)
+              let textToSave = data.answer || 'Agent completed successfully.'
               setMessages(prev => {
                 if (prev.length === 0) return prev
                 const last = prev[prev.length - 1]
                 if (last && last.role === 'assistant') {
+                  let finalAnswer = data.answer || 'Agent completed successfully.'
+                  if (last.text && last.text.includes('<think>')) {
+                    const match = last.text.match(/<think>([\s\S]*?)(?:<\/think>)?/)
+                    if (match) {
+                      const thinkContent = match[1].trim()
+                      finalAnswer = `<think>\n${thinkContent}\n</think>\n\n${data.answer || ''}`
+                    }
+                  }
+                  textToSave = finalAnswer
                   return [
                     ...prev.slice(0, -1),
                     {
                       ...last,
                       agentSteps: data.steps,
-                      text: data.answer || 'Agent completed successfully.',
+                      text: finalAnswer,
                       isStreaming: false
                     }
                   ]
@@ -1276,7 +1291,8 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                   body: JSON.stringify({
                     message: trimmed,
                     chatId: activeChatId || undefined,
-                    customResponse: data.answer || 'Agent completed successfully.'
+                    customResponse: textToSave,
+                    agentSteps: data.steps || []
                   })
                 }).then(res => res.json()).then(saveData => {
                   if (saveData.chatId && !activeChatId) {
@@ -1838,26 +1854,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         </div>
         <div style={{ padding: 12, borderTop: '1px solid var(--line)' }}>
 
-          {/* LLM API Calls Counter */}
-          <div style={{ 
-            marginTop: 10, 
-            padding: '6px 10px', 
-            background: 'var(--surface-3)', 
-            border: '1px solid var(--line)', 
-            borderRadius: 6, 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center' 
-          }}>
-            <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Cpu size={11} style={{ color: 'var(--hpe-green)' }} /> LLM API CALLS:
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hpe-green)', fontFamily: 'var(--font-mono)' }}>
-              {llmCallsCount}
-            </span>
-          </div>
-
-          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 11, color: 'var(--text-main)', fontWeight: 500 }}>Use Local Ollama</span>
             <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
               <div style={{
@@ -1874,40 +1871,21 @@ export default function ChatPage({ apiBase, chatbotApi }) {
           </div>
 
           {useOllama && (
-            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 6, border: '1px solid var(--border-color)' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-main)' }}>Disable Thinking</span>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                <div style={{
-                  width: 28, height: 14, borderRadius: 7, background: disableThink ? 'var(--status-critical)' : 'var(--line)',
-                  position: 'relative', transition: 'background 0.2s'
-                }}>
-                  <div style={{
-                    position: 'absolute', top: 2, left: disableThink ? 16 : 2, width: 10, height: 10, borderRadius: 5,
-                    background: 'white', transition: 'left 0.2s'
-                  }} />
-                </div>
-                <input type="checkbox" checked={disableThink} onChange={() => setDisableThink(!disableThink)} style={{ display: 'none' }} />
-              </label>
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 6, border: '1px solid var(--line)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-main)' }}>Ollama Model</span>
+                <select 
+                  className="select" 
+                  value={ollamaModel} 
+                  onChange={e => setOllamaModel(e.target.value)}
+                  style={{ fontSize: 10, padding: '2px 4px', background: 'var(--surface-3)', color: 'var(--text-main)', border: '1px solid var(--line)', borderRadius: 4, cursor: 'pointer' }}
+                >
+                  <option value="qwen3:8b">qwen3:8b (Recommended)</option>
+                  <option value="qwen3:4b">qwen3:4b</option>
+                </select>
+              </div>
             </div>
           )}
-
-          {aiMode === 'agent' && (
-            <input
-              className="input"
-              style={{ marginTop: 8, fontSize: 11 }}
-              placeholder="Array hint (e.g. PROD-A)"
-              value={arrayHint}
-              onChange={e => {
-                setArrayHint(e.target.value)
-                sessionStorage.setItem('agent_array_hint', e.target.value)
-              }}
-            />
-          )}
-          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 6, lineHeight: 1.4 }}>
-            {aiMode === 'agent' && 'Simulator CLI → existing parsers → Neo4j → answer'}
-            {aiMode === 'standard' && 'Gemini AI with SAN context enrichment'}
-            {aiMode === 'graphrag' && 'Groq LLM with Neo4j graph traversal queries'}
-          </div>
         </div>
 
         {/* ── Left sidebar drag handle ── */}
@@ -2010,20 +1988,23 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                 <div style={{ flex: 1, maxWidth: '85%', display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
                   
                   {thinkText && (
-                    <div style={{ 
-                      marginBottom: 8, width: '100%', maxWidth: '800px', 
-                      background: 'rgba(0, 0, 0, 0.2)', border: '1px solid var(--line)', 
-                      borderRadius: 8, overflow: 'hidden' 
-                    }}>
-                      <div style={{ padding: '6px 12px', fontSize: 11, color: 'var(--muted)', background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Sparkles size={12} />
-                        <span>AI Thinking Process</span>
+                    <details 
+                      open={msg.isStreaming}
+                      style={{ 
+                        marginBottom: 8, width: '100%', maxWidth: '800px', 
+                        background: 'rgba(0, 0, 0, 0.2)', border: '1px solid var(--line)', 
+                        borderRadius: 8, overflow: 'hidden' 
+                      }}
+                    >
+                      <summary style={{ padding: '8px 12px', fontSize: 11, color: 'var(--muted)', background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', outline: 'none', userSelect: 'none' }}>
+                        <Sparkles size={12} style={{ color: 'var(--hpe-green)' }} />
+                        <span style={{ fontWeight: 600 }}>AI Thinking Process (Click to toggle)</span>
                         {msg.isStreaming && <span className="pulsing-dot" style={{ width: 6, height: 6, background: 'var(--hpe-green)', borderRadius: '50%', display: 'inline-block', marginLeft: 4 }} />}
-                      </div>
-                      <div style={{ padding: '12px', fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', whiteSpace: 'pre-wrap', maxHeight: msg.isStreaming ? 'none' : '200px', overflowY: 'auto' }}>
+                      </summary>
+                      <div style={{ padding: '12px', fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', whiteSpace: 'pre-wrap', maxHeight: '250px', overflowY: 'auto', borderTop: '1px solid var(--line)' }}>
                         {thinkText}
                       </div>
-                    </div>
+                    </details>
                   )}
 
                   {displayHtml && (

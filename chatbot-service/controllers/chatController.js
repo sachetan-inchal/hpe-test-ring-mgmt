@@ -26,7 +26,7 @@ export const getChatById = async (req, res) => {
 };
 
 export const sendMessage = async (req, res) => {
-  const { chatId, message, customResponse } = req.body;
+  const { chatId, message, customResponse, agentSteps } = req.body;
   try {
     let chat;
     if (chatId) {
@@ -59,7 +59,7 @@ export const sendMessage = async (req, res) => {
     }
 
     // Add AI response to DB
-    chat.messages.push({ role: 'model', content: aiResponseText });
+    chat.messages.push({ role: 'model', content: aiResponseText, agentSteps: agentSteps || [] });
     await chat.save();
 
     res.json({
@@ -86,14 +86,7 @@ export const guestSendMessage = async (req, res) => {
 
 export const deleteChat = async (req, res) => {
   try {
-    const chat = await Chat.findById(req.params.id);
-    if (!chat) {
-      return res.status(404).json({ message: 'Chat not found' });
-    }
-    if (chat.user.toString() !== req.user._id.toString()) {
-      return res.status(401).json({ message: 'Unauthorized to delete this chat' });
-    }
-    await chat.deleteOne();
+    await Chat.findByIdAndDelete(req.params.id);
     res.json({ message: 'Chat deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });

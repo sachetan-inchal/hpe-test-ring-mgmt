@@ -104,6 +104,7 @@ class SanAgent:
         self.llm_call = llm_call
         self.command_parsers = command_parsers or {}
         self.parse_array_outputs = parse_array_outputs or parse_sim_array_output
+        self.request_id = None
 
     def _load_topology_context(self) -> str:
         """Dynamic lookup of all devices, kinds, teams, and IP distribution context."""
@@ -172,7 +173,7 @@ Return ONLY a JSON object:
 
 Output ONLY the JSON. No markdown."""
 
-    def _llm_classify_intent(self, query: str, use_ollama=False, disable_think=False) -> dict:
+    def _llm_classify_intent(self, query: str, use_ollama=False, disable_think=False, ollama_model=None) -> dict:
         if not self.llm_call:
             return {"intent": "DIAGNOSTIC", "response": None}
         q_clean = query.lower().strip().strip("?.! ")
@@ -191,7 +192,7 @@ Output ONLY the JSON. No markdown."""
                 raw = self._stream_llm_call(
                     self._INTENT_SYSTEM, f"User input: {query}",
                     use_ollama=use_ollama, disable_think=disable_think,
-                    json_mode=True
+                    json_mode=True, ollama_model=ollama_model
                 )
             finally:
                 self.on_synthesis_chunk = old_callback
@@ -206,13 +207,13 @@ Output ONLY the JSON. No markdown."""
             pass
         return {"intent": "DIAGNOSTIC", "response": None}
 
-    def _stream_llm_call(self, system: str, user: str, use_ollama=False, disable_think=False, json_mode=False) -> str:
+    def _stream_llm_call(self, system: str, user: str, use_ollama=False, disable_think=False, json_mode=False, ollama_model=None) -> str:
         if not self.llm_call:
             return ""
         ans = self.llm_call(
             system, user,
             use_ollama=use_ollama, disable_think=disable_think, stream=True,
-            json_mode=json_mode
+            json_mode=json_mode, ollama_model=ollama_model, request_id=self.request_id
         )
         full_ans = []
         if hasattr(ans, "__iter__") and not isinstance(ans, str):
@@ -271,8 +272,8 @@ INVENTORY TOPO (Devices available in the network):
 
 CALLABLE TOOLS:
 1. ssh_execute(device_name, ip, command)
-   - Establish connection to a device (real SSH or mock simulator) and run a CLI command.
-   - Allowed commands: showsys, showhost, showport, showpd, showcage, showcage -state, showversion -b, shownode, showswitch, cli checkhealth.
+   - Establish connection to a device (real SSH or mock simulator) and run a CLI command (or standard Linux shell commands like lscpu, uname, etc. for hosts).
+   - Allowed commands: showsys, showhost, showport, showpd, showcage, showcage -state, showversion -b, shownode, showswitch, cli checkhealth, lscpu, uname.
    - Args:
      - device_name: name of target device
      - ip: target IP (use in-band or oob_ip exactly as requested or resolved)
@@ -304,7 +305,7 @@ Return ONLY a JSON object:
 Output ONLY the JSON. No markdown, no text outside the JSON."""
 
     def _llm_plan(self, query: str, topology_context: str, steps: list,
-                  use_ollama=False, disable_think=False) -> dict:
+                  use_ollama=False, disable_think=False, ollama_model=None) -> dict:
         """Ask LLM to plan tool calls."""
         if not self.llm_call:
             return {"reasoning": "Standard plan", "tool_calls": []}
@@ -317,7 +318,7 @@ Output ONLY the JSON. No markdown, no text outside the JSON."""
             raw = self._stream_llm_call(
                 system_prompt, user_msg,
                 use_ollama=use_ollama, disable_think=disable_think,
-                json_mode=True
+                json_mode=True, ollama_model=ollama_model
             )
             data = _extract_json(raw)
             if data and "tool_calls" in data:
@@ -344,7 +345,7 @@ Output ONLY the JSON. No markdown, no text outside the JSON."""
             self._step(steps, "error", f"SSH: Failed", err_msg)
             return err_msg
 
-    def _tool_run_cypher(self, query: str, steps: list, use_ollama=False, disable_think=False) -> list:
+    def _tool_run_cypher(self, query: str, steps: list, use_ollama=False, disable_think=False, ollama_model=None) -> list:
         if not (query and self.run_cypher and self.neo4j and self.neo4j.available):
             self._step(steps, "error", "Cypher: Unavailable", "Neo4j is not connected.")
             return []
@@ -367,7 +368,8 @@ Output ONLY the JSON. No markdown, no text outside the JSON."""
                 corrected = self.llm_call(
                     correction_system,
                     f"Original:\n{query}\n\nError:\n{ex}",
-                    use_ollama=use_ollama, disable_think=disable_think, stream=False
+                    use_ollama=use_ollama, disable_think=disable_think, stream=False,
+                    ollama_model=ollama_model
                 )
                 corrected = _strip_think(corrected).strip().strip("`").strip()
                 if corrected.startswith("```"):
@@ -465,7 +467,7 @@ Return ONLY a JSON object:
 Output ONLY the JSON. No markdown."""
 
     def _llm_reflect(self, query: str, topology_context: str, observations: list, steps: list,
-                      use_ollama=False, disable_think=False) -> Optional[dict]:
+                      use_ollama=False, disable_think=False, ollama_model=None) -> Optional[dict]:
         if not self.llm_call:
             return None
 
@@ -479,7 +481,7 @@ Output ONLY the JSON. No markdown."""
             raw = self._stream_llm_call(
                 system_prompt, user_msg,
                 use_ollama=use_ollama, disable_think=disable_think,
-                json_mode=True
+                json_mode=True, ollama_model=ollama_model
             )
             data = _extract_json(raw)
             if data:
@@ -506,7 +508,7 @@ CRITICAL RULES:
 5. Provide a clear, actionable recommendation at the end."""
 
     def _llm_synthesize(self, query: str, observations: list, steps: list,
-                        use_ollama=False, disable_think=False, stream=False) -> str:
+                        use_ollama=False, disable_think=False, stream=False, ollama_model=None) -> str:
         if not self.llm_call:
             return "Standard fallback report. Execution complete."
 
@@ -518,7 +520,8 @@ CRITICAL RULES:
         try:
             return self._stream_llm_call(
                 self._SYNTH_SYSTEM, user_msg,
-                use_ollama=use_ollama, disable_think=disable_think
+                use_ollama=use_ollama, disable_think=disable_think,
+                ollama_model=ollama_model
             )
         except Exception as e:
             sys.stderr.write(f"[SanAgent] Synthesis failed: {e}\n")
@@ -528,24 +531,29 @@ CRITICAL RULES:
 
     def run(self, query: str, array_hint: Optional[str] = None,
             on_step: Optional[callable] = None,
-            use_ollama=False, disable_think=False, stream=False) -> dict:
+            use_ollama=False, disable_think=False, ollama_model: Optional[str] = None,
+            request_id: Optional[str] = None, stream=False) -> dict:
         self.on_step = on_step
+        self.request_id = request_id
         try:
             return self._run_agentic(query, array_hint,
                                      use_ollama=use_ollama,
                                      disable_think=disable_think,
+                                     ollama_model=ollama_model,
+                                     request_id=request_id,
                                      stream=stream)
         finally:
             self.on_step = None
 
     def _run_agentic(self, query: str, array_hint: Optional[str] = None,
-                      use_ollama=False, disable_think=False, stream=False) -> dict:
+                      use_ollama=False, disable_think=False, ollama_model: Optional[str] = None,
+                      request_id: Optional[str] = None, stream=False) -> dict:
         steps: list[dict] = []
         observations = []
         t0 = time.time()
 
         # 1. Intent Gate
-        intent_data = self._llm_classify_intent(query, use_ollama=use_ollama, disable_think=disable_think)
+        intent_data = self._llm_classify_intent(query, use_ollama=use_ollama, disable_think=disable_think, ollama_model=ollama_model)
         if intent_data["intent"] in ("GREETING", "OUT_OF_SCOPE"):
             resp_text = intent_data["response"] or "I am focused on HPE SAN diagnostics and management."
             if stream:
@@ -563,7 +571,7 @@ CRITICAL RULES:
         topology_context = self._load_topology_context()
 
         # 3. Plan Initial Tool Calls
-        plan = self._llm_plan(query, topology_context, steps, use_ollama=use_ollama, disable_think=disable_think)
+        plan = self._llm_plan(query, topology_context, steps, use_ollama=use_ollama, disable_think=disable_think, ollama_model=ollama_model)
         tool_calls = plan.get("tool_calls") or []
 
         # 4. Loop: Execute and Reflect
@@ -586,7 +594,7 @@ CRITICAL RULES:
                         "raw_output": raw
                     })
                 elif tool_name == "run_cypher":
-                    rows = self._tool_run_cypher(args.get("query"), steps, use_ollama, disable_think)
+                    rows = self._tool_run_cypher(args.get("query"), steps, use_ollama, disable_think, ollama_model)
                     observations.append({
                         "action": "run_cypher",
                         "query": args.get("query"),
@@ -602,13 +610,13 @@ CRITICAL RULES:
                     })
 
             # Reflect
-            reflection = self._llm_reflect(query, topology_context, observations, steps, use_ollama, disable_think)
+            reflection = self._llm_reflect(query, topology_context, observations, steps, use_ollama, disable_think, ollama_model)
             if not reflection or reflection.get("done") is True:
                 break
             tool_calls = reflection.get("tool_calls") or []
 
         # 5. Synthesize Answer
-        answer = self._llm_synthesize(query, observations, steps, use_ollama, disable_think, stream)
+        answer = self._llm_synthesize(query, observations, steps, use_ollama, disable_think, stream, ollama_model)
         self._step(steps, "final", "Final result", "Successfully completed diagnostics assessment.")
 
         # Build Cypher/Table fallbacks from observations
