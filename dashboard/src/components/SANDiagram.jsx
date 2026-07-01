@@ -1,6 +1,8 @@
 import { useMemo, useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeClick, selectedIds, onSelectToggle, searchQuery }) {
+  const navigate = useNavigate();
   const { nodes = [], edges = [] } = data || {};
 
   const [colWidths, setColWidths] = useState([350, 380, 350]);
@@ -162,6 +164,12 @@ export default function SANDiagram({ data, focusedId, expandedIds = [], onNodeCl
           onClick={(e) => {
             e.stopPropagation();
             onNodeClick(node.id, false);
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            sessionStorage.setItem('target_console_device_name', node.name || node.id);
+            navigate('/emulator');
           }}
           className={`san-node ${focused ? "focused" : highlight ? "expanded" : ""} ${isSearchMatch ? "search-match-pulse" : ""}`}
           style={{

@@ -11,7 +11,6 @@ import AdminPage from './pages/AdminPage'
 import HealthPage from './pages/HealthPage'
 import InventoryPage from './pages/InventoryPage'
 import SSHRingPage from './pages/SSHRingPage'
-import SANAutonomousAgentPage from './pages/SANAutonomousAgentPage'
 import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check, Cpu } from 'lucide-react'
 
 const FLASK_API = `http://${window.location.hostname}:5005`
@@ -21,7 +20,6 @@ const NAV_ITEMS = [
   { path: '/topology', label: 'Dashboard', icon: Map, desc: 'SAN diagram & ring topology' },
   { path: '/ssh-ring', label: 'Inventory', icon: Layers, desc: 'Configure and discover SSH rings' },
   { path: '/chat', label: 'AI Assistant', icon: MessageSquare, desc: 'Intelligent chat' },
-  { path: '/autonomous-agent', label: 'Autonomous Agent', icon: Activity, desc: 'SAN LangGraph tool clockwork' },
   { path: '/emulator', label: 'SSH Console', icon: Terminal, desc: 'CLI terminal' },
   { path: '/admin', label: 'Admin', icon: Settings, desc: 'Device & schema mgmt' },
   { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
@@ -433,7 +431,6 @@ export default function App() {
         '/topology': true,
         '/inventory': true,
         '/chat': true,
-        '/autonomous-agent': false,
         '/admin': false,
         '/health': false,
         '/discovery': false,
@@ -445,7 +442,6 @@ export default function App() {
         '/topology': true,
         '/inventory': true,
         '/chat': true,
-        '/autonomous-agent': false,
         '/admin': false,
         '/health': false,
         '/discovery': false,
@@ -699,7 +695,6 @@ export default function App() {
                   <Route path="/ssh-ring" element={<SSHRingPage apiBase={FLASK_API} />} />
                   <Route path="/emulator" element={<EmulatorPage apiBase={FLASK_API} deviceFilter={deviceFilter} />} />
                   <Route path="/chat" element={<ChatPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
-                  <Route path="/autonomous-agent" element={<SANAutonomousAgentPage apiBase={FLASK_API} />} />
                   <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} /> : <Navigate to="/ssh-ring" replace />} />
                   <Route path="/health" element={<HealthPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="*" element={<Navigate to="/ssh-ring" replace />} />

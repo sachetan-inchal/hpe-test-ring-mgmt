@@ -74,6 +74,7 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
   const filterType = deviceFilter || 'virtual'
   const [virtualDevices, setVirtualDevices] = useState([])
   const [realDevices, setRealDevices] = useState([])
+  const [pulsingDeviceId, setPulsingDeviceId] = useState(null)
 
   // Terminal states: 'disconnected' | 'ssh_init' | 'awaiting_yes_no' | 'awaiting_password' | 'connected'
   const [sshState, setSshState] = useState('disconnected')
@@ -108,6 +109,37 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
         setRealDevices(real)
       }).catch(() => { })
   }, [API])
+
+  // Check for right-click navigation connection redirect
+  useEffect(() => {
+    const targetName = sessionStorage.getItem('target_console_device_name')
+    if (!targetName) return
+
+    // Wait until lists are loaded
+    if (virtualDevices.length === 0 && realDevices.length === 0) return
+
+    const found = virtualDevices.find(d => (d.name || d.device_name || '').toLowerCase() === targetName.toLowerCase() || (d.ip || '').toLowerCase() === targetName.toLowerCase()) ||
+                  realDevices.find(d => (d.name || d.device_name || '').toLowerCase() === targetName.toLowerCase() || (d.ip || d.ip_address || '').toLowerCase() === targetName.toLowerCase())
+    if (found) {
+      const devId = found.name || found.device_name || found.ip || found.ip_address
+      setPulsingDeviceId(devId)
+      
+      // Auto-scroll to target card
+      setTimeout(() => {
+        const el = document.getElementById(`device-card-${devId.replace(/\s+/g, '-')}`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 200)
+
+      handleSidebarClick(found)
+      
+      setTimeout(() => {
+        setPulsingDeviceId(null)
+      }, 3000)
+      sessionStorage.removeItem('target_console_device_name')
+    }
+  }, [virtualDevices, realDevices])
 
   // Initialize terminal banner
   useEffect(() => {
@@ -495,6 +527,7 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
               const isCurrentInband = activeDevice?.ip === ip || activeDevice?.ip_address === ip
               const isCurrentOob = oobIp && (activeDevice?.ip === oobIp || activeDevice?.ip_address === oobIp)
               const isCurrent = isCurrentInband || isCurrentOob
+              const isPulsing = pulsingDeviceId && (pulsingDeviceId === name || pulsingDeviceId === ip || pulsingDeviceId === oobIp)
               const category = d.type || d.category || 'host'
               const user = d.username || getSSHUserForDevice(d)
 
@@ -503,6 +536,8 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
                 return (
                   <div
                     key={name + '-' + ip}
+                    id={`device-card-${name.replace(/\s+/g, '-')}`}
+                    className={isPulsing ? 'sidebar-glow-pulse' : ''}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -601,7 +636,9 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
               return (
                 <button
                   key={name + '-' + ip}
+                  id={`device-card-${name.replace(/\s+/g, '-')}`}
                   onClick={() => handleSidebarClick(d)}
+                  className={isPulsing ? 'sidebar-glow-pulse' : ''}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -637,6 +674,18 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
             })}
           </div>
         </div>
+
+        {/* Dynamic Keyframe Injection */}
+        <style>{`
+          @keyframes sidebarGlowPulse {
+            0% { box-shadow: 0 0 0 0 rgba(241, 196, 15, 0.8); border-color: #f1c40f; }
+            50% { box-shadow: 0 0 20px 6px rgba(241, 196, 15, 0.8); border-color: #f1c40f; }
+            100% { box-shadow: 0 0 0 0 rgba(241, 196, 15, 0); }
+          }
+          .sidebar-glow-pulse {
+            animation: sidebarGlowPulse 1.5s 2 ease-in-out !important;
+          }
+        `}</style>
 
         {/* Terminal area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>

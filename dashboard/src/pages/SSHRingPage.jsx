@@ -1,9 +1,11 @@
 import { useEffect, useState, useContext } from 'react'
 import { Plus, Trash2, RefreshCw } from 'lucide-react'
 import { AuthContext } from '../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 export default function SSHRingPage({ apiBase }) {
   const { user } = useContext(AuthContext)
+  const navigate = useNavigate()
   const API = apiBase || ''
 
   // Credentials List
@@ -1449,7 +1451,24 @@ export default function SSHRingPage({ apiBase }) {
                           />
                         )}
                       </td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px', fontWeight: 600 }}>{device.device_name}</td>
+                      <td 
+                        onClick={() => {
+                          sessionStorage.setItem('target_focused_node_id', device.device_name || device.ip)
+                          navigate('/topology')
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          sessionStorage.setItem('target_console_device_name', device.device_name || device.ip)
+                          navigate('/emulator')
+                        }}
+                        style={{ 
+                          padding: '12px 8px', fontSize: '13px', fontWeight: 600, 
+                          color: 'var(--accent-blue)', cursor: 'pointer', textDecoration: 'underline' 
+                        }}
+                        title="Click: Dashboard | Right-click: SSH Console"
+                      >
+                        {device.device_name}
+                      </td>
                       <td style={{ padding: '12px 8px', fontSize: '13px' }}>
                         <span style={{
                           padding: '2px 6px', borderRadius: 4, fontSize: '10px', fontWeight: 'bold',

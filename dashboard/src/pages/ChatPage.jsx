@@ -1836,25 +1836,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             </div>
           ))}
         </div>
-        {/* AI Mode toggle */}
         <div style={{ padding: 12, borderTop: '1px solid var(--line)' }}>
-          <div className="section-label" style={{ marginBottom: 8 }}>AI Engine</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <button className={`btn btn-sm ${aiMode === 'agent' ? 'btn-primary' : ''}`} style={{ justifyContent: 'center', fontSize: 10 }}
-              onClick={() => setAiMode('agent')}>
-              <Bot size={12} /> SAN Agent
-            </button>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button className={`btn btn-sm ${aiMode === 'standard' ? 'btn-primary' : ''}`} style={{ flex: 1, justifyContent: 'center', fontSize: 10 }}
-                onClick={() => setAiMode('standard')}>
-                <Sparkles size={12} /> Standard
-              </button>
-              <button className={`btn btn-sm ${aiMode === 'graphrag' ? 'btn-primary' : ''}`} style={{ flex: 1, justifyContent: 'center', fontSize: 10 }}
-                onClick={() => setAiMode('graphrag')}>
-                <Database size={12} /> GraphRAG
-              </button>
-            </div>
-          </div>
 
           {/* LLM API Calls Counter */}
           <div style={{ 
@@ -2175,7 +2157,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 4 }}>
             <textarea ref={inputRef} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown}
-              placeholder={`Ask about your SAN (${aiMode === 'agent' ? 'SAN Agent' : aiMode === 'graphrag' ? 'GraphRAG' : 'Standard'} mode)...`}
+              placeholder="Ask about your SAN (Autonomous Agent mode)..."
               disabled={loading}
               rows={1}
               style={{

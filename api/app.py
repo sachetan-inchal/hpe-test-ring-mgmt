@@ -1644,81 +1644,49 @@ def _san_agent_executor(ip, cmd):
     else:
         cmd_to_run = cmd
 
-    # Route execution to proper connection type using abstract DeviceConnector layer
-    from api.integrations.device_connector import SimulatorConnector, SSHConnector
-    if _terminal_gateway.connection_type == "ssh":
-        target_ip = ip if ip else _terminal_gateway.ssh_host
-        password = _terminal_gateway.ssh_password
-        username = _terminal_gateway.ssh_username or "root"
-        
-        # 1. Automate discovery/lookup: pull password from Mongo database
-        if not password and mongo.available:
-            try:
-                db = mongo.db
-                cred = db.ssh_credentials.find_one({"ip": target_ip})
-                if cred:
-                    username = cred.get("username", username)
-                    password = _decrypt_password(cred.get("password"))
-            except Exception as e:
-                log.warning(f"Database lookup for credentials failed: {e}")
-                
-        if not password:
-            # Emit auth failure event if no password credentials exist
-            discovery_crawler._emit({
-                "type": "auth_failed",
-                "ip": target_ip,
-                "msg": f"Missing SSH password credentials for {target_ip} in master index."
+    # Check if this IP/Name is in Mongo ssh_credentials and is a real device
+    is_real = False
+    username = "root"
+    password = None
+    port = 22
+    if mongo.available:
+        try:
+            db = mongo.db
+            cred = db.ssh_credentials.find_one({
+                "$or": [
+                    {"ip": ip},
+                    {"ip_address": ip},
+                    {"oob_ip": ip},
+                    {"device_name": ip}
+                ]
             })
-            return f"Error: SSH credentials not configured for {target_ip}"
-            
+            if cred:
+                is_real = (cred.get("device_kind") == "real")
+                username = cred.get("username", username)
+                password = _decrypt_password(cred.get("password")) if cred.get("password") else None
+                port = int(cred.get("port", port))
+        except Exception as e:
+            log.warning(f"Database lookup for credentials failed: {e}")
+
+    if is_real:
+        from api.integrations.device_connector import SSHConnector
+        if not password:
+            password = "root"
         connector = SSHConnector(
-            host=target_ip,
+            host=ip,
             username=username,
-            password=password
+            password=password,
+            port=port
         )
         if connector.connect():
             res = connector.execute(cmd_to_run)
             connector.disconnect()
             return res.get("stdout", "") + "\n" + res.get("stderr", "")
         else:
-            # 2. Failed password fallback prompt: emit auth_failed SSE event to trigger dashboard input modal
-            discovery_crawler._emit({
-                "type": "auth_failed",
-                "ip": target_ip,
-                "msg": f"SSH connection credentials rejected for host {target_ip}."
-            })
-            return f"SSH Connection Authentication Failure to {target_ip}"
-    elif _terminal_gateway.connection_type == "local":
-        import subprocess
-        import os
-        try:
-            # Dynamically locate the scratch/mock_hpe_cli folder in the monorepo
-            mock_cli_dir = os.path.abspath(os.path.join(MONOREPO, "scratch", "mock_hpe_cli"))
-            
-            # Setup environment with the mock CLI in Path
-            env = os.environ.copy()
-            path_key = "PATH"
-            for k in env.keys():
-                if k.upper() == "PATH":
-                    path_key = k
-                    break
-            env[path_key] = mock_cli_dir + os.pathsep + env.get(path_key, "")
-            
-            res = subprocess.run(["powershell", "-Command", cmd_to_run], capture_output=True, text=True, env=env, timeout=15)
-            return res.stdout + "\n" + res.stderr
-        except Exception as e:
-            return f"Local PowerShell Error: {str(e)}"
-    elif _terminal_gateway.connection_type == "desktop":
-        # Use the embedded browser shell (DesktopShell subprocess)
-        if not _desktop_shell.is_running():
-            try:
-                _desktop_shell.spawn()
-                log.info('[TerminalGateway] Desktop shell auto-spawned on-demand.')
-            except Exception as e:
-                return f"Error: Failed to auto-spawn terminal shell: {e}"
-        return _desktop_shell.run_command(cmd_to_run)
+            return f"SSH Connection Authentication Failure to {ip}"
     else:
         # Fall back to SimulatorConnector
+        from api.integrations.device_connector import SimulatorConnector
         connector = SimulatorConnector(virtual_network, ip)
         res = connector.execute(cmd_to_run)
         return res.get("stdout", "")

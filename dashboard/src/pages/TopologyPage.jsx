@@ -203,6 +203,22 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
     }
   }, [user, allTeamsList])
 
+  useEffect(() => {
+    if (data.nodes && data.nodes.length > 0) {
+      const targetId = sessionStorage.getItem('target_focused_node_id')
+      if (targetId) {
+        const matched = data.nodes.find(n => n.id.toLowerCase() === targetId.toLowerCase() || n.name?.toLowerCase() === targetId.toLowerCase())
+        if (matched) {
+          setFocusedId(matched.id)
+          if ((matched.type || '').toLowerCase().includes('array')) {
+            setSelectedArrayId(matched.id)
+          }
+        }
+        sessionStorage.removeItem('target_focused_node_id')
+      }
+    }
+  }, [data])
+
   // When role changes, reset team selection
   const handleRoleChange = (newRole) => {
     setRole(newRole)
