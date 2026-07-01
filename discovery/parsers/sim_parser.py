@@ -13,8 +13,13 @@ import logging
 log = logging.getLogger(__name__)
 
 def run_js_parser(cmd_or_func: str, cli_output: str):
-    """
-    Executes the Node.js runner to parse the CLI output.
+    """Executes the Node.js runner to parse the CLI output.
+
+    NOTE: The Node runner is responsible for extracting/parsing the JS functions from
+    discovery/parsers/testcases-markdown.md and executing them in a sandbox.
+
+    Important: The parser functions expect *pure JS parsing logic* (no markdown syntax).
+    This backend passes only raw CLI output to the runner.
     """
     if not cli_output or not cli_output.strip():
         # Return appropriate defaults for empty input
@@ -30,15 +35,15 @@ def run_js_parser(cmd_or_func: str, cli_output: str):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            encoding="utf-8"
+            encoding="utf-8",
         )
-        stdout, stderr = proc.communicate(input=cli_output, timeout=10)
-        
+        stdout, stderr = proc.communicate(input=cli_output, timeout=15)
+
         if proc.returncode == 0:
             try:
                 return json.loads(stdout)
             except Exception as json_err:
-                log.error(f"[js_parser] JSON decode failed for {cmd_or_func}: {json_err}")
+                log.error(f"[js_parser] JSON decode failed for {cmd_or_func}: {json_err} | stdout={stdout[:200]}")
                 return {}
         else:
             log.error(f"[js_parser] Runner error for {cmd_or_func}: {stderr}")
@@ -46,6 +51,7 @@ def run_js_parser(cmd_or_func: str, cli_output: str):
     except Exception as e:
         log.error(f"[js_parser] Subprocess execution failed for {cmd_or_func}: {e}")
         return {}
+
 
 
 # ─────────────────────────────── Wrappers ──────────────────────────────────────
