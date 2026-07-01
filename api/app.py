@@ -4416,6 +4416,160 @@ def v1_monorepo_neo4j():
 def v1_monorepo_search():
     return everything_search()
 
+@app.route("/api/parsers/testcases-markdown", methods=["GET"])
+def get_testcases_markdown_parsers():
+    file_path = os.path.join(MONOREPO, "discovery", "parsers", "testcases-markdown.md")
+    if not os.path.exists(file_path):
+        return jsonify({"error": f"File not found: {file_path}"}), 404
+        
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            
+        raw_sections = re.split(r'^## FOR ', content, flags=re.MULTILINE)
+        
+        preface = ""
+        if raw_sections and not content.startswith("## FOR "):
+            preface = raw_sections.pop(0)
+            
+        parsers = []
+        for raw_sec in raw_sections:
+            if not raw_sec.strip():
+                continue
+            lines = raw_sec.split("\n")
+            title = lines[0].strip()
+            body = "\n".join(lines[1:])
+            
+            # Extract JS code block after **PARSING FUNCTION:**
+            js_match = re.search(r'\*\*PARSING FUNCTION:\*\*\s*\n*```(?:javascript|js)\n(.*?)```', body, re.DOTALL | re.IGNORECASE)
+            code = js_match.group(1).strip() if js_match else ""
+            
+            if not code:
+                # Fallback to any js block
+                js_block = re.search(r'```(?:javascript|js)\n(.*?)```', body, re.DOTALL | re.IGNORECASE)
+                if js_block:
+                    code = js_block.group(1).strip()
+            
+            func_name = ""
+            if code:
+                name_match = re.search(r'function\s+(\w+)', code)
+                if name_match:
+                    func_name = name_match.group(1)
+                    
+            # Extract CLI outputs
+            cli_outputs = []
+            cli_matches = re.finditer(r'\*\*CLI O/P.*?\*\*.*?\n```\n*(.*?)\n*```', body, re.DOTALL | re.IGNORECASE)
+            for m in cli_matches:
+                cli_outputs.append(m.group(1).strip())
+                
+            if not cli_outputs:
+                # Fallback to non-js, non-json blocks
+                all_blocks = re.finditer(r'```(\w*)\n*(.*?)\n*```', body, re.DOTALL)
+                for ab in all_blocks:
+                    lang = ab.group(1).strip().lower()
+                    if lang not in ('javascript', 'js', 'json'):
+                        cli_outputs.append(ab.group(2).strip())
+                        
+            # Extract expected parsed outputs
+            parsed_outputs = []
+            parsed_matches = re.finditer(r'\*\*PARSED OUTPUT.*?\*\*.*?\n```(?:json)?\n*(.*?)\n*```', body, re.DOTALL | re.IGNORECASE)
+            for pm in parsed_matches:
+                parsed_outputs.append(pm.group(1).strip())
+                
+            if not parsed_outputs:
+                json_blocks = re.finditer(r'```json\n*(.*?)\n*```', body, re.DOTALL | re.IGNORECASE)
+                for jb in json_blocks:
+                    parsed_outputs.append(jb.group(1).strip())
+                    
+            parsers.append({
+                "title": title,
+                "func_name": func_name,
+                "code": code,
+                "cli_outputs": cli_outputs,
+                "parsed_outputs": parsed_outputs
+            })
+            
+        return jsonify({
+            "preface": preface,
+            "functions": parsers
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/parsers/testcases-markdown", methods=["POST"])
+def save_testcases_markdown_parsers():
+    file_path = os.path.join(MONOREPO, "discovery", "parsers", "testcases-markdown.md")
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON data provided"}), 400
+        
+    preface = data.get("preface", "")
+    functions = data.get("functions", [])
+    
+    try:
+        out = []
+        if preface:
+            out.append(preface.strip())
+            
+        for sec in functions:
+            title = sec.get("title", "").strip()
+            if not title:
+                title = sec.get("func_name", "").upper()
+            if not title:
+                continue
+                
+            out.append(f"## FOR {title}")
+            out.append("")
+            
+            # CLI Outputs
+            cli_outs = sec.get("cli_outputs", [])
+            if not cli_outs:
+                cli_val = sec.get("cli_output")
+                if cli_val:
+                    cli_outs = [cli_val]
+            
+            for idx, cli in enumerate(cli_outs):
+                label = "CLI O/P"
+                if len(cli_outs) > 1:
+                    label += f" (Variant {idx + 1})"
+                out.append(f"**{label}:**")
+                out.append("```")
+                out.append(cli.strip())
+                out.append("```")
+                out.append("")
+                
+            # Parsing Function
+            out.append("**PARSING FUNCTION:**")
+            out.append("```javascript")
+            out.append(sec.get("code", "").strip())
+            out.append("```")
+            out.append("")
+            
+            # Parsed Outputs
+            parsed_outs = sec.get("parsed_outputs", [])
+            if not parsed_outs:
+                parsed_val = sec.get("parsed_output")
+                if parsed_val:
+                    parsed_outs = [parsed_val]
+            for idx, po in enumerate(parsed_outs):
+                label = "PARSED OUTPUT"
+                if len(parsed_outs) > 1:
+                    label += f" (Variant {idx + 1})"
+                out.append(f"**{label}:**")
+                out.append("```json")
+                out.append(po.strip())
+                out.append("```")
+                out.append("")
+                
+        # Join and write
+        new_content = "\n".join(out).strip() + "\n"
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+            
+        return jsonify({"success": True, "message": "testcases-markdown.md saved successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_react(path):

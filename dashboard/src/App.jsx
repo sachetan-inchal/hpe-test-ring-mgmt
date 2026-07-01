@@ -11,7 +11,8 @@ import AdminPage from './pages/AdminPage'
 import HealthPage from './pages/HealthPage'
 import InventoryPage from './pages/InventoryPage'
 import SSHRingPage from './pages/SSHRingPage'
-import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check, Cpu } from 'lucide-react'
+import TestcasesMarkdownViewerPage from './pages/TestcasesMarkdownViewerPage'
+import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check, Cpu, PanelTop, FileCode } from 'lucide-react'
 
 const FLASK_API = `http://${window.location.hostname}:5005`
 const CHATBOT_API = '/chatbot'
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
   { path: '/discovery', label: '(Virtual demo) Discovery', icon: Radar, desc: 'Live BFS network scan' },
   { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
+  { path: '/parser-editor', label: 'PARSER EDITOR', icon: FileCode, desc: 'View parser output for testcases-markdown.md' },
 ]
 
 function ProtectedRoute({ children }) {
@@ -435,6 +437,7 @@ export default function App() {
         '/health': false,
         '/discovery': false,
         '/emulator': false,
+        '/parser-editor': true,
       }
     } catch {
       return {
@@ -446,6 +449,7 @@ export default function App() {
         '/health': false,
         '/discovery': false,
         '/emulator': false,
+        '/parser-editor': true,
       }
     }
   })
@@ -697,6 +701,7 @@ export default function App() {
                   <Route path="/chat" element={<ChatPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} /> : <Navigate to="/ssh-ring" replace />} />
                   <Route path="/health" element={<HealthPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
+                  <Route path="/parser-editor" element={<TestcasesMarkdownViewerPage apiBase={FLASK_API} />} />
                   <Route path="*" element={<Navigate to="/ssh-ring" replace />} />
                 </Routes>
               </div>
