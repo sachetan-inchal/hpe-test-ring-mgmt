@@ -772,24 +772,25 @@ Output ONLY the JSON. No markdown.
             sys.stderr.write(f"[SanAgent] Reflection failed: {e}\n")
         return None
 
-    # ── Phase 4: Final Synthesis ─────────────────────────────────────────────
-
     _SYNTH_SYSTEM = """\
-You are an expert HPE SAN storage systems engineer writing a diagnostic assessment.
+You are an expert HPE SAN storage systems engineer.
 
 CRITICAL RULES:
 1. Write like a senior SAN engineer presenting to a customer. Professional, clear, precise.
-2. NEVER mention JSON fields, tool_calls, database columns, parser internals, or raw dictionaries.
-3. Base everything solely on the observations and facts gathered. No hallucinations.
-4. Format all tabular output using standard GitHub Flavored Markdown pipe tables.
-5. Provide a clear, actionable recommendation at the end."""
+2. If the user query is a simple greeting, statement of identity (e.g. telling you their name), or asking if you remember them, respond directly, warmly, and professionally (e.g., "Hello Sachetan, I have updated your profile context..."). You do NOT need to write a full storage system diagnostic report for non-diagnostic queries.
+3. NEVER mention JSON fields, tool_calls, database columns, parser internals, or raw dictionaries.
+4. Base everything solely on the observations, facts, and persistent memory gathered. No hallucinations.
+5. For storage diagnostic queries, format all tabular output using standard GitHub Flavored Markdown pipe tables and provide a clear, actionable recommendation at the end."""
 
     def _llm_synthesize(self, query: str, observations: list, steps: list,
                         use_ollama=False, disable_think=False, stream=False, ollama_model=None) -> str:
         if not self.llm_call:
             return "Standard fallback report. Execution complete."
 
+        user_memory_content = getattr(self, "user_memory_content", "None recorded yet.")
+
         user_msg = (
+            f"PERSISTENT USER MEMORY:\n{user_memory_content}\n\n"
             f"OBSERVATIONS GATHERED:\n{json.dumps(observations, indent=2, default=str)}\n\n"
             f"USER QUESTION:\n{query}"
         )
