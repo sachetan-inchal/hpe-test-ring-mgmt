@@ -105,6 +105,8 @@ class SanAgent:
         self.command_parsers = command_parsers or {}
         self.parse_array_outputs = parse_array_outputs or parse_sim_array_output
         self.request_id = None
+        self.notebook = {}
+        self.notebook_summary = {}
 
     def _load_topology_context(self) -> str:
         """Dynamic lookup of all devices, kinds, teams, and IP distribution context."""
@@ -272,11 +274,12 @@ INVENTORY TOPO (Devices available in the network):
 
 CALLABLE TOOLS:
 1. ssh_execute(device_name, ip, command)
-   - Establish connection to a device (real SSH or mock simulator) and run a CLI command (or standard Linux shell commands like lscpu, uname, etc. for hosts).
-   - Allowed commands: showsys, showhost, showport, showpd, showcage, showcage -state, showversion -b, shownode, showswitch, cli checkhealth, lscpu, uname.
+   - Establish connection to an INVENTORY TOPO device using default/pre-configured simulator credentials and run a single CLI command.
+   - ONLY use this for standard topology devices listed in INVENTORY TOPO.
+   - Do NOT use this if the user provides explicit custom credentials, custom username, password, or custom port.
    - Args:
      - device_name: name of target device
-     - ip: target IP (use in-band or oob_ip exactly as requested or resolved)
+     - ip: target IP
      - command: CLI command string
 2. run_cypher(query)
    - Run a read-only Cypher query on the Neo4j graph database to retrieve topology relationships.
@@ -290,17 +293,46 @@ CALLABLE TOOLS:
      - device_name: name of target device
      - command: command string
      - raw_output: raw text output from ssh_execute
+4. read_neo4j_manual()
+   - Retrieve the full schema documentation, node label properties, and guidelines for writing Neo4j Cypher queries for the HPE SAN network topology.
+   - Args: None
+5. ssh_custom_execute(host, username, password, port, commands)
+   - CRITICAL: You MUST use this tool whenever the user explicitly provides custom SSH credentials (such as username, password, custom port, etc.) or when connecting to a custom target host (e.g. 127.0.0.1 on port 2201).
+   - This tool establishes a direct connection using Paramiko.
+   - Pass multiple commands as a list of strings, e.g. ["showsys", "shownode", "showswitch"] or as a newline-separated string. Do NOT concatenate them with commas like "showsys,shownode,showswitch" in a single command.
+   - Args:
+     - host: Target host IP or hostname (string)
+     - username: SSH username (string)
+     - password: SSH password (string)
+     - port: SSH port (integer)
+     - commands: A list of command strings or a single command string to execute.
+6. write_notebook(key, content)
+   - Save raw command logs, outputs, search results, or notes under a specific key in the local scratchpad. Use this to remember long outputs without cluttering the context window.
+   - Args:
+     - key: Unique identifier string for the note/log
+     - content: Full text content to store
+7. read_notebook_summary()
+   - Return a summary index of all stored keys and previews in the scratchpad.
+   - Args: None
+8. read_notebook_key(key, start_line, end_line)
+   - Read the exact content stored under a key in the scratchpad. You can specify start_line and end_line to retrieve specific lines/chunks instead of loading the entire content.
+   - Args:
+     - key: The notepad key to read
+     - start_line: 1-indexed start line number (default 1)
+     - end_line: 1-indexed end line number (optional)
 
 Return ONLY a JSON object:
 {{
   "reasoning": "Plan/Reflect reasoning...",
   "tool_calls": [
     {{
-      "tool": "ssh_execute" | "run_cypher" | "parse_and_persist",
+      "tool": "ssh_execute" | "run_cypher" | "parse_and_persist" | "read_neo4j_manual" | "ssh_custom_execute" | "write_notebook" | "read_notebook_summary" | "read_notebook_key",
       "args": {{ ... }}
     }}
   ]
 }}
+
+
 
 Output ONLY the JSON. No markdown, no text outside the JSON."""
 
@@ -436,6 +468,162 @@ Output ONLY the JSON. No markdown, no text outside the JSON."""
             out.append(row)
         return out
 
+    def _tool_read_neo4j_manual(self, steps: list) -> str:
+        self._step(steps, "thinking", "Manual: Reading Schema", "Retrieving the Neo4j SAN Knowledge-base manual and schema guide.")
+        manual_content = """\\
+=== NEO4J SAN KNOWLEDGE-BASE MANUAL ===
+The topology of the SAN network is stored in Neo4j with the following Node types and relationships.
+
+1. NODE LABELS:
+- ArraySystem: Represents the storage array (e.g. ARR-01).
+  Properties: ip_address, name, model, serial, release_version, total_cap_mib, free_cap_mib, config_type, node_count, is_decommissioned.
+- Node: Controller node inside an array.
+  Properties: node_id, name, is_master, mem_mib, up_since.
+- Port: Physical port on a controller node or switch.
+  Properties: port_id, name, type, speed, state.
+- Switch: FC switch.
+  Properties: name, state, mode, serial, temperature, model, ip_address.
+- Host: Compute server/host.
+  Properties: ip_address, name, os_name, os_version, wwn, multipath, device_type.
+- Cage: Drive enclosure shelf.
+  Properties: cage_id, name, state, model, drive_count, temperature.
+- PhysicalDisk: Hard disk drive.
+  Properties: serial, pd_id, cage_pos, drive_type, manufacturer, model, firmware_rev, capacity_gb, sed_state, protocol, state, health, device.
+
+2. RELATIONSHIPS:
+- (a:ArraySystem)-[:HAS_NODE]->(n:Node)
+- (n:Node)-[:HAS_PORT]->(p:Port)
+- (a:ArraySystem)-[:HAS_CAGE]->(c:Cage)
+- (c:Cage)-[:CONTAINS]->(d:PhysicalDisk)
+- (p1:Port)-[:CONNECTS_TO]->(p2:Port)  -- Connects a node port to switch/host port or vice versa
+- (h:Host)-[:CONNECTS_TO]->(a:ArraySystem)
+- (h:Host)-[:HAS_DISK]->(d:PhysicalDisk)
+- (a:ArraySystem)-[:HAS_SWITCH]->(s:Switch)
+- (a:ArraySystem)-[:REMOTE_COPY_PEER]->(a2:ArraySystem)
+
+3. IMPORTANT QUERYING AND ONTOLOGY NOTES:
+- IMPORTANT: There is NO node labeled "Device" in the database! Do not run "MATCH (d:Device) ...".
+- "Device" types/kinds (real vs virtual/mock) are NOT stored in Neo4j directly as a property of a single "Device" node. They are categorized based on their Node labels:
+  - Storage arrays are labeled `ArraySystem`.
+  - Switches are labeled `Switch`.
+  - Compute hosts are labeled `Host`.
+  - Individual virtual/mock devices vs. real ones can be referenced in the INVENTORY TOPO context or by checking the MongoDB `ssh_credentials` collection.
+  - To check all active array systems in Neo4j: `MATCH (a:ArraySystem) RETURN a`
+  - To check switches: `MATCH (s:Switch) RETURN s`
+  - To check hosts: `MATCH (h:Host) RETURN h`
+"""
+        return manual_content
+
+    def _tool_ssh_custom_execute(self, host: str, username: str, password: str, port: Any, commands: Any, steps: list) -> str:
+        self._step(steps, "command", "SSH Custom: Connecting", f"Connecting to {username}@{host}:{port} via SSH...")
+        import paramiko
+        
+        try:
+            port_val = int(port)
+        except Exception:
+            port_val = 22
+
+        if isinstance(commands, str):
+            if "\\n" in commands or "\n" in commands:
+                cmd_list = [c.strip() for c in commands.replace("\\n", "\n").split("\n") if c.strip()]
+            else:
+                cmd_list = [commands]
+        elif isinstance(commands, list):
+            cmd_list = [str(c) for c in commands]
+        else:
+            cmd_list = [str(commands)]
+
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        try:
+            client.connect(
+                hostname=host,
+                username=username,
+                password=password,
+                port=port_val,
+                timeout=10.0
+            )
+            self._step(steps, "command", "SSH Custom: Connected", f"Successfully connected to {host}:{port_val}.")
+        except Exception as e:
+            err_msg = f"SSH connection failed: {str(e)}"
+            self._step(steps, "error", "SSH Custom: Connection Failed", err_msg)
+            return err_msg
+
+        results = []
+        try:
+            for cmd in cmd_list:
+                self._step(steps, "command", f"SSH Custom: Executing", f"Running `{cmd}`...", command=cmd, device_ip=host)
+                try:
+                    stdin, stdout, stderr = client.exec_command(cmd)
+                    out = stdout.read().decode('utf-8', errors='replace')
+                    err = stderr.read().decode('utf-8', errors='replace')
+                    exit_code = stdout.channel.recv_exit_status()
+                    
+                    combined = f"Exit code: {exit_code}\\nSTDOUT:\\n{out}"
+                    if err:
+                        combined += f"\\nSTDERR:\\n{err}"
+                    
+                    self._step(steps, "command", f"SSH Custom: Command Completed", f"Completed `{cmd}` with exit code {exit_code}.", command=cmd, device_ip=host, command_output=combined)
+                    results.append(f"Command: {cmd}\\n{combined}")
+                except Exception as ex:
+                    err_msg = f"Failed to execute `{cmd}`: {str(ex)}"
+                    self._step(steps, "error", f"SSH Custom: Command Failed", err_msg)
+                    results.append(f"Command: {cmd}\\nError: {err_msg}")
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+        return "\\n\\n".join(results)
+
+    def _tool_write_notebook(self, key: str, content: str, steps: list) -> str:
+        self._step(steps, "thinking", "Notebook: Writing Key", f"Saving logs/notes under key `{key}` in notepad.")
+        self.notebook[key] = content
+        
+        # Build 1-line index summary
+        lines = content.splitlines()
+        line_count = len(lines)
+        first_few = " ".join([l.strip() for l in lines[:3] if l.strip()])[:100]
+        summary_str = f"{line_count} lines. Preview: {first_few}..."
+        self.notebook_summary[key] = summary_str
+        return f"Successfully saved key `{key}` in notepad. {summary_str}"
+
+    def _tool_read_notebook_summary(self, steps: list) -> dict:
+        self._step(steps, "thinking", "Notebook: Reading Index", "Viewing index of keys stored in the notepad.")
+        if not self.notebook_summary:
+            return {"message": "Notepad is currently empty."}
+        return self.notebook_summary
+
+    def _tool_read_notebook_key(self, key: str, start_line: Any = 1, end_line: Any = None, steps: list = None) -> str:
+        self._step(steps, "thinking", "Notebook: Reading Section", f"Reading key `{key}` from line {start_line} to {end_line or 'end'}.")
+        if key not in self.notebook:
+            err = f"Key `{key}` not found in notepad."
+            self._step(steps, "error", "Notebook: Key Not Found", err)
+            return err
+            
+        content = self.notebook[key]
+        lines = content.splitlines()
+        
+        try:
+            start = max(1, int(start_line)) - 1
+        except Exception:
+            start = 0
+            
+        try:
+            end = int(end_line) if end_line is not None else len(lines)
+        except Exception:
+            end = len(lines)
+            
+        sliced_lines = lines[start:end]
+        result = "\n".join(sliced_lines)
+        
+        self._step(steps, "thinking", "Notebook: Completed Read", f"Read {len(sliced_lines)} line(s) from key `{key}`.")
+        return f"=== NOTEBOOK KEY: {key} (lines {start+1} to {end}) ===\n{result}"
+
+
+
     # ── Phase 3: Reflection Loop ─────────────────────────────────────────────
 
     _REFLECT_SYSTEM = """\
@@ -446,11 +634,27 @@ INVENTORY TOPO:
 
 CALLABLE TOOLS:
 1. ssh_execute(device_name, ip, command)
+   - Establish connection to an INVENTORY TOPO device using default/pre-configured simulator credentials and run a single CLI command.
+   - ONLY use this for standard topology devices listed in INVENTORY TOPO.
+   - Do NOT use this if the user provides explicit custom credentials, custom username, password, or custom port.
 2. run_cypher(query)
 3. parse_and_persist(device_name, command, raw_output)
+4. read_neo4j_manual()
+5. ssh_custom_execute(host, username, password, port, commands)
+   - CRITICAL: You MUST use this tool whenever the user explicitly provides custom SSH credentials (such as username, password, custom port, etc.) or when connecting to a custom target host (e.g. 127.0.0.1 on port 2201).
+   - This tool establishes a direct connection using Paramiko.
+   - Pass multiple commands as a list of strings, e.g. ["showsys", "shownode", "showswitch"] or as a newline-separated string. Do NOT concatenate them with commas like "showsys,shownode,showswitch" in a single command.
+6. write_notebook(key, content)
+7. read_notebook_summary()
+8. read_notebook_key(key, start_line, end_line)
 
 FACTS AND OBSERVATIONS GATHERED SO FAR:
 {observations}
+
+CRITICAL REFLECTION RULES:
+1. If you have already successfully run the commands requested by the user and have their outputs in the observations, you have all the facts. Set "done": true.
+2. DO NOT repeat the same tool calls with the same arguments. If a tool call returned a result, repeating it is redundant.
+3. If the user's question has been answered by the gathered observations, set "done": true immediately.
 
 Return ONLY a JSON object:
 {{
@@ -458,13 +662,14 @@ Return ONLY a JSON object:
   "reasoning": "Why we are done or why we need more tools...",
   "tool_calls": [ // Only if done is false
     {{
-      "tool": "ssh_execute" | "run_cypher" | "parse_and_persist",
+      "tool": "ssh_execute" | "run_cypher" | "parse_and_persist" | "read_neo4j_manual" | "ssh_custom_execute" | "write_notebook" | "read_notebook_summary" | "read_notebook_key",
       "args": {{ ... }}
     }}
   ]
 }}
 
-Output ONLY the JSON. No markdown."""
+Output ONLY the JSON. No markdown.
+"""
 
     def _llm_reflect(self, query: str, topology_context: str, observations: list, steps: list,
                       use_ollama=False, disable_think=False, ollama_model=None) -> Optional[dict]:
@@ -535,6 +740,8 @@ CRITICAL RULES:
             request_id: Optional[str] = None, stream=False) -> dict:
         self.on_step = on_step
         self.request_id = request_id
+        self.notebook = {}
+        self.notebook_summary = {}
         try:
             return self._run_agentic(query, array_hint,
                                      use_ollama=use_ollama,
@@ -575,14 +782,23 @@ CRITICAL RULES:
         tool_calls = plan.get("tool_calls") or []
 
         # 4. Loop: Execute and Reflect
+        executed_calls = set()
         for reflection_round in range(MAX_REFLECT_ITERS + 1):
             if not tool_calls:
                 break
 
-            new_tool_calls = []
+            run_any = False
             for tc in tool_calls:
                 tool_name = tc.get("tool")
                 args = tc.get("args") or {}
+                
+                # Check signature to prevent infinite loops
+                args_signature = str(sorted(args.items())) if isinstance(args, dict) else str(args)
+                call_signature = (tool_name, args_signature)
+                if call_signature in executed_calls:
+                    continue
+                executed_calls.add(call_signature)
+                run_any = True
                 
                 if tool_name == "ssh_execute":
                     raw = self._tool_ssh_execute(args.get("device_name"), args.get("ip"), args.get("command"), steps)
@@ -608,6 +824,60 @@ CRITICAL RULES:
                         "command": args.get("command"),
                         "parsed_output": parsed
                     })
+                elif tool_name == "read_neo4j_manual":
+                    manual = self._tool_read_neo4j_manual(steps)
+                    observations.append({
+                        "action": "read_neo4j_manual",
+                        "manual": manual
+                    })
+                elif tool_name == "ssh_custom_execute":
+                    raw = self._tool_ssh_custom_execute(
+                        args.get("host"),
+                        args.get("username"),
+                        args.get("password"),
+                        args.get("port"),
+                        args.get("commands"),
+                        steps
+                    )
+                    observations.append({
+                        "action": "ssh_custom_execute",
+                        "host": args.get("host"),
+                        "username": args.get("username"),
+                        "password": "***" if args.get("password") else None,
+                        "port": args.get("port"),
+                        "commands": args.get("commands"),
+                        "raw_output": raw
+                    })
+                elif tool_name == "write_notebook":
+                    res = self._tool_write_notebook(args.get("key"), args.get("content"), steps)
+                    observations.append({
+                        "action": "write_notebook",
+                        "key": args.get("key"),
+                        "result": res
+                    })
+                elif tool_name == "read_notebook_summary":
+                    res = self._tool_read_notebook_summary(steps)
+                    observations.append({
+                        "action": "read_notebook_summary",
+                        "result": res
+                    })
+                elif tool_name == "read_notebook_key":
+                    res = self._tool_read_notebook_key(
+                        args.get("key"),
+                        args.get("start_line", 1),
+                        args.get("end_line"),
+                        steps
+                    )
+                    observations.append({
+                        "action": "read_notebook_key",
+                        "key": args.get("key"),
+                        "result": res
+                    })
+
+            if not run_any:
+                # Every planned tool call in this round was already executed previously. Break to synthesize.
+                self._step(steps, "thinking", "Guard: Breaking Loop", "All planned actions have already been executed. Finishing.")
+                break
 
             # Reflect
             reflection = self._llm_reflect(query, topology_context, observations, steps, use_ollama, disable_think, ollama_model)

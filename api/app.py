@@ -3386,14 +3386,26 @@ def agent_run_stream():
         t = threading.Thread(target=run_thread, daemon=True)
         t.start()
 
+        # Send a handshake immediately so the browser knows the connection is established
+        yield f"data: {json.dumps({'type': 'handshake'})}\n\n"
+
+        last_heartbeat = time.time()
         while t.is_alive() or queue:
             if req_id in _cancelled_requests:
                 log.info(f"Agent stream aborted via cancel request: {req_id}")
                 yield f"data: {json.dumps({'type': 'cancelled'})}\n\n"
                 return
+            
+            has_data = False
             while queue:
                 item = queue.popleft()
                 yield f"data: {json.dumps(item)}\n\n"
+                has_data = True
+                
+            if not has_data and (time.time() - last_heartbeat > 3.0):
+                yield ": ping\n\n"
+                last_heartbeat = time.time()
+                
             if error_holder:
                 yield f"data: {json.dumps({'type': 'error', 'error': error_holder[0]})}\n\n"
                 return

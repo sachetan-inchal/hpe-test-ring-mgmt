@@ -128,7 +128,7 @@ class RAGEngine:
                 data["format"] = "json"
             if stream:
                 try:
-                    response = requests.post(url, json=data, stream=True, timeout=15)
+                    response = requests.post(url, json=data, stream=True, timeout=120)
                     response.raise_for_status()
                 except Exception as conn_err:
                     def error_generator():

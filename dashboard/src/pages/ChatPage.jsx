@@ -551,8 +551,8 @@ export default function ChatPage({ apiBase, chatbotApi }) {
   const fetchHistory = useCallback(async () => {
     if (!user?.token) return
     try {
-      const res = await fetch(`${chatbotApi}/chat`, { 
-        headers: { Authorization: `Bearer ${user.token}` } 
+      const res = await fetch(`${chatbotApi}/chat`, {
+        headers: { Authorization: `Bearer ${user.token}` }
       })
       if (res.ok) {
         const data = await res.json()
@@ -574,13 +574,13 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       const res = await fetch(`${chatbotApi}/chat/${chatId}`, { headers: { Authorization: `Bearer ${user?.token}` } })
       const data = await res.json()
       if (data.messages) {
-        setMessages(data.messages.map(m => ({ 
-          role: m.role === 'model' ? 'assistant' : m.role, 
+        setMessages(data.messages.map(m => ({
+          role: m.role === 'model' ? 'assistant' : m.role,
           text: m.content,
           agentSteps: m.agentSteps || []
         })))
       }
-    } catch {}
+    } catch { }
   }
 
   const newChat = () => { setMessages([]); setActiveChatId(null); setAgentResult(null) }
@@ -625,10 +625,10 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId: currentRequestId })
       })
-    } catch(e) {}
+    } catch (e) { }
     if (activeEsRef.current) activeEsRef.current.close()
     if (activeReaderRef.current) {
-      try { activeReaderRef.current.cancel() } catch(e) {}
+      try { activeReaderRef.current.cancel() } catch (e) { }
     }
     setLoading(false)
     setMessages(prev => {
@@ -660,7 +660,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             setPendingCommand(null)
           }
         }
-      } catch (err) {}
+      } catch (err) { }
     }, 1000)
     return () => clearInterval(interval)
   }, [loading, apiBase])
@@ -690,7 +690,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         body: JSON.stringify({ decision, modifiedCommand })
       })
       setPendingCommand(null)
-    } catch(e) {}
+    } catch (e) { }
   }
 
   const handleTerminalConnect = async (type, mode, host, username, password, hwnd) => {
@@ -707,7 +707,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       .then(d => {
         const list = d.devices || d
         setEmuDevices(Array.isArray(list) ? list : [])
-      }).catch(() => {})
+      }).catch(() => { })
   }, [apiBase])
 
   useEffect(() => {
@@ -958,8 +958,8 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       const newPrompt = devKind === 'switch'
         ? `${devName}:FID100:admin> `
         : devKind === 'array'
-        ? `root@${devName}:~# `
-        : `root@${devName}:~$ `
+          ? `root@${devName}:~# `
+          : `root@${devName}:~$ `
       const activePrompt = isConnected ? emuPromptRef.current : newPrompt
 
       if (!isConnected) {
@@ -977,8 +977,8 @@ export default function ChatPage({ apiBase, chatbotApi }) {
 
         // — Host key warning —
         setEmuHistory(prev => [...prev,
-          { type: 'warn', text: `Warning: the ECDSA host key for '${devName}' differs from key for IP '${ip}'` },
-          { type: 'out', text: '' }
+        { type: 'warn', text: `Warning: the ECDSA host key for '${devName}' differs from key for IP '${ip}'` },
+        { type: 'out', text: '' }
         ])
         setEmuPrompt('Are you sure you want to continue connecting (yes/no)? ')
         setEmuSshState('awaiting_yes_no')
@@ -998,10 +998,10 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         setEmuPrompt(passPrompt)
         setEmuSshState('awaiting_password')
         setEmuHistory(prev => [...prev, { type: 'out', text: passPrompt }])
-        
+
         await new Promise(r => setTimeout(r, 150))
         const typedPassword = window.prompt(`[HPE Terminal Gateway] Enter password for ${user}@${ip}:`, "") || "root"
-        
+
         const dots = "•".repeat(Math.min(typedPassword.length || 6, 8))
         for (let i = 1; i <= dots.length; i++) {
           setEmuInput(dots.substring(0, i))
@@ -1074,8 +1074,8 @@ export default function ChatPage({ apiBase, chatbotApi }) {
 
     // Reset actual backend counter in Python
     try {
-      fetch(`${apiBase}/api/llm/calls/reset`, { method: 'POST' }).catch(() => {})
-    } catch (e) {}
+      fetch(`${apiBase}/api/llm/calls/reset`, { method: 'POST' }).catch(() => { })
+    } catch (e) { }
 
     // Poll actual Groq API calls count dynamically from backend
     pollIntervalRef.current = setInterval(async () => {
@@ -1085,7 +1085,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         if (typeof data.count === 'number') {
           setLlmCallsCount(data.count)
         }
-      } catch (err) {}
+      } catch (err) { }
     }, 350)
 
     if (aiMode === 'agent') {
@@ -1100,7 +1100,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       let answer = ''
       if (aiMode === 'agent') {
         setSidebarVisible(true)
-        
+
         // Add a placeholder message for the assistant that will be populated as steps stream in
         setMessages(prev => [...prev, {
           role: 'assistant',
@@ -1143,7 +1143,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                     {
                       ...last,
                       agentSteps: [...currentSteps, step],
-                      text: `### Running Diagnostics...\nCurrently planning: **${step.title}**\n\n*${step.detail || ''}*`
+                      text: `### Executing SAN AI Agent Workflow...\nCurrently planning: **${step.title}**\n\n*${step.detail || ''}*`
                     }
                   ]
                 }
@@ -1158,7 +1158,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                 emuCommandQueueRef.current = emuCommandQueueRef.current.then(async () => {
                   updateVisualSteps()
                   const realOutput = await emuExecuteAgentCommandRef.current(runMatch[1].trim(), step.detail.trim())
-                  
+
                   // Enhance the step object dynamically with real output from Emulator Gateway
                   const updatedStep = {
                     ...step,
@@ -1195,7 +1195,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                 // Queue non-command steps sequentially with a short delay to simulate real-time API execution
                 emuCommandQueueRef.current = emuCommandQueueRef.current.then(async () => {
                   updateVisualSteps()
-                  
+
                   if (/^thinking$/i.test(title.trim()) && step.detail) {
                     // Show thinking bullet as comment banner in terminal immediately during playback
                     setEmuHistory(prev => [
@@ -1206,7 +1206,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                       { type: 'ssh', text: '# ──────────────────────────────────────' },
                     ])
                   }
-                  
+
                   // Natural pace delay for non-command actions (thinking/database updates)
                   await new Promise(r => setTimeout(r, 650))
                 })
@@ -1218,14 +1218,14 @@ export default function ChatPage({ apiBase, chatbotApi }) {
           } else if (event.type === 'synthesis') {
             const token = event.content
             const isThink = event.is_think
-            
+
             setMessages(prev => {
               if (prev.length === 0) return prev
               const last = prev[prev.length - 1]
               if (last && last.role === 'assistant') {
                 const isFirstToken = !last.isStreamingSynthesis
                 let newText = isFirstToken ? '' : last.text
-                
+
                 if (isThink) {
                   if (!newText.includes('<think>')) {
                     newText = '<think>' + newText
@@ -1236,7 +1236,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                   }
                 }
                 newText += token
-                
+
                 return [
                   ...prev.slice(0, -1),
                   {
@@ -1250,6 +1250,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             })
           } else if (event.type === 'final') {
             const data = event.result
+            es.close() // Close connection immediately to prevent browser auto-reconnect
 
             const handleFinalize = () => {
               setLlmCallsCount(prev => prev + 1) // Final response summary is a real LLM call
@@ -1349,41 +1350,41 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         // SSE Streaming for Ollama / Groq RAG Engine
         setMessages(prev => [...prev, { role: 'assistant', text: '', isStreaming: true, isOllama: useOllama }])
         setLlmCallsCount(prev => prev + 1)
-        
+
         try {
           const res = await fetch(`${apiBase}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              query: trimmed, 
-              useOllama, 
-              disableThink, 
+            body: JSON.stringify({
+              query: trimmed,
+              useOllama,
+              disableThink,
               stream: true,
               mode: aiMode,
               requestId: reqId,
               history: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', content: m.text }))
             })
           })
-          
+
           if (!res.ok) throw new Error('Network response was not ok')
-          
+
           const reader = res.body.getReader()
           activeReaderRef.current = reader
           const decoder = new TextDecoder()
           let fullText = ''
-          
+
           while (true) {
             const { value, done } = await reader.read()
             if (done) break
-            
+
             const chunk = decoder.decode(value, { stream: true })
             const lines = chunk.split('\n\n')
-            
+
             for (const line of lines) {
               if (line.startsWith('data: ')) {
                 try {
                   const data = JSON.parse(line.slice(6))
-                   if (data.type === 'chunk' || data.type === 'think') {
+                  if (data.type === 'chunk' || data.type === 'think') {
                     // Prepend <think> if this is a think chunk and we don't have it yet
                     const content = data.content
                     if (data.type === 'think') {
@@ -1414,7 +1415,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                       newMsgs[newMsgs.length - 1].isStreaming = false
                       return newMsgs
                     })
-                    
+
                     try {
                       const saveRes = await fetch(`${chatbotApi}/chat/message`, {
                         method: 'POST',
@@ -1430,9 +1431,9 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                         setActiveChatId(saveData.chatId)
                         fetchHistory()
                       }
-                    } catch (saveErr) {}
+                    } catch (saveErr) { }
                   }
-                } catch (e) {}
+                } catch (e) { }
               }
             }
           }
@@ -1448,7 +1449,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         })
         const data = await res.json()
         let answer = data.answer || data.response || 'No response from GraphRAG engine.'
-        
+
         // Append Cypher query if available so it's displayed in the UI
         if (data.cypher) {
           answer += `\n\n**Neo4j Cypher Query:**\n\`\`\`cypher\n${data.cypher}\n\`\`\``
@@ -1487,7 +1488,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         })
         const data = await res.json()
         let answer = data.response || data.message || data.answer || (data.messages ? data.messages[data.messages.length - 1].content : 'No response from AI.')
-        
+
         if (data.chatId && !activeChatId) {
           setActiveChatId(data.chatId)
           fetchHistory() // Refresh sidebar to show the new chat entry
@@ -1510,7 +1511,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
           if (typeof data.count === 'number') {
             setLlmCallsCount(data.count)
           }
-        } catch (e) {}
+        } catch (e) { }
       }, 300)
     }
   }, [input, loading, aiMode, apiBase, chatbotApi, user, messages, activeChatId, arrayHint])
@@ -1544,8 +1545,8 @@ export default function ChatPage({ apiBase, chatbotApi }) {
       pollIntervalRef.current = null
     }
     try {
-      fetch(`${apiBase}/api/llm/calls/reset`, { method: 'POST' }).catch(() => {})
-    } catch (e) {}
+      fetch(`${apiBase}/api/llm/calls/reset`, { method: 'POST' }).catch(() => { })
+    } catch (e) { }
 
     pollIntervalRef.current = setInterval(async () => {
       try {
@@ -1554,7 +1555,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         if (typeof data.count === 'number') {
           setLlmCallsCount(data.count)
         }
-      } catch (err) {}
+      } catch (err) { }
     }, 350)
 
     setMessages(prev => [...prev, userMsg, assistantMsg])
@@ -1701,7 +1702,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
           if (typeof data.count === 'number') {
             setLlmCallsCount(data.count)
           }
-        } catch (e) {}
+        } catch (e) { }
       }, 300)
     }
   }, [apiBase, useOllama])
@@ -1742,7 +1743,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
   }
 
   return (
-    <div 
+    <div
       style={{ display: 'flex', height: '100%', overflow: 'hidden', position: 'relative' }}
       onMouseDown={handleRootMouseDown}
     >
@@ -1757,7 +1758,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
 
       {/* Radial Menu Popup */}
       {radialPos && (
-        <div 
+        <div
           onMouseDown={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
@@ -1874,14 +1875,15 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 6, border: '1px solid var(--line)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 11, color: 'var(--text-main)' }}>Ollama Model</span>
-                <select 
-                  className="select" 
-                  value={ollamaModel} 
+                <select
+                  className="select"
+                  value={ollamaModel}
                   onChange={e => setOllamaModel(e.target.value)}
                   style={{ fontSize: 10, padding: '2px 4px', background: 'var(--surface-3)', color: 'var(--text-main)', border: '1px solid var(--line)', borderRadius: 4, cursor: 'pointer' }}
                 >
                   <option value="qwen3:8b">qwen3:8b (Recommended)</option>
                   <option value="qwen3:4b">qwen3:4b</option>
+                  <option value="granite4:3b">granite4:3b</option>
                 </select>
               </div>
             </div>
@@ -1984,16 +1986,16 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: isUser ? 'var(--hpe-green)' : 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: isUser ? '#fff' : 'var(--text-main)', border: isUser ? 'none' : '1px solid var(--border-color)' }}>
                   {isUser ? <span style={{ fontSize: 12, fontWeight: 'bold' }}>{user?.username?.charAt(0).toUpperCase() || 'U'}</span> : <Bot size={16} />}
                 </div>
-                
+
                 <div style={{ flex: 1, maxWidth: '85%', display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-                  
+
                   {thinkText && (
-                    <details 
+                    <details
                       open={msg.isStreaming}
-                      style={{ 
-                        marginBottom: 8, width: '100%', maxWidth: '800px', 
-                        background: 'rgba(0, 0, 0, 0.2)', border: '1px solid var(--line)', 
-                        borderRadius: 8, overflow: 'hidden' 
+                      style={{
+                        marginBottom: 8, width: '100%', maxWidth: '800px',
+                        background: 'rgba(0, 0, 0, 0.2)', border: '1px solid var(--line)',
+                        borderRadius: 8, overflow: 'hidden'
                       }}
                     >
                       <summary style={{ padding: '8px 12px', fontSize: 11, color: 'var(--muted)', background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', outline: 'none', userSelect: 'none' }}>
@@ -2227,7 +2229,8 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             color: '#c9d1d9',
             flexShrink: 0
           }}>
-            <style dangerouslySetInnerHTML={{__html: `
+            <style dangerouslySetInnerHTML={{
+              __html: `
               @keyframes deviceGlow {
                 0% { box-shadow: 0 0 0 0 rgba(1,169,130,0); border-color: rgba(1,169,130,0.5); }
                 30% { box-shadow: 0 0 18px 6px rgba(1,169,130,0.55); border-color: var(--hpe-green); }
@@ -2308,13 +2311,13 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                           border: isCurrent
                             ? '1px solid var(--hpe-green)'
                             : isHinted
-                            ? '1px solid rgba(1,169,130,0.5)'
-                            : '1px solid rgba(255,255,255,0.06)',
+                              ? '1px solid rgba(1,169,130,0.5)'
+                              : '1px solid rgba(255,255,255,0.06)',
                           background: isCurrent
                             ? 'rgba(1,169,130,0.12)'
                             : isHinted
-                            ? 'rgba(1,169,130,0.06)'
-                            : 'rgba(255,255,255,0.02)',
+                              ? 'rgba(1,169,130,0.06)'
+                              : 'rgba(255,255,255,0.02)',
                           color: isCurrent ? 'var(--hpe-green)' : isHinted ? 'rgba(1,169,130,0.9)' : 'var(--foreground)',
                           cursor: 'pointer',
                           fontSize: 11,
@@ -2483,7 +2486,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>⚙️</span> Terminal Gateway Connection Settings
             </h3>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>Gateway Connection Protocol</label>
               <select
@@ -2516,9 +2519,9 @@ export default function ChatPage({ apiBase, chatbotApi }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>Agent Execution Mode</label>
-              <select 
-                className="input" 
-                value={terminalMode} 
+              <select
+                className="input"
+                value={terminalMode}
                 onChange={(e) => setTerminalMode(e.target.value)}
                 style={{ background: 'var(--surface-2)', color: 'var(--foreground)', border: '1px solid var(--line)', outline: 'none' }}
               >
@@ -2564,8 +2567,8 @@ export default function ChatPage({ apiBase, chatbotApi }) {
               <button className="btn" onClick={() => setShowConnectModal(false)} style={{ background: 'var(--surface-3)', border: '1px solid var(--line)', color: 'var(--foreground)' }}>
                 Close
               </button>
-              <button 
-                className="btn btn-primary" 
+              <button
+                className="btn btn-primary"
                 onClick={() => handleTerminalConnect('simulated', terminalMode, '', '', '', '')}
                 style={{ background: 'var(--hpe-green)', borderColor: 'var(--hpe-green)', color: 'white' }}
               >
