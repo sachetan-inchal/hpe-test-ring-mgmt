@@ -3348,6 +3348,7 @@ def agent_run_stream():
     disable_think = str(request.args.get("disableThink", "false")).lower() == "true"
     ollama_model = request.args.get("ollamaModel", "").strip()
     req_id = request.args.get("requestId", "").strip()
+    username = request.args.get("username", "Guest").strip()
     if not query:
         return Response("data: {\"error\": \"query is required\"}\n\n", mimetype="text/event-stream")
 
@@ -3374,6 +3375,7 @@ def agent_run_stream():
                     disable_think=disable_think,
                     ollama_model=ollama_model or None,
                     request_id=req_id,
+                    username=username,
                     stream=True
                 )
                 result.update(res)

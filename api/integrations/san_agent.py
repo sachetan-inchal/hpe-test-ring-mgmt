@@ -269,6 +269,9 @@ Output ONLY the JSON. No markdown."""
 You are an Autonomous SAN Diagnostics Assistant for HPE storage networks (3PAR, Primera, Alletra).
 Decide which tools to call first to fulfill the user's query.
 
+PERSISTENT USER MEMORY (User preferences, context, and facts):
+{user_memory_content}
+
 INVENTORY TOPO (Devices available in the network):
 {topology_context}
 
@@ -320,13 +323,18 @@ CALLABLE TOOLS:
      - key: The notepad key to read
      - start_line: 1-indexed start line number (default 1)
      - end_line: 1-indexed end line number (optional)
+9. update_user_memory(facts_to_add, facts_to_remove)
+   - Persistently update the user's profile memory (e.g. preferences, notes, context, or work details) stored in MongoDB. Use this to remember important details/instructions/preferences the user mentions for future sessions.
+   - Args:
+     - facts_to_add: A list of string facts/preferences to remember (e.g. ["User is testing switches", "User likes standard markdown tables"])
+     - facts_to_remove: A list of string facts to forget (substring search, e.g. ["testing switches"])
 
 Return ONLY a JSON object:
 {{
   "reasoning": "Plan/Reflect reasoning...",
   "tool_calls": [
     {{
-      "tool": "ssh_execute" | "run_cypher" | "parse_and_persist" | "read_neo4j_manual" | "ssh_custom_execute" | "write_notebook" | "read_notebook_summary" | "read_notebook_key",
+      "tool": "ssh_execute" | "run_cypher" | "parse_and_persist" | "read_neo4j_manual" | "ssh_custom_execute" | "write_notebook" | "read_notebook_summary" | "read_notebook_key" | "update_user_memory",
       "args": {{ ... }}
     }}
   ]
@@ -342,7 +350,10 @@ Output ONLY the JSON. No markdown, no text outside the JSON."""
         if not self.llm_call:
             return {"reasoning": "Standard plan", "tool_calls": []}
 
-        system_prompt = self._PLANNER_SYSTEM.format(topology_context=topology_context)
+        system_prompt = self._PLANNER_SYSTEM.format(
+            topology_context=topology_context,
+            user_memory_content=getattr(self, "user_memory_content", "None recorded yet.")
+        )
         user_msg = f"User query: {query}"
 
         self._step(steps, "thinking", "Planning Tools", "Asking LLM to plan autonomous tool calls...")
@@ -622,12 +633,72 @@ The topology of the SAN network is stored in Neo4j with the following Node types
         self._step(steps, "thinking", "Notebook: Completed Read", f"Read {len(sliced_lines)} line(s) from key `{key}`.")
         return f"=== NOTEBOOK KEY: {key} (lines {start+1} to {end}) ===\n{result}"
 
+    def _tool_update_user_memory(self, username: str, facts_to_add: Any, facts_to_remove: Any, steps: list) -> str:
+        from datetime import datetime
+        self._step(steps, "thinking", "Memory: Updating User Profile", f"Updating persistent memories for user `{username}`.")
+        
+        to_add = facts_to_add if isinstance(facts_to_add, list) else ([facts_to_add] if facts_to_add else [])
+        to_remove = facts_to_remove if isinstance(facts_to_remove, list) else ([facts_to_remove] if facts_to_remove else [])
+        
+        current_memories = []
+        try:
+            from discovery.mongo_store import MongoStore
+            mongo = MongoStore()
+            if mongo.available:
+                doc = mongo.db.user_notebooks.find_one({"username": username})
+                if doc and doc.get("memory"):
+                    current_memories = [line.strip("- ").strip() for line in doc["memory"].splitlines() if line.strip()]
+        except Exception:
+            pass
+            
+        new_memories = []
+        for existing in current_memories:
+            remove = False
+            for rem in to_remove:
+                if rem.lower() in existing.lower():
+                    remove = True
+                    break
+            if not remove:
+                new_memories.append(existing)
+                
+        for add in to_add:
+            add_clean = add.strip("- ").strip()
+            if add_clean and add_clean not in new_memories:
+                new_memories.append(add_clean)
+                
+        updated_text = "\n".join([f"- {m}" for m in new_memories])
+        
+        try:
+            from discovery.mongo_store import MongoStore
+            mongo = MongoStore()
+            if mongo.available:
+                mongo.db.user_notebooks.update_one(
+                    {"username": username},
+                    {"$set": {
+                        "username": username,
+                        "memory": updated_text,
+                        "updated_at": datetime.utcnow().isoformat() + "Z"
+                    }},
+                    upsert=True
+                )
+            # Update local memory context for this agent session
+            self.user_memory_content = updated_text
+            self._step(steps, "thinking", "Memory: Profile Updated", f"Successfully updated memories for `{username}`. Total facts: {len(new_memories)}.")
+            return f"User memory updated successfully. Current profile:\n{updated_text}"
+        except Exception as e:
+            err = f"Failed to save user memory: {str(e)}"
+            self._step(steps, "error", "Memory: Update Failed", err)
+            return err
+
 
 
     # ── Phase 3: Reflection Loop ─────────────────────────────────────────────
 
     _REFLECT_SYSTEM = """\
 You are deciding if the gathered facts are sufficient to answer the user query or if you need to execute more tools.
+
+PERSISTENT USER MEMORY (User preferences, context, and facts):
+{user_memory_content}
 
 INVENTORY TOPO:
 {topology_context}
@@ -678,7 +749,8 @@ Output ONLY the JSON. No markdown.
 
         system_prompt = self._REFLECT_SYSTEM.format(
             topology_context=topology_context,
-            observations=json.dumps(observations, indent=2, default=str)
+            observations=json.dumps(observations, indent=2, default=str),
+            user_memory_content=getattr(self, "user_memory_content", "None recorded yet.")
         )
         user_msg = f"User query: {query}"
 
@@ -737,7 +809,7 @@ CRITICAL RULES:
     def run(self, query: str, array_hint: Optional[str] = None,
             on_step: Optional[callable] = None,
             use_ollama=False, disable_think=False, ollama_model: Optional[str] = None,
-            request_id: Optional[str] = None, stream=False) -> dict:
+            request_id: Optional[str] = None, username: str = "Guest", stream=False) -> dict:
         self.on_step = on_step
         self.request_id = request_id
         self.notebook = {}
@@ -748,13 +820,29 @@ CRITICAL RULES:
                                      disable_think=disable_think,
                                      ollama_model=ollama_model,
                                      request_id=request_id,
+                                     username=username,
                                      stream=stream)
         finally:
             self.on_step = None
 
     def _run_agentic(self, query: str, array_hint: Optional[str] = None,
                       use_ollama=False, disable_think=False, ollama_model: Optional[str] = None,
-                      request_id: Optional[str] = None, stream=False) -> dict:
+                      request_id: Optional[str] = None, username: str = "Guest", stream=False) -> dict:
+        self.username = username
+        
+        # Load user's persistent memory profile from MongoDB
+        user_memory_content = "None recorded yet."
+        try:
+            from discovery.mongo_store import MongoStore
+            mongo = MongoStore()
+            if mongo.available:
+                doc = mongo.db.user_notebooks.find_one({"username": username})
+                if doc and doc.get("memory"):
+                    user_memory_content = doc.get("memory")
+        except Exception:
+            pass
+        self.user_memory_content = user_memory_content
+
         steps: list[dict] = []
         observations = []
         t0 = time.time()
@@ -871,6 +959,17 @@ CRITICAL RULES:
                     observations.append({
                         "action": "read_notebook_key",
                         "key": args.get("key"),
+                        "result": res
+                    })
+                elif tool_name == "update_user_memory":
+                    res = self._tool_update_user_memory(
+                        self.username,
+                        args.get("facts_to_add"),
+                        args.get("facts_to_remove"),
+                        steps
+                    )
+                    observations.append({
+                        "action": "update_user_memory",
                         "result": res
                     })
 

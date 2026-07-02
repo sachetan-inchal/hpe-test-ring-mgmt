@@ -1116,7 +1116,8 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         const aParam = encodeURIComponent(arrayHint || '')
         const ollamaParam = useOllama ? 'true' : 'false'
         const thinkParam = disableThink ? 'true' : 'false'
-        const es = new EventSource(`${apiBase}/api/agent/run/stream?query=${qParam}&array=${aParam}&useOllama=${ollamaParam}&disableThink=${thinkParam}&requestId=${reqId}&ollamaModel=${encodeURIComponent(ollamaModel)}`)
+        const userParam = encodeURIComponent(user?.username || 'Guest')
+        const es = new EventSource(`${apiBase}/api/agent/run/stream?query=${qParam}&array=${aParam}&useOllama=${ollamaParam}&disableThink=${thinkParam}&requestId=${reqId}&ollamaModel=${encodeURIComponent(ollamaModel)}&username=${userParam}`)
         activeEsRef.current = es
 
         es.onmessage = (e) => {
