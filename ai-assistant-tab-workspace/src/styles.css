@@ -1,0 +1,27 @@
+:root{
+  --hpe-green:#01a982;
+  --foreground:#e6edf3;
+  --muted:#8b949e;
+  --line: rgba(255,255,255,0.12);
+  --surface-1:#0d1117;
+  --surface-2:#161b22;
+  --surface-3:#21262d;
+  --accent-purple:#8b5cf6;
+  --accent-blue:#58a6ff;
+  --accent-cyan:#39c5cf;
+  --status-critical:#f85149;
+  --border-color: rgba(255,255,255,0.12);
+  --text-main:#e6edf3;
+  --text-secondary:#c9d1d9;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, Noto Sans;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+html, body, #root { height: 100%; margin: 0; background: var(--surface-1); color: var(--foreground); font-family: var(--font-sans); }
+
+.input, .select { font-family: var(--font-sans); }
+
+.markdown-body code { font-family: var(--font-mono); }
+
+@keyframes pulseDot { 0%, 100% { opacity: 0.6 } 50% { opacity: 1 } }
+
