@@ -866,12 +866,15 @@ def save_ssh_credentials():
         encrypted = _encrypt_password(password)
         if mongo.available:
             db = mongo.db
+            target_name = device_name or ip or dns_name
             db.ssh_credentials.update_one(
-                {"ip": ip or dns_name, "port": int(port)},
+                {"device_name": target_name},
                 {"$set": {
+                    "ip": ip,
+                    "port": int(port),
                     "username": username,
                     "password": encrypted,
-                    "device_name": device_name or ip or dns_name,
+                    "device_name": target_name,
                     "dns_name": dns_name,
                     "dns_server": dns_server,
                     "category": category,
