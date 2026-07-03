@@ -109,7 +109,9 @@ class DiscoveryCrawler:
     def _emit(self, event: dict):
         with self._lock:
             self.events.append(event)
-        log.info(f"[crawler] {event.get('msg', event.get('type'))}")
+        etype = event.get('type')
+        if etype not in ("node_internal", "edge_internal"):
+            log.info(f"[crawler] {event.get('msg', etype)}")
 
     def cancel(self):
         """Cancel the running BFS discovery crawler."""
@@ -152,10 +154,26 @@ class DiscoveryCrawler:
             self.delay_ms = delay_ms
             self.custom_commands = commands
 
+        # Check if any seed IP is a real SSH device
+        is_real_run = False
+        if self.mongo and self.mongo.available:
+            try:
+                db = self.mongo.client.hpe_san
+                for s_ip in seed_ips:
+                    cred = db.ssh_credentials.find_one({"ip": s_ip})
+                    if cred and cred.get("device_kind") == "real":
+                        is_real_run = True
+                        break
+            except Exception:
+                pass
+        
+        if self.mongo:
+            self.mongo.is_real = is_real_run
+
         if self.mongo and self.mongo.available:
             self.mongo.load_existing_state()
 
-        self._emit({"type": "start", "msg": f"Discovery started. Seeds: {seed_ips}"})
+        self._emit({"type": "start", "msg": f"Discovery started. Seeds: {seed_ips} (Real Mode: {is_real_run})"})
 
         while self.queue:
             with self._lock:
@@ -180,9 +198,20 @@ class DiscoveryCrawler:
     def _discover_device(self, ip: str):
         self._emit({"type": "connecting", "ip": ip, "msg": f"Connecting to {ip}..."})
 
+        # Get the name configured by the user as the default name
+        configured_name = None
+        if self.mongo and self.mongo.available:
+            try:
+                db = self.mongo.client.hpe_san
+                cred = db.ssh_credentials.find_one({"ip": ip})
+                if cred and cred.get("device_name"):
+                    configured_name = cred.get("device_name")
+            except Exception:
+                pass
+
         ssh_connector = self._get_ssh_connector(ip)
         dev_type = DeviceType.UNKNOWN
-        device_name = ip
+        device_name = configured_name or ip
         connected_via_ssh = False
 
         if ssh_connector and ssh_connector.connect():
@@ -202,10 +231,36 @@ class DiscoveryCrawler:
                     if "WindowsProductName" in probe_w.get("stdout", ""):
                         dev_type = DeviceType.WINDOWS
             
-            # Run hostname to get the real device name
-            hn_probe = ssh_connector.execute("hostname")
-            if hn_probe.get("exit_code") == 0:
-                device_name = hn_probe.get("stdout", "").strip()
+            # Resolve name for HPE devices or fallback to hostname CLI
+            if dev_type == DeviceType.HPE_ARRAY:
+                stdout = probe.get("stdout", "") if probe.get("exit_code") == 0 else ""
+                if stdout:
+                    for line in stdout.splitlines():
+                        if "TotalCap" in line or "AllocCap" in line:
+                            continue
+                        parts = line.strip().split()
+                        if len(parts) >= 2 and parts[0].startswith("0x"):
+                            device_name = parts[1]
+                            break
+            else:
+                # Check if it is a switch
+                switch_probe = ssh_connector.execute("showswitch")
+                if switch_probe.get("exit_code") == 0 and any(kw in switch_probe.get("stdout", "") for kw in ["Online", "Offline", "Native"]):
+                    dev_type = DeviceType.HPE_ARRAY # Treat switches as HPE_ARRAY for parser flow
+                    stdout = switch_probe.get("stdout", "")
+                    for line in stdout.splitlines():
+                        if "Online" in line or "Offline" in line:
+                            parts = line.strip().split()
+                            if parts:
+                                device_name = parts[0]
+                                break
+                else:
+                    # Run hostname to get the real device name for standard Linux/Windows hosts
+                    hn_probe = ssh_connector.execute("hostname")
+                    if hn_probe.get("exit_code") == 0:
+                        stdout = hn_probe.get("stdout", "").strip()
+                        if stdout and "not found" not in stdout.lower() and "error" not in stdout.lower():
+                            device_name = stdout
             
             ssh_connector.disconnect()
             self._emit({
@@ -308,6 +363,7 @@ class DiscoveryCrawler:
             self._emit({"type": "skip", "ip": ip, "msg": f"{ip}: Unknown device type, skipping"})
             return
 
+        parsed["_is_real"] = connected_via_ssh
         self.discovered_entities.append(parsed)
 
         # Persist to Neo4j
@@ -391,32 +447,176 @@ class DiscoveryCrawler:
 
     def _extract_linked_ips(self, parsed: dict) -> List[str]:
         """
-        Extract all routable IPs to visit next from a parsed array entity.
-
-        Strategy (in priority order):
-        1. Connected peer arrays (from virtual_network metadata for this array's IP).
-        2. All devices registered in the virtual network whose parent_array matches
-           this array's name — catches every switch and host without fragile name
-           string comparisons against parsed CLI text.
+        Extract all connected IPs to visit next from a parsed array entity,
+        ONLY if they are explicitly registered in the Inventory tab (MongoDB).
         """
         ips = []
         array_ip = parsed.get("_ip", "")
+        array_name = parsed.get("name") or parsed.get("device_name", "")
         all_devices = virtual_network.list_devices()
 
+        # Find the device metadata in simulator by name (casing & hyphen-insensitive)
+        array_meta = {}
+        cleaned_array_name = array_name.lower().replace("-", "")
+        for d in all_devices:
+            cleaned_d_name = d.get("name", "").lower().replace("-", "")
+            if cleaned_d_name == cleaned_array_name:
+                array_meta = d
+                break
+
+        if not array_meta:
+            log.warning(f"[crawler] Could not find metadata for array '{array_name}' in simulator network topology.")
+            return []
+
+        # Fetch registered device names and IPs from MongoDB
+        registered_device_ips = {}
+        if self.mongo and self.mongo.available:
+            try:
+                db = self.mongo.client.hpe_san
+                kind_filter = "real" if self.mongo.is_real else "mock"
+                for cred in db.ssh_credentials.find({"device_kind": kind_filter}, {"device_name": 1, "ip": 1}):
+                    if cred.get("device_name") and cred.get("ip"):
+                        registered_device_ips[cred["device_name"].lower()] = cred["ip"]
+            except Exception:
+                pass
+
+        # Determine parent team to inherit
+        parent_team = "team-alpha"
+        if self.mongo and self.mongo.available:
+            try:
+                db = self.mongo.client.hpe_san
+                parent_cred = db.ssh_credentials.find_one({"ip": array_ip})
+                if parent_cred and parent_cred.get("team"):
+                    parent_team = parent_cred.get("team")
+            except Exception:
+                pass
+
         # 1. Peer arrays from the array's own metadata
-        array_meta = virtual_network.get_metadata(array_ip)
         for peer_ip in array_meta.get("connected_to", []):
-            ips.append(peer_ip)
+            peer_meta = {}
+            for d in all_devices:
+                if d.get("ip") == peer_ip:
+                    peer_meta = d
+                    break
+            
+            peer_name = peer_meta.get("name", "") or f"Peer-{peer_ip}"
+            
+            # Auto register peer array
+            if self.mongo and self.mongo.available:
+                try:
+                    db = self.mongo.client.hpe_san
+                    existing = db.ssh_credentials.find_one({"device_name": peer_name})
+                    if not existing:
+                        db.ssh_credentials.insert_one({
+                            "device_name": peer_name,
+                            "ip": "",
+                            "port": 22,
+                            "username": "",
+                            "password": "",
+                            "device_kind": "real",
+                            "category": "Array",
+                            "team": parent_team,
+                            "connected_to": array_name,
+                            "ip_pending": True,
+                            "password_pending": True,
+                            "username_pending": True
+                        })
+                        log.info(f"[crawler] Auto-registered discovered peer array {peer_name} in inventory as pending.")
+                except Exception as ex:
+                    log.warning(f"[crawler] Failed to auto-register peer array {peer_name}: {ex}")
+
+            loopback_ip = registered_device_ips.get(peer_name.lower())
+            if loopback_ip:
+                ips.append(loopback_ip)
+
+        # Build host→switch mapping from topology JSON (via_switch field)
+        host_to_switch = {}
+        try:
+            import json as _json
+            topo_path = os.path.join(os.path.dirname(__file__), "..", "san-lab", "network_topology.json")
+            if not os.path.exists(topo_path):
+                # Try relative from monorepo root
+                topo_path = os.path.join(os.path.dirname(__file__), "..", "network_topology.json")
+            if not os.path.exists(topo_path):
+                # Try Docker path (inside container)
+                topo_path = "/etc/san-lab/network_topology.json"
+            if os.path.exists(topo_path):
+                with open(topo_path) as f:
+                    topo_data = _json.load(f)
+                for arr in topo_data.get("arrays", []):
+                    for h in arr.get("hosts", []):
+                        via = h.get("via_switch", "")
+                        if via:
+                            host_to_switch[h["name"].lower()] = via
+        except Exception as ex:
+            log.debug(f"[crawler] Could not load host→switch map from topology JSON: {ex}")
 
         # 2. All switches and hosts that belong to this array
-        array_name = array_meta.get("name", "")
         for d in all_devices:
-            if d.get("parent_array") == array_name:
-                dev_ip = d.get("ip")
-                if dev_ip:
-                    ips.append(dev_ip)
+            parent = d.get("parent_array", "")
+            if parent and parent.lower().replace("-", "") == cleaned_array_name:
+                dev_name = d.get("name", "")
+                if dev_name:
+                    dtype = d.get("type", "host")
+                    category = "Switch" if dtype == "switch" else "Host"
 
-        return [x for x in ips if x and x not in self.visited]
+                    # Hosts connect to their switch; switches connect to the array
+                    if category == "Host":
+                        connected_to_val = host_to_switch.get(dev_name.lower(), array_name)
+                    else:
+                        connected_to_val = array_name
+
+                    # Auto register connected switch or host
+                    if self.mongo and self.mongo.available:
+                        try:
+                            db = self.mongo.client.hpe_san
+                            existing = db.ssh_credentials.find_one({"device_name": dev_name})
+                            if not existing:
+                                db.ssh_credentials.insert_one({
+                                    "device_name": dev_name,
+                                    "ip": "",
+                                    "port": 22,
+                                    "username": "",
+                                    "password": "",
+                                    "device_kind": "real",
+                                    "category": category,
+                                    "team": parent_team,
+                                    "connected_to": connected_to_val,
+                                    "ip_pending": True,
+                                    "password_pending": True,
+                                    "username_pending": True
+                                })
+                                log.info(f"[crawler] Auto-registered {dev_name} (connected_to: {connected_to_val}) as pending.")
+                            else:
+                                # Update connected_to if it was incorrectly set to the array
+                                old_ct = existing.get("connected_to", "")
+                                if category == "Host" and old_ct == array_name and connected_to_val != array_name:
+                                    db.ssh_credentials.update_one(
+                                        {"device_name": dev_name},
+                                        {"$set": {"connected_to": connected_to_val}}
+                                    )
+                                    log.info(f"[crawler] Corrected {dev_name} connected_to: {array_name} → {connected_to_val}")
+                        except Exception as ex:
+                            log.warning(f"[crawler] Failed to auto-register device {dev_name}: {ex}")
+
+                    loopback_ip = registered_device_ips.get(dev_name.lower())
+                    if loopback_ip:
+                        ips.append(loopback_ip)
+
+        # Fetch registered IPs from MongoDB (now includes newly registered ones)
+        registered_ips = set()
+        if self.mongo and self.mongo.available:
+            try:
+                db = self.mongo.client.hpe_san
+                kind_filter = "real" if self.mongo.is_real else "mock"
+                for cred in db.ssh_credentials.find({"device_kind": kind_filter}, {"ip": 1}):
+                    if cred.get("ip"):
+                        registered_ips.add(cred["ip"])
+            except Exception:
+                pass
+
+        # Only enqueue if the discovered IP is registered in MongoDB and not visited
+        return [x for x in ips if x and x in registered_ips and x not in self.visited]
 
 
     def get_status(self) -> dict:

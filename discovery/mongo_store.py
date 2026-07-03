@@ -92,6 +92,10 @@ class MongoStore:
     def store(self, parsed: dict):
         if not self._available:
             return
+        
+        # Dynamically set database collection scope
+        if parsed.get("_is_real"):
+            self.is_real = True
             
         dtype = parsed.get("_device_type", "")
         if dtype == "hpe_array":

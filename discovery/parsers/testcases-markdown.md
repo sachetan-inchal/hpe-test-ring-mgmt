@@ -1116,7 +1116,7 @@ function parseShowCageBasic(cliOutput) {
         line = line.trim();
         if (!line) continue;
 
-        if (line.includes("Id") && line.includes("Name") && line.includes("Drives")) {
+        if (line.includes("Id") && line.includes("Name")) {
             parsing = true;
             continue;
         }
@@ -1128,12 +1128,27 @@ function parseShowCageBasic(cliOutput) {
 
         const id = parseInt(parts[0], 10);
         const name = parts[1];
-        const drives = parseInt(parts[2], 10);
-        const temp = parts[3];
-        const formFactor = parts[parts.length - 2];
-        const state = parts[parts.length - 1];
-        const modelParts = parts.slice(4, parts.length - 2);
-        const model = modelParts.join(" ");
+
+        let drives = 0;
+        let temp = "0";
+        let model = "";
+        let formFactor = "";
+        let state = "";
+
+        if (parts.length >= 9) {
+            state = parts[2];
+            drives = parseInt(parts[4], 10) || 0;
+            temp = parts[5];
+            model = parts[6];
+            formFactor = parts[7];
+        } else {
+            drives = parseInt(parts[2], 10) || 0;
+            temp = parts[3];
+            formFactor = parts[parts.length - 2];
+            state = parts[parts.length - 1];
+            const modelParts = parts.slice(4, parts.length - 2);
+            model = modelParts.join(" ");
+        }
 
         result.cages.push({ id, name, drives, temp, model, form_factor: formFactor, state });
     }
@@ -1220,8 +1235,17 @@ function parseShowCageState(cliOutput) {
 
         const id = parseInt(parts[0], 10);
         const name = parts[1];
-        const state = parts[parts.length - 2];
-        const detailedState = parts[parts.length - 1];
+
+        let state = "";
+        let detailedState = "";
+
+        if (parts.length >= 8) {
+            state = parts[2];
+            detailedState = parts[2];
+        } else {
+            state = parts[parts.length - 2];
+            detailedState = parts[parts.length - 1];
+        }
 
         result.cages.push({ id, name, state, detailed_state: detailedState });
     }

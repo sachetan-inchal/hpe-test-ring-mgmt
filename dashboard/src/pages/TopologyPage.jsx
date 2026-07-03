@@ -37,7 +37,7 @@ function isVirtualNode(node, deviceKindMap) {
   return false;
 }
 
-export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, deviceKindMap }) {
+export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
   const [data, setData] = useState({ nodes: [], edges: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -107,12 +107,11 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
         }
 
         let json = null
-        const suffix = deviceFilter === 'real' ? '?real=true' : ''
+        const suffix = '?real=true'
         if (selectedSource === 'all') {
           json = await fetchWithData(`${apiBase}/api/graph/mongo${suffix}`)
         } else {
-          // Fetch only the selected ingestion source's data
-          json = await fetchWithData(`${apiBase}/api/ontology/topology?source=${selectedSource}${suffix ? '&real=true' : ''}`)
+          json = await fetchWithData(`${apiBase}/api/ontology/topology?source=${selectedSource}&real=true`)
         }
 
         if (!json) throw new Error('Failed to load topology from any source or databases are empty')
@@ -134,7 +133,7 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
       finally { setLoading(false) }
     }
     load()
-  }, [apiBase, selectedSource, deviceFilter])
+  }, [apiBase, selectedSource])
 
   const { user } = useContext(AuthContext)
 
@@ -391,7 +390,7 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceFilter, device
     }
 
     return nodes
-  }, [data.nodes, data.edges, searchQuery, activeTab, role, selectedTeamId, userTeamId, nodesById, deviceFilter, deviceKindMap, selectedArrayId])
+  }, [data.nodes, data.edges, searchQuery, activeTab, role, selectedTeamId, userTeamId, nodesById, deviceKindMap, selectedArrayId])
 
   const activeEdges = useMemo(() => {
     const ids = new Set(activeNodes.map(n => n.id))

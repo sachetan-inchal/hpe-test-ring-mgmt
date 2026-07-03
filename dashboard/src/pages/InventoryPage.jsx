@@ -36,7 +36,7 @@ function isVirtualNode(node, deviceKindMap) {
   return false;
 }
 
-export default function InventoryPage({ apiBase, deviceFilter, deviceKindMap }) {
+export default function InventoryPage({ apiBase, deviceKindMap }) {
   const [data, setData] = useState({ nodes: [], edges: [] })
   const [loading, setLoading] = useState(true)
   const [selectedNodeId, setSelectedNodeId] = useState(null)
@@ -89,12 +89,11 @@ export default function InventoryPage({ apiBase, deviceFilter, deviceKindMap }) 
         };
 
         let json = null
-        const suffix = deviceFilter === 'real' ? '?real=true' : ''
+        const suffix = '?real=true'
         if (selectedSource === 'all') {
           json = await fetchWithData(`${apiBase}/api/graph/mongo${suffix}`)
         } else {
-          // Fetch only the selected ingestion source's data
-          json = await fetchWithData(`${apiBase}/api/ontology/topology?source=${selectedSource}${suffix ? '&real=true' : ''}`)
+          json = await fetchWithData(`${apiBase}/api/ontology/topology?source=${selectedSource}&real=true`)
         }
         
         if (!json) throw new Error('Failed to load inventory from any source or databases are empty')
@@ -126,7 +125,7 @@ export default function InventoryPage({ apiBase, deviceFilter, deviceKindMap }) 
       }
     }
     load()
-  }, [apiBase, selectedSource, deviceFilter])
+  }, [apiBase, selectedSource])
 
   const { user } = useContext(AuthContext)
 
@@ -238,7 +237,7 @@ export default function InventoryPage({ apiBase, deviceFilter, deviceKindMap }) 
     }
 
     return nodes
-  }, [data.nodes, role, selectedTeamId, userTeamId, allTeamsList, user, deviceFilter, deviceKindMap])
+  }, [data.nodes, role, selectedTeamId, userTeamId, allTeamsList, user, deviceKindMap])
 
   const filteredNodes = useMemo(() => {
     if (!searchQuery) return activeNodes

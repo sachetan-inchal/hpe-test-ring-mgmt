@@ -68,11 +68,9 @@ const COL = {
   ssh: '#d2a8ff',
 }
 
-export default function EmulatorPage({ apiBase, deviceFilter }) {
+export default function EmulatorPage({ apiBase }) {
   const navigate = useNavigate()
   const API = apiBase || ''
-  const filterType = deviceFilter || 'virtual'
-  const [virtualDevices, setVirtualDevices] = useState([])
   const [realDevices, setRealDevices] = useState([])
   const [pulsingDeviceId, setPulsingDeviceId] = useState(null)
 
@@ -94,14 +92,6 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
 
   // ── Fetch Devices ──────────────────────────────────────────────────────────
   useEffect(() => {
-    // Fetch virtual devices
-    fetch(`${API}/api/sim/devices`).then(r => r.json())
-      .then(d => {
-        const list = d.devices || d
-        setVirtualDevices(Array.isArray(list) ? list : [])
-      }).catch(() => { })
-
-    // Fetch real devices
     fetch(`${API}/api/credentials/list`).then(r => r.json())
       .then(d => {
         const list = d.devices || []
@@ -116,10 +106,9 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
     if (!targetName) return
 
     // Wait until lists are loaded
-    if (virtualDevices.length === 0 && realDevices.length === 0) return
+    if (realDevices.length === 0) return
 
-    const found = virtualDevices.find(d => (d.name || d.device_name || '').toLowerCase() === targetName.toLowerCase() || (d.ip || '').toLowerCase() === targetName.toLowerCase()) ||
-                  realDevices.find(d => (d.name || d.device_name || '').toLowerCase() === targetName.toLowerCase() || (d.ip || d.ip_address || '').toLowerCase() === targetName.toLowerCase())
+    const found = realDevices.find(d => (d.name || d.device_name || '').toLowerCase() === targetName.toLowerCase() || (d.ip || d.ip_address || '').toLowerCase() === targetName.toLowerCase())
     if (found) {
       const devId = found.name || found.device_name || found.ip || found.ip_address
       setPulsingDeviceId(devId)
@@ -139,7 +128,7 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
       }, 3000)
       sessionStorage.removeItem('target_console_device_name')
     }
-  }, [virtualDevices, realDevices])
+  }, [realDevices])
 
   // Initialize terminal banner
   useEffect(() => {
@@ -201,7 +190,6 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
     setLoading(true)
 
     const foundDev = deviceObj ||
-      virtualDevices.find(d => d.ip === ip || d.ip_address === ip) ||
       realDevices.find(d => d.ip === ip || d.ip_address === ip)
 
     if (!foundDev) {
@@ -505,22 +493,17 @@ export default function EmulatorPage({ apiBase, deviceFilter }) {
               Available IPs
             </span>
             <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 10 }}>
-              {filterType === 'virtual' ? virtualDevices.length : realDevices.length}
+              {realDevices.length}
             </span>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
-            {filterType === 'virtual' && virtualDevices.length === 0 && (
-              <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-                No active virtual devices found. Ensure simulation is running.
-              </div>
-            )}
-            {filterType === 'real' && realDevices.length === 0 && (
+            {realDevices.length === 0 && (
               <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
                 No registered real devices found. Configure them in the Inventory tab.
               </div>
             )}
-            {(filterType === 'virtual' ? virtualDevices : realDevices).map(d => {
+            {realDevices.map(d => {
               const name = d.name || d.device_name || d.ip || d.ip_address
               const ip = d.ip || d.ip_address
               const oobIp = d.oob_ip

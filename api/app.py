@@ -889,14 +889,15 @@ def save_ssh_credentials():
                 }},
                 upsert=True
             )
+            db.deleted_mock_devices.delete_one({"device_name": target_name})
             
             # Trigger background discovery for this saved/updated IP
             import threading
             def run_background_discover():
                 try:
-                    from discovery.crawler import DiscoveryCrawler
-                    crawler = DiscoveryCrawler(neo4j_store=neo4j, es_indexer=es, mongo_store=mongo)
-                    crawler.discover(seed_ips=[ip or dns_name])
+                    from discovery.crawler import discovery_crawler
+                    if not discovery_crawler.running:
+                        discovery_crawler.discover(seed_ips=[ip or dns_name])
                 except Exception as ex:
                     log.error(f"Background single-device discovery failed: {ex}")
             
@@ -1219,16 +1220,31 @@ def list_ssh_credentials():
                     "mock_commands": c.get("mock_commands", {}),
                     "team": c.get("team", "team-alpha"),
                     "oob_ip": c.get("oob_ip", ""),
-                    "connected_to": connected_to
+                    "connected_to": connected_to,
+                    "password_pending": c.get("password_pending", False),
+                    "username_pending": c.get("username_pending", False),
+                    "ip_pending": c.get("ip_pending", False)
                 })
 
         # Inject simulator-derived mock devices
         injected = []
+        deleted_mock_names = set()
+        if mongo.available:
+            try:
+                db = mongo.db
+                for dm in db.deleted_mock_devices.find({}, {"device_name": 1}):
+                    if dm.get("device_name"):
+                        deleted_mock_names.add(dm["device_name"].lower())
+            except Exception:
+                pass
+
         try:
             sim_devices = virtual_network.list_devices()
             for d in sim_devices:
                 ip = d.get("ip")
                 name = d.get("name") or d.get("device_name") or ip
+                if name and name.lower() in deleted_mock_names:
+                    continue
                 category = d.get("type") or d.get("category") or "Host"
                 if "array" in category.lower():
                     category = "Array"
@@ -1261,11 +1277,12 @@ def list_ssh_credentials():
         except Exception as e:
             log.error(f"Failed to list simulator devices: {e}")
 
-        # Merge by IP + Port so persisted entries win and do not overwrite each other.
-        by_key = {f"{d.get('ip')}:{d.get('port', 22)}": d for d in injected if d.get("ip")}
+        # Merge by device name (case-insensitive) so persisted entries win.
+        by_key = {d.get("device_name", "").lower(): d for d in injected if d.get("device_name")}
         for d in persisted:
-            if d.get("ip"):
-                by_key[f"{d.get('ip')}:{d.get('port', 22)}"] = d
+            name_key = d.get("device_name", "").lower()
+            if name_key:
+                by_key[name_key] = d
 
         devices = list(by_key.values())
         return jsonify({"devices": devices})
@@ -1295,10 +1312,80 @@ def delete_ssh_credentials():
             elif device_name:
                 query["device_name"] = device_name
                 
-            res = db.ssh_credentials.delete_one(query)
-            if res.deleted_count > 0:
-                return jsonify({"status": "deleted", "message": "Credentials deleted successfully"})
-            return jsonify({"error": "Credentials not found"}), 404
+            db.ssh_credentials.delete_one(query)
+
+            # Record name in deleted_mock_devices to hide virtual device
+            target_name = device_name
+            if not target_name and ip:
+                # Find device name from simulator
+                try:
+                    for d in virtual_network.list_devices():
+                        if d.get("ip") == ip:
+                            target_name = d.get("name")
+                            break
+                except Exception:
+                    pass
+            
+            if target_name:
+                db.deleted_mock_devices.update_one(
+                    {"device_name": target_name},
+                    {"$set": {"device_name": target_name}},
+                    upsert=True
+                )
+                
+            return jsonify({"status": "deleted", "message": "Credentials deleted successfully"})
+        return jsonify({"error": "MongoDB unavailable"}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/credentials/delete-bulk", methods=["POST"])
+def delete_ssh_credentials_bulk():
+    """Bulk delete saved SSH credentials by IP or device name list."""
+    data = request.json or {}
+    ips = data.get("ips", [])
+    device_names = data.get("device_names", [])
+    
+    if not ips and not device_names:
+        return jsonify({"error": "ips or device_names list is required"}), 400
+        
+    try:
+        if mongo.available:
+            db = mongo.db
+            query = {}
+            
+            if device_names:
+                query["device_name"] = {"$in": device_names}
+                for name in device_names:
+                    db.deleted_mock_devices.update_one(
+                        {"device_name": name},
+                        {"$set": {"device_name": name}},
+                        upsert=True
+                    )
+            elif ips:
+                query["ip"] = {"$in": ips}
+                for ip in ips:
+                    target_name = None
+                    try:
+                        for d in virtual_network.list_devices():
+                            if d.get("ip") == ip:
+                                target_name = d.get("name")
+                                break
+                    except Exception:
+                        pass
+                    if target_name:
+                        db.deleted_mock_devices.update_one(
+                            {"device_name": target_name},
+                            {"$set": {"device_name": target_name}},
+                            upsert=True
+                        )
+                
+            res = db.ssh_credentials.delete_many(query)
+            return jsonify({
+                "status": "deleted", 
+                "deleted_count": res.deleted_count, 
+                "message": "Successfully deleted selected credentials"
+            })
         return jsonify({"error": "MongoDB unavailable"}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2968,7 +3055,11 @@ def _inject_teams_into_topology(data):
     try:
         db = mongo.db
         creds_map = {}
-        creds = list(db.ssh_credentials.find({}, {"device_name": 1, "ip": 1, "team": 1}))
+        # Determine if we are querying the real or mock topology view
+        is_real = request.args.get("real", "false").lower() == "true"
+        kind_filter = "real" if is_real else "mock"
+        
+        creds = list(db.ssh_credentials.find({"device_kind": kind_filter}, {"device_name": 1, "ip": 1, "team": 1}))
         for c in creds:
             team = c.get("team")
             if team:
@@ -2976,22 +3067,64 @@ def _inject_teams_into_topology(data):
                     creds_map[c["device_name"].lower()] = team
                 if c.get("ip"):
                     creds_map[c["ip"].lower()] = team
-                    
+
+        # Build adjacency graph including edges and parent-child parentId fields
+        adj = {}
+        for e in data.get("edges", []):
+            f = str(e.get("from") or e.get("source") or "").lower()
+            t = str(e.get("to") or e.get("target") or "").lower()
+            if f and t:
+                adj.setdefault(f, []).append(t)
+                adj.setdefault(t, []).append(f)
+
+        # Map of node_id -> team (initial matches from credentials)
+        node_teams = {}
         for n in data["nodes"]:
-            n_id = str(n.get("id") or "").lower()
             if "data" in n and isinstance(n["data"], dict):
                 n_id = str(n["data"].get("id") or "").lower()
+                p_id = str(n["data"].get("parentId") or "").lower()
+                if n_id and p_id:
+                    adj.setdefault(n_id, []).append(p_id)
+                    adj.setdefault(p_id, []).append(n_id)
                 n_name = str(n["data"].get("name") or n["data"].get("device_name") or "").lower()
-                matched_team = creds_map.get(n_name) or creds_map.get(n_id)
-                if matched_team:
-                    n["data"]["team"] = matched_team
-                    n["data"]["owner_team"] = matched_team
+                team = creds_map.get(n_name) or creds_map.get(n_id)
+                if team:
+                    node_teams[n_id] = team
             else:
+                n_id = str(n.get("id") or "").lower()
+                p_id = str(n.get("parentId") or "").lower()
+                if n_id and p_id:
+                    adj.setdefault(n_id, []).append(p_id)
+                    adj.setdefault(p_id, []).append(n_id)
                 n_name = str(n.get("name") or n.get("device_name") or "").lower()
-                matched_team = creds_map.get(n_name) or creds_map.get(n_id)
-                if matched_team:
-                    n["team"] = matched_team
-                    n["owner_team"] = matched_team
+                team = creds_map.get(n_name) or creds_map.get(n_id)
+                if team:
+                    node_teams[n_id] = team
+
+        # Propagate teams recursively using BFS
+        queue = list(node_teams.keys())
+        while queue:
+            curr = queue.pop(0)
+            curr_team = node_teams[curr]
+            for neighbor in adj.get(curr, []):
+                if neighbor not in node_teams:
+                    node_teams[neighbor] = curr_team
+                    queue.append(neighbor)
+
+        # Apply teams back to the node elements
+        for n in data["nodes"]:
+            if "data" in n and isinstance(n["data"], dict):
+                n_id = str(n["data"].get("id") or "").lower()
+                team = node_teams.get(n_id)
+                if team:
+                    n["data"]["team"] = team
+                    n["data"]["owner_team"] = team
+            else:
+                n_id = str(n.get("id") or "").lower()
+                team = node_teams.get(n_id)
+                if team:
+                    n["team"] = team
+                    n["owner_team"] = team
     except Exception as ex:
         log.warning(f"Failed to inject teams into topology: {ex}")
     return data

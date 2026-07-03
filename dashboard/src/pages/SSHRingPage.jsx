@@ -128,13 +128,8 @@ export default function SSHRingPage({ apiBase }) {
       const res = await fetch(`${API}/api/credentials/list`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json().catch(() => ({}))
-      const rawDevices = data?.devices || []
-      const sortedDevices = [...rawDevices].sort((a, b) => {
-        const kindA = a.device_kind === 'mock' ? 1 : 0
-        const kindB = b.device_kind === 'mock' ? 1 : 0
-        return kindA - kindB
-      })
-      setDevices(sortedDevices)
+      const rawDevices = (data?.devices || []).filter(d => d.device_kind === 'real')
+      setDevices(rawDevices)
       // Reset selection when list reloads
       setSelectedDeviceIps(new Set())
     } catch (e) {
@@ -442,7 +437,10 @@ export default function SSHRingPage({ apiBase }) {
     try {
       const payload = {}
       if (onlySelected) {
-        payload.ips = Array.from(selectedDeviceIps)
+        payload.ips = Array.from(selectedDeviceIps).map(name => {
+          const dev = devices.find(d => d.device_name === name)
+          return dev ? (dev.ip_address || dev.ip) : null
+        }).filter(Boolean)
       }
 
       const res = await fetch(`${API}/api/discover`, {
@@ -462,41 +460,62 @@ export default function SSHRingPage({ apiBase }) {
     }
   }
 
-  // Toggle selection for a specific device IP
-  const handleToggleSelectDevice = (ip) => {
+  // Handle Delete Selected (Bulk Delete)
+  const handleDeleteSelected = async () => {
+    if (selectedDeviceIps.size === 0) return
+    if (!window.confirm(`Delete ${selectedDeviceIps.size} selected devices?`)) return
+    
+    try {
+      setDiscoverStatus(`Deleting ${selectedDeviceIps.size} devices...`)
+      const names = Array.from(selectedDeviceIps)
+      const res = await fetch(`${API}/api/credentials/delete-bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_names: names }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
+      
+      setDiscoverStatus(`Successfully deleted ${data.deleted_count || names.length} devices`)
+      setSelectedDeviceIps(new Set())
+      await fetchDevices()
+    } catch (e) {
+      setDiscoverStatus(`Bulk delete failed: ${e.message}`)
+    }
+  }
+
+  // Toggle selection for a specific device by its name
+  const handleToggleSelectDevice = (name) => {
     setSelectedDeviceIps(prev => {
       const next = new Set(prev)
-      const clickedDev = devices.find(d => (d.ip_address || d.ip) === ip)
-      const isChecking = !next.has(ip)
+      const clickedDev = devices.find(d => d.device_name === name)
+      const isChecking = !next.has(name)
       
-      const affectedIps = [ip]
+      const affectedNames = [name]
       if (clickedDev && clickedDev.category === 'Array') {
         const arrayName = clickedDev.device_name
         const dependentSwitches = devices.filter(d => d.category === 'Switch' && d.connected_to === arrayName)
         dependentSwitches.forEach(s => {
-          const sIp = s.ip_address || s.ip
-          if (sIp) affectedIps.push(sIp)
+          affectedNames.push(s.device_name)
           
           const dependentHosts = devices.filter(h => h.category === 'Host' && h.connected_to === s.device_name)
           dependentHosts.forEach(h => {
-            const hIp = h.ip_address || h.ip
-            if (hIp) affectedIps.push(hIp)
+            affectedNames.push(h.device_name)
           })
         })
       } else if (clickedDev && clickedDev.category === 'Switch') {
         const switchName = clickedDev.device_name
         const dependentHosts = devices.filter(h => h.category === 'Host' && h.connected_to === switchName)
         dependentHosts.forEach(h => {
-          const hIp = h.ip_address || h.ip
-          if (hIp) affectedIps.push(hIp)
+          affectedNames.push(h.device_name)
         })
       }
       
-      affectedIps.forEach(targetIp => {
+      affectedNames.forEach(tName => {
         if (isChecking) {
-          next.add(targetIp)
+          next.add(tName)
         } else {
-          next.delete(targetIp)
+          next.delete(tName)
         }
       })
       
@@ -507,8 +526,8 @@ export default function SSHRingPage({ apiBase }) {
   // Toggle selection for all devices
   const handleToggleSelectAll = (checked) => {
     if (checked) {
-      const allIps = devices.map(d => d.ip_address || d.ip).filter(Boolean)
-      setSelectedDeviceIps(new Set(allIps))
+      const allNames = devices.map(d => d.device_name).filter(Boolean)
+      setSelectedDeviceIps(new Set(allNames))
     } else {
       setSelectedDeviceIps(new Set())
     }
@@ -570,7 +589,7 @@ export default function SSHRingPage({ apiBase }) {
   ]
 
   const allIps = devices.map(d => d.ip_address || d.ip).filter(Boolean)
-  const isAllSelected = devices.length > 0 && selectedDeviceIps.size === allIps.length
+  const isAllSelected = devices.length > 0 && selectedDeviceIps.size === devices.length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: 20 }}>
@@ -1377,6 +1396,19 @@ export default function SSHRingPage({ apiBase }) {
               Poll Selected ({selectedDeviceIps.size})
             </button>
             <button
+              onClick={handleDeleteSelected}
+              disabled={selectedDeviceIps.size === 0}
+              style={{
+                padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
+                border: '1px solid #ff4d4d',
+                background: selectedDeviceIps.size === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255, 77, 77, 0.1)',
+                color: selectedDeviceIps.size === 0 ? 'var(--muted)' : '#ff7b72',
+                cursor: selectedDeviceIps.size === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Delete Selected ({selectedDeviceIps.size})
+            </button>
+            <button
               onClick={() => handleDiscover(false)}
               disabled={isDiscovering || devices.length === 0}
               style={{
@@ -1424,7 +1456,6 @@ export default function SSHRingPage({ apiBase }) {
                     />
                   </th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Device Name</th>
-                  <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Kind</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Category</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Team</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Connected to</th>
@@ -1438,15 +1469,14 @@ export default function SSHRingPage({ apiBase }) {
               </thead>
               <tbody>
                 {devices.map((device, idx) => {
-                  const devIp = device.ip_address || device.ip
                   return (
                     <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)', transition: 'background 0.2s' }}>
                       <td style={{ padding: '12px 8px' }}>
-                        {devIp && (
+                        {device.device_name && (
                           <input
                             type="checkbox"
-                            checked={selectedDeviceIps.has(devIp)}
-                            onChange={() => handleToggleSelectDevice(devIp)}
+                            checked={selectedDeviceIps.has(device.device_name)}
+                            onChange={() => handleToggleSelectDevice(device.device_name)}
                             style={{ accentColor: 'var(--hpe-green)', cursor: 'pointer' }}
                           />
                         )}
@@ -1468,16 +1498,6 @@ export default function SSHRingPage({ apiBase }) {
                         title="Click: Dashboard | Right-click: SSH Console"
                       >
                         {device.device_name}
-                      </td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                        <span style={{
-                          padding: '2px 6px', borderRadius: 4, fontSize: '10px', fontWeight: 'bold',
-                          background: device.device_kind === 'mock' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(1, 169, 130, 0.15)',
-                          color: device.device_kind === 'mock' ? '#a855f7' : 'var(--hpe-green)',
-                          border: `1px solid ${device.device_kind === 'mock' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(1, 169, 130, 0.3)'}`
-                        }}>
-                          {device.device_kind === 'mock' ? 'Virtual' : 'Real'}
-                        </span>
                       </td>
                       <td style={{ padding: '12px 8px', fontSize: '13px' }}>
                         <span style={{
@@ -1527,7 +1547,12 @@ export default function SSHRingPage({ apiBase }) {
                         )}
                       </td>
                       <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                        <div style={{ fontFamily: 'var(--font-mono)' }}>{device.ip_address || device.ip || '-'}</div>
+                        <div style={{ fontFamily: 'var(--font-mono)' }}>{device.ip_pending ? '-' : (device.ip_address || device.ip || '-')}</div>
+                        {device.ip_pending && (
+                          <div style={{ fontSize: '10px', color: '#e0a800', fontWeight: 'bold', marginTop: 2 }}>
+                            IP Pending
+                          </div>
+                        )}
                         {device.oob_ip && (
                           <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: 2 }}>
                             OOB: <span style={{ fontFamily: 'var(--font-mono)' }}>{device.oob_ip}</span>
@@ -1536,7 +1561,22 @@ export default function SSHRingPage({ apiBase }) {
                       </td>
                       <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_name || '-'}</td>
                       <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_server || '-'}</td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>{device.username}</td>
+                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
+                        {device.username_pending ? '-' : (device.username || '-')}
+                        {device.username_pending && device.password_pending && device.ip_pending ? (
+                          <div style={{ fontSize: '10px', color: '#e0a800', fontWeight: 'bold', marginTop: 2 }}>
+                            Credentials Pending
+                          </div>
+                        ) : device.username_pending && device.password_pending ? (
+                          <div style={{ fontSize: '10px', color: '#e0a800', fontWeight: 'bold', marginTop: 2 }}>
+                            Credentials Pending
+                          </div>
+                        ) : device.password_pending ? (
+                          <div style={{ fontSize: '10px', color: '#e0a800', fontWeight: 'bold', marginTop: 2 }}>
+                            Password Pending
+                          </div>
+                        ) : null}
+                      </td>
                       <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.port}</td>
                       <td style={{ padding: '12px 8px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>

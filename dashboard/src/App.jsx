@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { path: '/health', label: 'Health', icon: Activity, desc: 'System overview' },
   { path: '/discovery', label: '(Virtual demo) Discovery', icon: Radar, desc: 'Live BFS network scan' },
   { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
-  { path: '/parser-editor', label: 'PARSER EDITOR', icon: FileCode, desc: 'View parser output for testcases-markdown.md' },
+  { path: '/parser-editor', label: 'Parser Editor', icon: FileCode, desc: 'View parser output for testcases-markdown.md' },
 ]
 
 function ProtectedRoute({ children }) {
@@ -431,30 +431,30 @@ export default function App() {
       return saved ? JSON.parse(saved) : {
         '/ssh-ring': true,
         '/topology': true,
-        '/inventory': true,
+        '/inventory': false,
         '/chat': true,
-        '/admin': false,
-        '/health': false,
+        '/admin': true,
+        '/health': true,
         '/discovery': false,
-        '/emulator': false,
+        '/emulator': true,
         '/parser-editor': true,
       }
     } catch {
       return {
         '/ssh-ring': true,
         '/topology': true,
-        '/inventory': true,
+        '/inventory': false,
         '/chat': true,
-        '/admin': false,
-        '/health': false,
+        '/admin': true,
+        '/health': true,
         '/discovery': false,
-        '/emulator': false,
+        '/emulator': true,
         '/parser-editor': true,
       }
     }
   })
 
-  const [deviceFilter, setDeviceFilter] = useState('virtual')
+  const deviceFilter = 'real'
   const [deviceKindMap, setDeviceKindMap] = useState({})
   
   // User Profile Settings States
@@ -558,53 +558,7 @@ export default function App() {
                 ))}
               </nav>
 
-              {/* Universal Device Filter Toggle */}
-              <div style={{ padding: sidebarCollapsed ? '8px' : '12px 16px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', margin: '8px 0', display: 'flex', flexDirection: 'column', alignItems: sidebarCollapsed ? 'center' : 'stretch' }}>
-                {!sidebarCollapsed && (
-                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: 8 }}>
-                    Device Filter
-                  </div>
-                )}
-                {sidebarCollapsed ? (
-                  <button
-                    onClick={() => setDeviceFilter(f => f === 'real' ? 'virtual' : 'real')}
-                    title={`Switch to ${deviceFilter === 'real' ? 'Virtual' : 'Real'} devices`}
-                    style={{
-                      width: 36, height: 36, borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.15)',
-                      background: 'rgba(255,255,255,0.05)', color: 'var(--hpe-green)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    {deviceFilter === 'real' ? <Layers size={16} /> : <Cpu size={16} />}
-                  </button>
-                ) : (
-                  <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 2 }}>
-                    <button
-                      onClick={() => setDeviceFilter('real')}
-                      style={{
-                        flex: 1, padding: '6px 12px', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                        background: deviceFilter === 'real' ? 'var(--hpe-green)' : 'transparent',
-                        color: deviceFilter === 'real' ? 'white' : 'var(--muted)',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      Real
-                    </button>
-                    <button
-                      onClick={() => setDeviceFilter('virtual')}
-                      style={{
-                        flex: 1, padding: '6px 12px', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                        background: deviceFilter === 'virtual' ? 'var(--hpe-green)' : 'transparent',
-                        color: deviceFilter === 'virtual' ? 'white' : 'var(--muted)',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      Virtual
-                    </button>
-                  </div>
-                )}
-              </div>
+
 
               <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
