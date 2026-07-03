@@ -886,7 +886,20 @@ def save_ssh_credentials():
                 }},
                 upsert=True
             )
-            return jsonify({"status": "saved", "message": f"SSH credentials indexed for {ip or dns_name}:{port}"})
+            
+            # Trigger background discovery for this saved/updated IP
+            import threading
+            def run_background_discover():
+                try:
+                    from discovery.crawler import DiscoveryCrawler
+                    crawler = DiscoveryCrawler(neo4j_store=neo4j, es_indexer=es, mongo_store=mongo)
+                    crawler.discover(seed_ips=[ip or dns_name])
+                except Exception as ex:
+                    log.error(f"Background single-device discovery failed: {ex}")
+            
+            threading.Thread(target=run_background_discover, daemon=True).start()
+            
+            return jsonify({"status": "saved", "message": f"SSH credentials indexed and discovery triggered for {ip or dns_name}:{port}"})
         return jsonify({"error": "MongoDB unavailable"}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
