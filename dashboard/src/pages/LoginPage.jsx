@@ -211,6 +211,7 @@ export default function LoginPage() {
                   <option value="team_member" style={{ background: '#161b22', color: '#ffffff' }}>Team Member</option>
                   <option value="manager" style={{ background: '#161b22', color: '#ffffff' }}>Manager</option>
                   <option value="director" style={{ background: '#161b22', color: '#ffffff' }}>Director</option>
+                  <option value="admin" style={{ background: '#161b22', color: '#ffffff' }}>Administrator</option>
                 </select>
               </div>
               {role !== 'admin' && (
