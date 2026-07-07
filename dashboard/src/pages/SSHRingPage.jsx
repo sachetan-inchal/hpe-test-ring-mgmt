@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext } from 'react'
+import { useEffect, useState, useContext, useRef } from 'react'
 import { Plus, Trash2, RefreshCw } from 'lucide-react'
 import { AuthContext } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -99,6 +99,14 @@ export default function SSHRingPage({ apiBase }) {
   const [isDiscovering, setIsDiscovering] = useState(false)
   const [discoverStatus, setDiscoverStatus] = useState('')
   const [discoveryResults, setDiscoveryResults] = useState(null)
+  const [discoveryProgress, setDiscoveryProgress] = useState(0)
+  const [discoveryTotal, setDiscoveryTotal] = useState(0)
+  const discoveryCancelRef = useRef(false)
+
+  const handleCancelDiscovery = () => {
+    discoveryCancelRef.current = true
+    setDiscoverStatus('Cancelling discovery...')
+  }
 
   // Selection of devices in the table
   const [selectedDeviceIps, setSelectedDeviceIps] = useState(new Set())
@@ -430,34 +438,104 @@ export default function SSHRingPage({ apiBase }) {
       return
     }
 
+    const devicesToDiscover = onlySelected
+      ? Array.from(selectedDeviceIps).map(name => devices.find(d => d.device_name === name)).filter(Boolean)
+      : devices
+
+    if (devicesToDiscover.length === 0) {
+      setDiscoverStatus('No valid devices found to discover')
+      return
+    }
+
     setIsDiscovering(true)
-    setDiscoverStatus(onlySelected ? `Triggering discovery for ${selectedDeviceIps.size} selected devices...` : 'Triggering discovery across all registered credentials...')
+    discoveryCancelRef.current = false
+    setDiscoveryTotal(devicesToDiscover.length)
+    setDiscoveryProgress(0)
     setDiscoveryResults(null)
 
-    try {
-      const payload = {}
-      if (onlySelected) {
-        payload.ips = Array.from(selectedDeviceIps).map(name => {
-          const dev = devices.find(d => d.device_name === name)
-          return dev ? (dev.ip_address || dev.ip) : null
-        }).filter(Boolean)
+    const accumulatedResults = []
+    let hasError = false
+    let cancelled = false
+
+    for (let i = 0; i < devicesToDiscover.length; i++) {
+      if (discoveryCancelRef.current) {
+        cancelled = true
+        break
       }
 
-      const res = await fetch(`${API}/api/discover`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Discovery failed')
+      const dev = devicesToDiscover[i]
+      const ipAddr = dev.ip_address || dev.ip
+      setDiscoverStatus(`Polling device ${i + 1}/${devicesToDiscover.length}: ${dev.device_name} (${ipAddr})...`)
 
-      setDiscoveryResults(data)
-      setDiscoverStatus('Discovery complete!')
-    } catch (e) {
-      setDiscoverStatus(`Discovery error: ${e.message}`)
-    } finally {
-      setIsDiscovering(false)
+      try {
+        const payload = { ips: [ipAddr] }
+        const res = await fetch(`${API}/api/discover`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        const data = await res.json().catch(() => ({}))
+        
+        if (discoveryCancelRef.current) {
+          cancelled = true
+          break
+        }
+
+        if (!res.ok) {
+          accumulatedResults.push({
+            device_name: dev.device_name,
+            ip: ipAddr,
+            category: dev.category || 'Host',
+            status: 'error',
+            commands: {},
+            error: data.error || 'Discovery failed'
+          })
+          hasError = true
+        } else {
+          if (data.results && Array.isArray(data.results)) {
+            accumulatedResults.push(...data.results)
+          } else {
+            accumulatedResults.push({
+              device_name: dev.device_name,
+              ip: ipAddr,
+              category: dev.category || 'Host',
+              status: 'success',
+              commands: {},
+              error: null
+            })
+          }
+        }
+      } catch (e) {
+        if (discoveryCancelRef.current) {
+          cancelled = true
+          break
+        }
+        accumulatedResults.push({
+          device_name: dev.device_name,
+          ip: ipAddr,
+          category: dev.category || 'Host',
+          status: 'error',
+          commands: {},
+          error: e.message
+        })
+        hasError = true
+      }
+
+      setDiscoveryProgress(i + 1)
     }
+
+    setDiscoveryResults({
+      status: cancelled ? 'cancelled' : (hasError ? 'warning' : 'complete'),
+      results: accumulatedResults,
+      discovered_at: new Date().toISOString()
+    })
+
+    if (cancelled) {
+      setDiscoverStatus('Discovery cancelled by user.')
+    } else {
+      setDiscoverStatus(hasError ? 'Discovery complete with some errors.' : 'Discovery complete!')
+    }
+    setIsDiscovering(false)
   }
 
   // Handle Delete Selected (Bulk Delete)
@@ -1431,10 +1509,87 @@ export default function SSHRingPage({ apiBase }) {
 
         {discoverStatus && (
           <div style={{
-            fontSize: '13px', color: 'var(--hpe-green)', marginBottom: 10, padding: '6px 10px',
-            background: 'rgba(1,169,130,0.05)', borderRadius: 6, border: '1px solid rgba(1,169,130,0.15)'
+            position: 'fixed',
+            top: '80px',
+            right: '20px',
+            zIndex: 9999,
+            background: 'rgba(13, 17, 23, 0.95)',
+            border: '1px solid var(--hpe-green)',
+            borderRadius: '6px',
+            padding: '10px 12px',
+            color: 'var(--foreground)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '10px',
+            width: '280px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            transition: 'all 0.3s ease'
           }}>
-            {discoverStatus}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: isDiscovering ? 'var(--hpe-green)' : '#8b949e' }} />
+                <span style={{ fontWeight: 600, color: 'var(--hpe-green)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {isDiscovering ? 'Discovery Active' : 'Discovery Idle'}
+                </span>
+              </div>
+              <button 
+                onClick={() => setDiscoverStatus('')} 
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '9px', padding: 0 }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
+              >
+                Dismiss
+              </button>
+            </div>
+            
+            <div style={{ color: 'rgba(255,255,255,0.85)', lineHeight: 1.3 }}>
+              {discoverStatus}
+            </div>
+
+            {isDiscovering && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                {discoveryTotal > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 1.5, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${(discoveryProgress / discoveryTotal) * 100}%`,
+                          background: 'var(--hpe-green)',
+                          transition: 'width 0.2s ease-in-out'
+                        }}
+                      />
+                    </div>
+                    <span style={{ fontWeight: 'bold', color: 'var(--hpe-green)' }}>
+                      {Math.round((discoveryProgress / discoveryTotal) * 100)}%
+                    </span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCancelDiscovery}
+                  style={{
+                    alignSelf: 'flex-end',
+                    padding: '2px 6px',
+                    borderRadius: 3,
+                    fontSize: '9px',
+                    fontWeight: 'bold',
+                    border: '1px solid #ff4d4d',
+                    background: 'rgba(255, 77, 77, 0.1)',
+                    color: '#ff7b72',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 77, 77, 0.25)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 77, 77, 0.1)' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         )}
 
