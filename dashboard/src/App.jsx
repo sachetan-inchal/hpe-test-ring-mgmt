@@ -21,15 +21,20 @@ if (typeof window !== 'undefined' && !window.__fetch_interceptor_registered) {
   window.__api_logs = [];
   const originalFetch = window.fetch;
   window.fetch = async function(...args) {
-    const url = args[0];
+    const url = String(args[0]);
     const options = args[1] || {};
     const method = options.method || 'GET';
     const timestamp = new Date().toLocaleTimeString();
     
+    // Bypass logging for diagnostic/status service-tester routes to prevent infinite loop flooding
+    if (url.includes('/api/service-tester/') || url.includes('bypass_log=true')) {
+      return originalFetch(...args);
+    }
+    
     // Create new log entry
     const logEntry = {
       id: Date.now() + Math.random().toString(36).substr(2, 5),
-      url: String(url),
+      url: url,
       method: method,
       timestamp: timestamp,
       status: 'pending',

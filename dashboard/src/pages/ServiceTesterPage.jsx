@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, RefreshCw, Database, Terminal, Cpu, HardDrive, ArrowRight, TerminalSquare, Copy, Check } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, RefreshCw, Database, Terminal, Cpu, HardDrive, ArrowRight, TerminalSquare, Copy, Check, Info, AlertTriangle } from 'lucide-react'
 
 export default function ServiceTesterPage({ apiBase }) {
   const [status, setStatus] = useState(null)
@@ -13,6 +13,11 @@ export default function ServiceTesterPage({ apiBase }) {
   const [serverLogs, setServerLogs] = useState('Fetching server console output...')
   const [serverLogsLoading, setServerLogsLoading] = useState(false)
   const [copiedLogs, setCopiedLogs] = useState(false)
+
+  // Live Discovery Trace pipeline steps
+  const [trace, setTrace] = useState(null)
+  const [traceLoading, setTraceLoading] = useState(false)
+  const [dashboardVerification, setDashboardVerification] = useState({ status: 'idle', details: 'Waiting for database storage...' })
 
   const fetchStatus = async () => {
     setLoading(true)
@@ -47,6 +52,56 @@ export default function ServiceTesterPage({ apiBase }) {
     }
   }
 
+  const fetchDiscoveryTrace = async () => {
+    setTraceLoading(true)
+    try {
+      const res = await fetch(`${apiBase}/api/service-tester/discovery-trace`)
+      if (res.ok) {
+        const data = await res.json()
+        setTrace(data)
+        
+        // If MongoDB successfully upserted, run the end-to-end dashboard load check!
+        const mongoStatus = data?.steps?.database_mongo?.status
+        if (mongoStatus === 'success') {
+          setDashboardVerification({ status: 'pending', details: 'Verifying dashboard REST endpoint load...' })
+          try {
+            const dbCheck = await fetch(`${apiBase}/api/graph/mongo?real=true&bypass_log=true`)
+            if (dbCheck.ok) {
+              const graphData = await dbCheck.json()
+              if (graphData && Array.isArray(graphData.nodes) && graphData.nodes.length > 0) {
+                setDashboardVerification({
+                  status: 'success',
+                  details: `Successfully loaded & verified ${graphData.nodes.length} nodes from MongoDB (/api/graph/mongo) on the dashboard.`
+                })
+              } else {
+                setDashboardVerification({
+                  status: 'failure',
+                  details: 'Dashboard REST endpoint returned empty nodes array.'
+                })
+              }
+            } else {
+              setDashboardVerification({
+                status: 'failure',
+                details: `Dashboard REST endpoint returned status code ${dbCheck.status}.`
+              })
+            }
+          } catch (e) {
+            setDashboardVerification({
+              status: 'failure',
+              details: `Failed to fetch from dashboard endpoint: ${e.message}`
+            })
+          }
+        } else {
+          setDashboardVerification({ status: 'idle', details: 'Waiting for database storage to complete...' })
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch discovery trace", err)
+    } finally {
+      setTraceLoading(false)
+    }
+  }
+
   const handleCopyLogs = () => {
     navigator.clipboard.writeText(serverLogs)
     setCopiedLogs(true)
@@ -56,10 +111,13 @@ export default function ServiceTesterPage({ apiBase }) {
   useEffect(() => {
     fetchStatus()
     fetchServerLogs()
+    fetchDiscoveryTrace()
 
     // Listen for global action logs updates
     const handleLogUpdate = () => {
       setLogs([...(window.__api_logs || [])])
+      // Trigger a trace reload on changes (e.g. after poll completes)
+      fetchDiscoveryTrace()
     }
     window.addEventListener('api_log_updated', handleLogUpdate)
     return () => {
@@ -70,6 +128,20 @@ export default function ServiceTesterPage({ apiBase }) {
   const runAllDiagnostics = () => {
     fetchStatus()
     fetchServerLogs()
+    fetchDiscoveryTrace()
+  }
+
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'success':
+        return { background: 'rgba(46,160,67,0.15)', color: '#2ea043', border: '1px solid rgba(46,160,67,0.3)' }
+      case 'failure':
+        return { background: 'rgba(255,69,58,0.15)', color: '#ff453a', border: '1px solid rgba(255,69,58,0.3)' }
+      case 'pending':
+        return { background: 'rgba(58,166,255,0.15)', color: '#58a6ff', border: '1px solid rgba(58,166,255,0.3)', animation: 'pulse 1.5s infinite' }
+      default:
+        return { background: 'var(--surface-2)', color: 'var(--muted)', border: '1px solid var(--line)' }
+    }
   }
 
   return (
@@ -89,7 +161,7 @@ export default function ServiceTesterPage({ apiBase }) {
 
         <button 
           onClick={runAllDiagnostics}
-          disabled={loading || serverLogsLoading}
+          disabled={loading || serverLogsLoading || traceLoading}
           className="button"
           style={{
             display: 'inline-flex',
@@ -97,7 +169,7 @@ export default function ServiceTesterPage({ apiBase }) {
             gap: 8,
             padding: '10px 18px',
             borderRadius: 10,
-            cursor: (loading || serverLogsLoading) ? 'not-allowed' : 'pointer',
+            cursor: (loading || serverLogsLoading || traceLoading) ? 'not-allowed' : 'pointer',
             background: 'var(--foreground)',
             color: 'var(--background)',
             fontWeight: 600,
@@ -105,8 +177,8 @@ export default function ServiceTesterPage({ apiBase }) {
             boxShadow: '0 4px 14px rgba(255,255,255,0.08)'
           }}
         >
-          <RefreshCw size={15} style={{ animation: (loading || serverLogsLoading) ? 'spin 1s linear infinite' : 'none' }} />
-          {loading || serverLogsLoading ? 'Running Diagnostics...' : 'Refresh Status'}
+          <RefreshCw size={15} style={{ animation: (loading || serverLogsLoading || traceLoading) ? 'spin 1s linear infinite' : 'none' }} />
+          {loading || serverLogsLoading || traceLoading ? 'Running Diagnostics...' : 'Refresh Status'}
         </button>
       </div>
 
@@ -118,6 +190,98 @@ export default function ServiceTesterPage({ apiBase }) {
           <p style={{ margin: '8px 0 0 0', fontSize: 13, color: 'var(--muted)' }}>{error}</p>
         </div>
       )}
+
+      {/* ── LIVE DISCOVERY PIPELINE TRACER ── */}
+      <div className="glass-card" style={{ padding: 24, border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--foreground)' }}>
+            Live Device Discovery Step-by-Step Pipeline (Last Discovery Run)
+          </h3>
+          {trace?.device_ip && (
+            <span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--surface-2)', padding: '4px 10px', borderRadius: 6, border: '1px solid var(--line)' }}>
+              Target IP: <strong>{trace.device_ip}</strong> ({trace.timestamp ? new Date(trace.timestamp).toLocaleTimeString() : ''})
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          
+          {/* Step 1: SSH Polling */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '12px 16px', background: 'var(--background)', borderRadius: 10, border: '1px solid var(--line)' }}>
+            <span style={{ ...getStatusStyle(trace?.steps?.ssh_connect?.status), fontSize: 10, padding: '3px 10px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', minWidth: 80, textAlign: 'center', marginTop: 2 }}>
+              {trace?.steps?.ssh_connect?.status || 'idle'}
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Step 1: Polling / SSH connection to device</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{trace?.steps?.ssh_connect?.details || 'Waiting for discovery trigger.'}</div>
+            </div>
+          </div>
+
+          {/* Step 2: Command Execution */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '12px 16px', background: 'var(--background)', borderRadius: 10, border: '1px solid var(--line)' }}>
+            <span style={{ ...getStatusStyle(trace?.steps?.command_execution?.status), fontSize: 10, padding: '3px 10px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', minWidth: 80, textAlign: 'center', marginTop: 2 }}>
+              {trace?.steps?.command_execution?.status || 'idle'}
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Step 2: CLI Command Execution</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{trace?.steps?.command_execution?.details || 'Waiting for SSH session...'}</div>
+            </div>
+          </div>
+
+          {/* Step 3: Sent to Parser */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '12px 16px', background: 'var(--background)', borderRadius: 10, border: '1px solid var(--line)' }}>
+            <span style={{ ...getStatusStyle(trace?.steps?.parser_routing?.status), fontSize: 10, padding: '3px 10px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', minWidth: 80, textAlign: 'center', marginTop: 2 }}>
+              {trace?.steps?.parser_routing?.status || 'idle'}
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Step 3: Routed to Parser</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{trace?.steps?.parser_routing?.details || 'Waiting for CLI stdout outputs...'}</div>
+            </div>
+          </div>
+
+          {/* Step 4: Parser Output */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '12px 16px', background: 'var(--background)', borderRadius: 10, border: '1px solid var(--line)' }}>
+            <span style={{ ...getStatusStyle(trace?.steps?.parser_output?.status), fontSize: 10, padding: '3px 10px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', minWidth: 80, textAlign: 'center', marginTop: 2 }}>
+              {trace?.steps?.parser_output?.status || 'idle'}
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Step 4: Parser Sandbox Output</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{trace?.steps?.parser_output?.details || 'Waiting for V8 compiler outputs...'}</div>
+            </div>
+          </div>
+
+          {/* Step 5: DB Storage */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '12px 16px', background: 'var(--background)', borderRadius: 10, border: '1px solid var(--line)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: 80, alignItems: 'center', marginTop: 2 }}>
+              <span style={{ ...getStatusStyle(trace?.steps?.database_mongo?.status), fontSize: 9, padding: '2px 6px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', width: '100%', textAlign: 'center' }}>
+                Mongo: {trace?.steps?.database_mongo?.status || 'idle'}
+              </span>
+              <span style={{ ...getStatusStyle(trace?.steps?.database_neo4j?.status), fontSize: 9, padding: '2px 6px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', width: '100%', textAlign: 'center' }}>
+                Neo4j: {trace?.steps?.database_neo4j?.status || 'idle'}
+              </span>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Step 5: Storage Upsert (MongoDB & Neo4j)</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div><strong>MongoDB:</strong> {trace?.steps?.database_mongo?.details}</div>
+                <div><strong>Neo4j:</strong> {trace?.steps?.database_neo4j?.details}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 6: Dashboard Fetch Verification */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '12px 16px', background: 'var(--background)', borderRadius: 10, border: '1px solid var(--line)' }}>
+            <span style={{ ...getStatusStyle(dashboardVerification.status), fontSize: 10, padding: '3px 10px', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase', minWidth: 80, textAlign: 'center', marginTop: 2 }}>
+              {dashboardVerification.status}
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Step 6: Dashboard Fetch Verification</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{dashboardVerification.details}</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
 
       {/* ── PIPELINE FLOW VISUALIZATION ── */}
       <div className="glass-card" style={{ padding: 24, border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: 12 }}>
@@ -235,7 +399,7 @@ export default function ServiceTesterPage({ apiBase }) {
             </div>
           </div>
 
-          {/* Services & Databases (Excluding Elasticsearch) */}
+          {/* Services & Databases */}
           <div className="glass-card" style={{ padding: 20, border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ padding: 8, background: 'rgba(163,113,247,0.1)', color: '#a371f7', borderRadius: 8 }}>
@@ -263,7 +427,7 @@ export default function ServiceTesterPage({ apiBase }) {
             </div>
           </div>
 
-          {/* System Binaries (Excluding Docker) */}
+          {/* System Binaries */}
           <div className="glass-card" style={{ padding: 20, border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ padding: 8, background: 'rgba(255,159,64,0.1)', color: '#ff9f40', borderRadius: 8 }}>
@@ -303,7 +467,7 @@ export default function ServiceTesterPage({ apiBase }) {
             </div>
           </div>
 
-          {/* Python Libraries (Excluding Elasticsearch and Groq) */}
+          {/* Python Libraries */}
           <div className="glass-card" style={{ padding: 20, border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ padding: 8, background: 'rgba(255,69,58,0.1)', color: '#ff453a', borderRadius: 8 }}>
@@ -371,7 +535,7 @@ export default function ServiceTesterPage({ apiBase }) {
         </div>
 
         <div style={{ 
-          height: 280, 
+          height: 220, 
           overflowY: 'auto', 
           background: '#0d1117', 
           borderRadius: 10, 
@@ -411,7 +575,7 @@ export default function ServiceTesterPage({ apiBase }) {
         </div>
 
         <div style={{ 
-          height: 240, 
+          height: 200, 
           overflowY: 'auto', 
           background: '#0d1117', 
           borderRadius: 10, 
@@ -424,7 +588,7 @@ export default function ServiceTesterPage({ apiBase }) {
           gap: 12
         }}>
           {logs.length === 0 ? (
-            <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '80px 0' }}>
+            <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '60px 0' }}>
               No application actions traced yet. Click any button in the app to see live API traffic.
             </div>
           ) : (
@@ -479,11 +643,16 @@ export default function ServiceTesterPage({ apiBase }) {
         </div>
       </div>
       
-      {/* Spin Animation Definition */}
+      {/* Pulse Keyframe Style & Spin Animation Definition */}
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0% { opacity: 0.6; }
+          50% { opacity: 1; }
+          100% { opacity: 0.6; }
         }
       `}</style>
     </div>

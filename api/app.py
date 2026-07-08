@@ -96,6 +96,19 @@ log = logging.getLogger(__name__)
 app = Flask(__name__, static_folder=os.path.join(MONOREPO, "dashboard", "dist"), static_url_path="")
 CORS(app)
 
+LAST_DISCOVERY_TRACE = {
+    "device_ip": None,
+    "timestamp": None,
+    "steps": {
+        "ssh_connect": {"status": "idle", "details": "No discovery run executed yet."},
+        "command_execution": {"status": "idle", "details": "Waiting for run..."},
+        "parser_routing": {"status": "idle", "details": "Waiting for run..."},
+        "parser_output": {"status": "idle", "details": "Waiting for run..."},
+        "database_mongo": {"status": "idle", "details": "Waiting for run..."},
+        "database_neo4j": {"status": "idle", "details": "Waiting for run..."}
+    }
+}
+
 # ── Infrastructure ────────────────────────────────────────────────────────────
 
 neo4j   = Neo4jStore()
@@ -1608,6 +1621,22 @@ def ssh_ring_discover_all():
         device_kind = d.get("device_kind", "real")
         mock_commands = d.get("mock_commands") or {}
 
+        # Initialize global live trace for diagnostics
+        global LAST_DISCOVERY_TRACE
+        from datetime import datetime
+        LAST_DISCOVERY_TRACE = {
+            "device_ip": ip,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "steps": {
+                "ssh_connect": {"status": "pending", "details": f"Attempting SSH connection to {ip}:{port} as {username}..."},
+                "command_execution": {"status": "idle", "details": "Waiting for SSH connection..."},
+                "parser_routing": {"status": "idle", "details": "Waiting for command logs..."},
+                "parser_output": {"status": "idle", "details": "Waiting for parsing..."},
+                "database_mongo": {"status": "idle", "details": "Waiting for Mongo write..."},
+                "database_neo4j": {"status": "idle", "details": "Waiting for Neo4j write..."}
+            }
+        }
+
         presets = None
         if isinstance(commands_override, list):
             presets = commands_override
@@ -1665,6 +1694,8 @@ def ssh_ring_discover_all():
                     from api.integrations.device_connector import SSHConnector
                     connector = SSHConnector(host=ip, username=username, password=password, port=port)
                     if connector.connect():
+                        LAST_DISCOVERY_TRACE["steps"]["ssh_connect"] = {"status": "success", "details": f"Connected to {ip}:{port}."}
+                        LAST_DISCOVERY_TRACE["steps"]["command_execution"] = {"status": "pending", "details": f"Executing {len(presets)} commands..."}
                         res = connector.execute(cmd)
                         results[cmd] = {
                             "stdout": res.get("stdout", ""),
@@ -1673,7 +1704,17 @@ def ssh_ring_discover_all():
                         }
                         connector.disconnect()
                     else:
+                        LAST_DISCOVERY_TRACE["steps"]["ssh_connect"] = {"status": "failure", "details": f"SSH connection authentication failed to {ip}:{port}."}
+                        LAST_DISCOVERY_TRACE["steps"]["command_execution"] = {"status": "failure", "details": "Aborted due to SSH connection failure."}
+                        LAST_DISCOVERY_TRACE["steps"]["parser_routing"] = {"status": "failure", "details": "Aborted."}
+                        LAST_DISCOVERY_TRACE["steps"]["parser_output"] = {"status": "failure", "details": "Aborted."}
+                        LAST_DISCOVERY_TRACE["steps"]["database_mongo"] = {"status": "failure", "details": "Aborted."}
+                        LAST_DISCOVERY_TRACE["steps"]["database_neo4j"] = {"status": "failure", "details": "Aborted."}
                         results[cmd] = {"stdout": "", "stderr": "SSH Connection Failure", "exit_code": -1}
+
+            if LAST_DISCOVERY_TRACE["steps"]["ssh_connect"]["status"] == "success":
+                LAST_DISCOVERY_TRACE["steps"]["command_execution"] = {"status": "success", "details": f"Executed all {len(presets)} commands successfully."}
+                LAST_DISCOVERY_TRACE["steps"]["parser_routing"] = {"status": "pending", "details": f"Routing raw logs to {category} parser..."}
 
             # mark warning if any stderr / nonzero exit
             status = "success"
@@ -1693,6 +1734,9 @@ def ssh_ring_discover_all():
                 raw_outputs = {cmd: r.get("stdout", "") for cmd, r in results.items()}
                 parsed = None
                 
+                LAST_DISCOVERY_TRACE["steps"]["parser_routing"] = {"status": "success", "details": f"Successfully mapped and routed commands to {category} parser."}
+                LAST_DISCOVERY_TRACE["steps"]["parser_output"] = {"status": "pending", "details": "Invoking parser execution..."}
+
                 if category == "Array":
                     try:
                         from discovery.parsers.sim_parser import parse_sim_array_output
@@ -1700,6 +1744,7 @@ def ssh_ring_discover_all():
                         parsed["_ip"] = ip
                         parsed["_device_type"] = "hpe_array"
                     except Exception as pe:
+                        LAST_DISCOVERY_TRACE["steps"]["parser_output"] = {"status": "failure", "details": f"Array parser failed: {pe}"}
                         log.error(f"Failed to parse real Array output: {pe}")
                 elif category == "Host":
                     is_windows = "windows" in (results.get("systeminfo") or {}).get("stdout", "").lower()
@@ -1715,9 +1760,19 @@ def ssh_ring_discover_all():
                             parsed["_ip"] = ip
                             parsed["_device_type"] = "linux_host"
                     except Exception as pe:
+                        LAST_DISCOVERY_TRACE["steps"]["parser_output"] = {"status": "failure", "details": f"Host parser failed: {pe}"}
                         log.error(f"Failed to parse real Host output: {pe}")
                 
                 if parsed:
+                    h_count = len(parsed.get("hosts", [])) if isinstance(parsed.get("hosts"), list) else 1
+                    c_count = len(parsed.get("cages", [])) if isinstance(parsed.get("cages"), list) else 0
+                    LAST_DISCOVERY_TRACE["steps"]["parser_output"] = {
+                        "status": "success", 
+                        "details": f"Parser successfully returned structured JSON (Hosts: {h_count}, Cages: {c_count})."
+                    }
+                    LAST_DISCOVERY_TRACE["steps"]["database_mongo"] = {"status": "pending", "details": "Writing parsed nodes to MongoDB..."}
+                    LAST_DISCOVERY_TRACE["steps"]["database_neo4j"] = {"status": "pending", "details": "Writing parsed relationships to Neo4j..."}
+
                     try:
                         from discovery.neo4j_store import Neo4jStore
                         from discovery.mongo_store import MongoStore
@@ -1727,11 +1782,21 @@ def ssh_ring_discover_all():
                         
                         if real_neo4j.available:
                             real_neo4j.store(parsed)
+                            LAST_DISCOVERY_TRACE["steps"]["database_neo4j"] = {"status": "success", "details": "Successfully stored relationships in Neo4j graph db."}
+                        else:
+                            LAST_DISCOVERY_TRACE["steps"]["database_neo4j"] = {"status": "failure", "details": "Neo4j is not available."}
+
                         if real_mongo.available:
                             real_mongo.load_existing_state()
                             real_mongo.store(parsed)
+                            LAST_DISCOVERY_TRACE["steps"]["database_mongo"] = {"status": "success", "details": "Successfully upserted nodes to MongoDB hpe_san.real_sandatas."}
+                        else:
+                            LAST_DISCOVERY_TRACE["steps"]["database_mongo"] = {"status": "failure", "details": "MongoDB is not available."}
+
                         log.info(f"Successfully stored real device {device_name} ({ip}) to real_sandatas and Real Neo4j labels")
                     except Exception as se:
+                        LAST_DISCOVERY_TRACE["steps"]["database_mongo"] = {"status": "failure", "details": f"Database save failed: {se}"}
+                        LAST_DISCOVERY_TRACE["steps"]["database_neo4j"] = {"status": "failure", "details": f"Database save failed: {se}"}
                         log.error(f"Failed to save real device to stores: {se}")
 
         except Exception as e:
@@ -4862,6 +4927,10 @@ def get_service_tester_server_logs():
             return jsonify({"logs": "Log file not created yet."})
     except Exception as e:
         return jsonify({"logs": f"Error reading log file: {e}"}), 500
+
+@app.route("/api/service-tester/discovery-trace", methods=["GET"])
+def get_service_tester_discovery_trace():
+    return jsonify(LAST_DISCOVERY_TRACE)
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
