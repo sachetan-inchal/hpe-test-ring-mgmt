@@ -42,7 +42,7 @@ def run_js_parser(cmd_or_func: str, cli_output: str):
             text=True,
             encoding="utf-8",
         )
-        stdout, stderr = proc.communicate(input=cli_output, timeout=30)
+        stdout, stderr = proc.communicate(input=cli_output)  # no timeout – waits as long as needed
 
         if proc.returncode == 0:
             try:

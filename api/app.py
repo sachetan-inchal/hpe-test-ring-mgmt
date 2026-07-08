@@ -1733,7 +1733,7 @@ def ssh_ring_discover_all():
             device_result["status"] = status
 
             # If it is a real device, parse and save it exclusively!
-            if device_kind == "real" and status == "success":
+            if device_kind == "real" and status in ("success", "warning"):
                 raw_outputs = {cmd: r.get("stdout", "") for cmd, r in results.items()}
                 parsed = None
                 
@@ -1805,7 +1805,7 @@ def ssh_ring_discover_all():
                     if LAST_DISCOVERY_TRACE["steps"]["parser_output"]["status"] == "pending":
                         LAST_DISCOVERY_TRACE["steps"]["parser_output"] = {
                             "status": "failure",
-                            "details": "Parser returned an empty response. This usually indicates Node.js execution failed, timed out (15s limit), or returned invalid/empty JSON."
+                            "details": "Parser returned an empty response. This usually indicates Node.js is not installed, the parser crashed, or returned invalid/empty JSON."
                         }
                     LAST_DISCOVERY_TRACE["steps"]["database_mongo"] = {"status": "failure", "details": "Aborted."}
                     LAST_DISCOVERY_TRACE["steps"]["database_neo4j"] = {"status": "failure", "details": "Aborted."}
