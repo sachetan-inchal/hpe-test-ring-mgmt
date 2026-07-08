@@ -1007,11 +1007,11 @@ function ManageDeviceTeamsSection({ apiBase, refreshKey, onTeamChange }) {
   // Lane Colors based on index
   const getLaneColors = (index) => {
     const palettes = [
-      { bg: 'rgba(56, 139, 253, 0.04)', border: 'rgba(56, 139, 253, 0.2)', text: '#58a6ff' },
-      { bg: 'rgba(46, 160, 67, 0.04)', border: 'rgba(46, 160, 67, 0.2)', text: '#3fb950' },
-      { bg: 'rgba(187, 128, 250, 0.04)', border: 'rgba(187, 128, 250, 0.2)', text: '#bc8cff' },
-      { bg: 'rgba(219, 109, 40, 0.04)', border: 'rgba(219, 109, 40, 0.2)', text: '#f0883e' },
-      { bg: 'rgba(244, 63, 94, 0.04)', border: 'rgba(244, 63, 94, 0.2)', text: '#ff7b72' }
+      { bg: 'var(--background)', border: 'var(--line)', text: 'var(--accent-blue)' },
+      { bg: 'var(--background)', border: 'var(--line)', text: 'var(--accent-green)' },
+      { bg: 'var(--background)', border: 'var(--line)', text: 'var(--accent-purple)' },
+      { bg: 'var(--background)', border: 'var(--line)', text: 'var(--accent-orange)' },
+      { bg: 'var(--background)', border: 'var(--line)', text: 'var(--accent-rose)' }
     ]
     return palettes[index % palettes.length]
   }
@@ -1108,8 +1108,8 @@ function ManageDeviceTeamsSection({ apiBase, refreshKey, onTeamChange }) {
                           }}
                           onClick={(e) => handleDeviceClick(e, d)}
                           style={{
-                            background: isSelected ? 'rgba(1, 169, 130, 0.15)' : 'rgba(22, 27, 34, 0.6)',
-                            border: isSelected ? '1px solid var(--hpe-green)' : '1px solid rgba(255,255,255,0.08)',
+                            background: isSelected ? 'rgba(1, 169, 130, 0.15)' : 'var(--surface-1)',
+                            border: isSelected ? '1px solid var(--hpe-green)' : '1px solid var(--line)',
                             boxShadow: isSelected ? '0 0 12px rgba(1, 169, 130, 0.25)' : '0 2px 8px rgba(0,0,0,0.15)',
                             borderRadius: 8,
                             padding: '10px 12px',
@@ -1123,14 +1123,14 @@ function ManageDeviceTeamsSection({ apiBase, refreshKey, onTeamChange }) {
                             if (!isSelected) {
                               e.currentTarget.style.borderColor = colors.text
                               e.currentTarget.style.transform = 'translateY(-1px)'
-                              e.currentTarget.style.background = 'rgba(22, 27, 34, 0.8)'
+                              e.currentTarget.style.background = 'var(--surface-3)'
                             }
                           }}
                           onMouseLeave={(e) => {
                             if (!isSelected) {
-                              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'
+                              e.currentTarget.style.borderColor = 'var(--line)'
                               e.currentTarget.style.transform = 'none'
-                              e.currentTarget.style.background = 'rgba(22, 27, 34, 0.6)'
+                              e.currentTarget.style.background = 'var(--surface-1)'
                             }
                           }}
                         >

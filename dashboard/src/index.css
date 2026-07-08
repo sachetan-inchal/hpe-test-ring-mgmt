@@ -731,3 +731,87 @@ body {
   .landing-title { font-size: 28px; }
   .header-buttons { display: none; }
 }
+
+/* === LEGACY WHITE (ODIN3 STYLE) THEME === */
+body.legacy-white {
+  --background: #eef2f7;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #e2e8f0;
+  --foreground: #000000;
+  --muted: #4b5563;
+  --line: #cbd5e1;
+  --line-strong: #94a3b8;
+  --glass: #ffffff;
+  --glass-border: #cbd5e1;
+  --accent-blue: #0056b3;
+  --accent-green: #1a7f37;
+  --accent-amber: #9a6700;
+  --accent-rose: #cf222e;
+  --accent-purple: #8250df;
+  --accent-cyan: #059669;
+  --accent-orange: #bc4c00;
+  --status-ok: #1a7f37;
+  --status-warn: #9a6700;
+  --status-critical: #cf222e;
+  --status-offline: #828a95;
+  --color-array: #0056b3;
+  --color-switch: #8250df;
+  --color-host: #1a7f37;
+  --color-cage: #bc4c00;
+  --color-disk: #059669;
+  --color-port: #9a6700;
+  --hpe-green-light: rgba(1, 169, 130, 0.1);
+  --font-sans: 'Tahoma', 'Segoe UI', system-ui, sans-serif;
+  background: #eef2f7 !important;
+}
+
+/* Force blocky, raw utility borders for everything in legacy white theme */
+body.legacy-white *,
+body.legacy-white *::before,
+body.legacy-white *::after {
+  border-radius: 0px !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  animation: none !important;
+}
+
+body.legacy-white ::selection {
+  background: #0056b3;
+  color: #ffffff;
+}
+
+body.legacy-white .login-grid {
+  background: none !important;
+}
+
+body.legacy-white .login-glow {
+  display: none !important;
+}
+
+body.legacy-white .glass-card,
+body.legacy-white .login-card {
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+}
+
+body.legacy-white .btn {
+  border: 1px solid #94a3b8 !important;
+  background: #f1f5f9 !important;
+  color: #000000 !important;
+}
+
+body.legacy-white .btn:hover {
+  background: #e2e8f0 !important;
+  border-color: #0056b3 !important;
+}
+
+body.legacy-white .input {
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+body.legacy-white .input:focus {
+  border-color: #0056b3 !important;
+}

@@ -60,12 +60,12 @@ function getDeviceKind(device) {
 }
 
 const COL = {
-  cmd: '#3fb950',
-  out: '#c9d1d9',
-  error: '#f85149',
-  info: '#58a6ff',
-  warn: '#e3b341',
-  ssh: '#d2a8ff',
+  cmd: 'var(--accent-green)',
+  out: 'var(--foreground)',
+  error: 'var(--accent-rose)',
+  info: 'var(--accent-blue)',
+  warn: 'var(--accent-amber)',
+  ssh: 'var(--accent-purple)',
 }
 
 export default function EmulatorPage({ apiBase }) {
@@ -700,8 +700,8 @@ export default function EmulatorPage({ apiBase }) {
           )}
 
           {/* Core Interactive Terminal Console */}
-          <div className="terminal-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#0d1117' }}>
-            <div className="terminal-header" style={{ background: '#161b22', borderBottom: '1px solid var(--line)' }}>
+          <div className="terminal-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--background)' }}>
+            <div className="terminal-header" style={{ background: 'var(--surface-1)', borderBottom: '1px solid var(--line)' }}>
               <span className="terminal-dot red" />
               <span className="terminal-dot yellow" />
               <span className="terminal-dot green" />
@@ -736,17 +736,17 @@ export default function EmulatorPage({ apiBase }) {
             >
               {/* Output History */}
               {history.map((line, i) => (
-                <div key={i} style={{ color: COL[line.type] || '#c8d6d4', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                <div key={i} style={{ color: COL[line.type] || 'var(--foreground)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                   {line.text}
                 </div>
               ))}
 
               {/* Active Terminal Typing Line */}
-              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', color: '#e6edf3' }}>
-                <span style={{ color: sshState === 'connected' ? '#39c5cf' : '#e3b341', marginRight: 8, whiteSpace: 'pre' }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', color: 'var(--foreground)' }}>
+                <span style={{ color: sshState === 'connected' ? 'var(--accent-cyan)' : 'var(--accent-amber)', marginRight: 8, whiteSpace: 'pre' }}>
                   {prompt}
                 </span>
-                <span style={{ color: '#e6edf3', whiteSpace: 'pre' }}>
+                <span style={{ color: 'var(--foreground)', whiteSpace: 'pre' }}>
                   {sshState === 'awaiting_password' ? '' : input}
                 </span>
                 <span className="term-cursor" />

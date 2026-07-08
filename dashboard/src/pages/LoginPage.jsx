@@ -124,7 +124,7 @@ export default function LoginPage() {
         <div className="login-brand">
           <div className="login-logo-row" style={{ justifyContent: 'center', marginBottom: '1rem' }}>
             <img
-              src="/images/HPE_logo_transparent.png"
+              src={localStorage.getItem('theme') !== 'dark' ? '/images/Hewlett_Packard_Enterprise-Logo.png' : '/images/HPE_logo_transparent.png'}
               alt="Hewlett Packard Enterprise"
               style={{ width: '270px', borderRadius: '8px', objectFit: 'contain' }}
             />

@@ -12,7 +12,7 @@ import HealthPage from './pages/HealthPage'
 import InventoryPage from './pages/InventoryPage'
 import SSHRingPage from './pages/SSHRingPage'
 import TestcasesMarkdownViewerPage from './pages/TestcasesMarkdownViewerPage'
-import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check, Cpu, PanelTop, FileCode } from 'lucide-react'
+import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check, Cpu, PanelTop, FileCode, Sun, Moon } from 'lucide-react'
 
 const FLASK_API = `http://${window.location.hostname}:5005`
 const CHATBOT_API = '/chatbot'
@@ -423,6 +423,16 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'legacy-white')
+
+  useEffect(() => {
+    if (theme === 'legacy-white') {
+      document.body.classList.add('legacy-white')
+    } else {
+      document.body.classList.remove('legacy-white')
+    }
+    localStorage.setItem('theme', theme)
+  }, [theme])
   
   // Track which tabs are visible (persisted in localStorage)
   const [visibleTabs, setVisibleTabs] = useState(() => {
@@ -534,7 +544,7 @@ export default function App() {
             <aside className={`app-sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'mobile-open' : ''}`}>
               <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
                 <img 
-                  src="/images/sidebarlogo.png" 
+                  src={theme === 'legacy-white' ? '/images/Hewlett_Packard_Enterprise-Logo.png' : '/images/sidebarlogo.png'} 
                   alt="HPE Logo" 
                   style={{ width: sidebarCollapsed ? '0' : '140px', opacity: sidebarCollapsed ? 0 : 1, transition: 'all 0.3s ease', objectFit: 'contain' }} 
                 />
@@ -574,25 +584,49 @@ export default function App() {
                     )}
                   </div>
                   {!sidebarCollapsed && (
-                    <button
-                      onClick={() => setUserSettingsOpen(true)}
-                      title="Profile Settings"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--muted)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 4,
-                        borderRadius: 4
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.color = 'var(--foreground)'}
-                      onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
-                    >
-                      <Settings size={16} />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {/* Theme Toggle Button */}
+                      <button
+                        onClick={() => setTheme(t => t === 'dark' ? 'legacy-white' : 'dark')}
+                        title={`Switch to ${theme === 'dark' ? 'Legacy White' : 'Dark Theme'}`}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--muted)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 4,
+                          borderRadius: 4
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--foreground)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
+                      >
+                        {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                      </button>
+
+                      {/* Settings Button */}
+                      <button
+                        onClick={() => setUserSettingsOpen(true)}
+                        title="Profile Settings"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--muted)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 4,
+                          borderRadius: 4
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--foreground)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
+                      >
+                        <Settings size={16} />
+                      </button>
+                    </div>
                   )}
                 </div>
                 

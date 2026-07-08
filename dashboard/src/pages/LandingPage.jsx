@@ -32,7 +32,7 @@ export default function LandingPage() {
       {/* Header */}
       <header className="landing-header">
         <img
-          src="/images/HPE_logo_transparent.png"
+          src={localStorage.getItem('theme') !== 'dark' ? '/images/Hewlett_Packard_Enterprise-Logo.png' : '/images/HPE_logo_transparent.png'}
           alt="Hewlett Packard Enterprise"
           className="header-logo"
         />
