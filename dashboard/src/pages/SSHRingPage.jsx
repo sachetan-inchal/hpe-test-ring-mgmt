@@ -1512,16 +1512,15 @@ export default function SSHRingPage({ apiBase }) {
             top: '80px',
             right: '20px',
             zIndex: 9999,
-            background: 'rgba(13, 17, 23, 0.95)',
+            background: '#ffffff',
             border: '1px solid var(--hpe-green)',
-            borderRadius: '6px',
-            padding: '10px 12px',
-            color: 'var(--foreground)',
+            borderRadius: '8px',
+            padding: '12px 14px',
+            color: '#1a1a1a',
             fontFamily: 'var(--font-mono)',
             fontSize: '10px',
-            width: '280px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(8px)',
+            width: '290px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
             display: 'flex',
             flexDirection: 'column',
             gap: 8,
@@ -1536,15 +1535,15 @@ export default function SSHRingPage({ apiBase }) {
               </div>
               <button 
                 onClick={() => setDiscoverStatus('')} 
-                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '9px', padding: 0 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
+                style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '9px', padding: 0 }}
+                onMouseEnter={e => e.currentTarget.style.color = '#333'}
+                onMouseLeave={e => e.currentTarget.style.color = '#888'}
               >
                 Dismiss
               </button>
             </div>
             
-            <div style={{ color: 'rgba(255,255,255,0.85)', lineHeight: 1.3 }}>
+            <div style={{ color: '#333', lineHeight: 1.4 }}>
               {discoverStatus}
             </div>
 
@@ -1552,7 +1551,7 @@ export default function SSHRingPage({ apiBase }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
                 {discoveryTotal > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 1.5, overflow: 'hidden' }}>
+                    <div style={{ flex: 1, height: 3, background: 'rgba(0,0,0,0.08)', borderRadius: 1.5, overflow: 'hidden' }}>
                       <div
                         style={{
                           height: '100%',

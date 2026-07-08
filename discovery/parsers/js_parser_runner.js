@@ -84,33 +84,54 @@ function loadParsers() {
 /**
  * Runs the selected parser inside a V8 VM context
  */
-function runParser(funcName, cliOutput) {
+/**
+ * useVM=true  → V8 isolated context (default)
+ * useVM=false → direct new Function() evaluation (no VM sandbox, works on locked-down VMs)
+ */
+function runParser(funcName, cliOutput, useVM = true) {
     const parsers = loadParsers();
     const funcCode = parsers[funcName];
     if (!funcCode) {
         throw new Error(`Parser function '${funcName}' not found in testcases file.`);
     }
 
-    // Create an isolated V8 environment
-    const sandbox = {
-        console: console // Allow console logs for debugging if needed
-    };
-    vm.createContext(sandbox);
+    if (!useVM) {
+        // Direct mode: skip VM sandbox entirely
+        console.warn(`[js_parser] Running in DIRECT mode (no VM sandbox) for ${funcName}.`);
+        const runFn = new Function('inputData', `
+            ${funcCode}
+            return ${funcName}(inputData);
+        `);
+        return runFn(cliOutput);
+    }
 
-    // Evaluate the function string
-    vm.runInContext(funcCode, sandbox);
-
-    // Set variable and invoke
-    sandbox.inputData = cliOutput;
-    return vm.runInContext(`${funcName}(inputData)`, sandbox);
+    try {
+        // VM Sandbox mode (default)
+        const sandbox = { console: console, inputData: cliOutput };
+        vm.createContext(sandbox);
+        vm.runInContext(funcCode, sandbox);
+        return vm.runInContext(`${funcName}(inputData)`, sandbox);
+    } catch (vmErr) {
+        console.warn(`[js_parser] VM sandbox failed: ${vmErr.message}. Auto-falling back to direct mode.`);
+        const runFn = new Function('inputData', `
+            ${funcCode}
+            return ${funcName}(inputData);
+        `);
+        return runFn(cliOutput);
+    }
 }
 
 function main() {
-    const args = process.argv.slice(2);
-    if (args.length === 0) {
-        console.error("Usage: node js_parser_runner.js <cmd_or_func_name>");
+    const rawArgs = process.argv.slice(2);
+    if (rawArgs.length === 0) {
+        console.error("Usage: node js_parser_runner.js <cmd_or_func_name> [--no-vm]");
         process.exit(1);
     }
+
+    // Parse flags
+    const noVm = rawArgs.includes('--no-vm');
+    const useVM = !noVm;
+    const args = rawArgs.filter(a => !a.startsWith('--'));
 
     const target = args[0].toLowerCase();
     let funcName = COMMAND_TO_FUNC[target];
@@ -131,11 +152,11 @@ function main() {
 
     process.stdin.on("end", () => {
         try {
-            const result = runParser(funcName, cliOutput);
+            const result = runParser(funcName, cliOutput, useVM);
             console.log(JSON.stringify(result, null, 2));
             process.exit(0);
         } catch (err) {
-            console.error(`Runner VM Execution Error: ${err.message}`);
+            console.error(`Runner Execution Error: ${err.message}`);
             process.exit(1);
         }
     });

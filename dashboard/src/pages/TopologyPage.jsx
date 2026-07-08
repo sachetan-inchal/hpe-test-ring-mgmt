@@ -113,7 +113,7 @@ function PieChart({ data, size = 80 }) {
 
 export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
   const [data, setData] = useState({ nodes: [], edges: [] })
-  const [showDashboardPanel, setShowDashboardPanel] = useState(true)
+  const [showDashboardPanel, setShowDashboardPanel] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [focusedId, setFocusedId] = useState(null)

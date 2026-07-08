@@ -29,15 +29,20 @@ def run_js_parser(cmd_or_func: str, cli_output: str):
 
     try:
         runner_path = os.path.join(os.path.dirname(__file__), "js_parser_runner.js")
+        # Support PARSER_MODE env var: "vm" (default) or "direct" (no VM sandbox)
+        parser_mode = os.environ.get("HPE_PARSER_MODE", "vm").strip().lower()
+        cmd = ["node", runner_path, cmd_or_func]
+        if parser_mode == "direct":
+            cmd.append("--no-vm")
         proc = subprocess.Popen(
-            ["node", runner_path, cmd_or_func],
+            cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
         )
-        stdout, stderr = proc.communicate(input=cli_output, timeout=15)
+        stdout, stderr = proc.communicate(input=cli_output, timeout=30)
 
         if proc.returncode == 0:
             try:

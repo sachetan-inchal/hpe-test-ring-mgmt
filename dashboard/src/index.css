@@ -815,3 +815,15 @@ body.legacy-white .input {
 body.legacy-white .input:focus {
   border-color: #0056b3 !important;
 }
+
+/* Command output boxes: dark text + light background in legacy-white mode */
+body.legacy-white pre {
+  color: #1a1a1a !important;
+  background: #f4f6f9 !important;
+  border: 1px solid #d0d7e3 !important;
+}
+
+/* Command header bar ($ cmd line) in legacy-white mode */
+body.legacy-white [style*="font-mono"] {
+  color: #1a1a1a;
+}

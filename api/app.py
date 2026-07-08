@@ -95,6 +95,9 @@ log = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder=os.path.join(MONOREPO, "dashboard", "dist"), static_url_path="")
 CORS(app)
+# Parser execution mode: "vm" = V8 sandboxed (default), "direct" = new Function() without VM module
+PARSER_MODE = os.environ.get("HPE_PARSER_MODE", "vm").strip().lower()
+os.environ["HPE_PARSER_MODE"] = PARSER_MODE  # Ensure child processes inherit it
 
 LAST_DISCOVERY_TRACE = {
     "device_ip": None,
@@ -1798,6 +1801,14 @@ def ssh_ring_discover_all():
                         LAST_DISCOVERY_TRACE["steps"]["database_mongo"] = {"status": "failure", "details": f"Database save failed: {se}"}
                         LAST_DISCOVERY_TRACE["steps"]["database_neo4j"] = {"status": "failure", "details": f"Database save failed: {se}"}
                         log.error(f"Failed to save real device to stores: {se}")
+                else:
+                    if LAST_DISCOVERY_TRACE["steps"]["parser_output"]["status"] == "pending":
+                        LAST_DISCOVERY_TRACE["steps"]["parser_output"] = {
+                            "status": "failure",
+                            "details": "Parser returned an empty response. This usually indicates Node.js execution failed, timed out (15s limit), or returned invalid/empty JSON."
+                        }
+                    LAST_DISCOVERY_TRACE["steps"]["database_mongo"] = {"status": "failure", "details": "Aborted."}
+                    LAST_DISCOVERY_TRACE["steps"]["database_neo4j"] = {"status": "failure", "details": "Aborted."}
 
         except Exception as e:
             device_result["status"] = "error"
@@ -4931,6 +4942,22 @@ def get_service_tester_server_logs():
 @app.route("/api/service-tester/discovery-trace", methods=["GET"])
 def get_service_tester_discovery_trace():
     return jsonify(LAST_DISCOVERY_TRACE)
+
+@app.route("/api/service-tester/parser-mode", methods=["GET"])
+def get_parser_mode():
+    return jsonify({"mode": os.environ.get("HPE_PARSER_MODE", "vm")})
+
+@app.route("/api/service-tester/parser-mode", methods=["POST"])
+def set_parser_mode():
+    global PARSER_MODE
+    data = request.get_json() or {}
+    new_mode = data.get("mode", "vm").strip().lower()
+    if new_mode not in ("vm", "direct"):
+        return jsonify({"error": "mode must be 'vm' or 'direct'"}), 400
+    PARSER_MODE = new_mode
+    os.environ["HPE_PARSER_MODE"] = new_mode
+    log.info(f"[parser-mode] Switched to: {new_mode}")
+    return jsonify({"mode": new_mode, "ok": True})
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 

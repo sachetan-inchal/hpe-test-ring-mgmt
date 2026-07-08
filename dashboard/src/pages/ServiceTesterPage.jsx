@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, RefreshCw, Database, Terminal, Cpu, HardDrive, ArrowRight, TerminalSquare, Copy, Check, Info, AlertTriangle } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, RefreshCw, Database, Terminal, Cpu, HardDrive, ArrowRight, TerminalSquare, Copy, Check, Info, AlertTriangle, Zap, Box } from 'lucide-react'
 
 export default function ServiceTesterPage({ apiBase }) {
   const [status, setStatus] = useState(null)
@@ -18,6 +18,10 @@ export default function ServiceTesterPage({ apiBase }) {
   const [trace, setTrace] = useState(null)
   const [traceLoading, setTraceLoading] = useState(false)
   const [dashboardVerification, setDashboardVerification] = useState({ status: 'idle', details: 'Waiting for database storage...' })
+
+  // Parser engine mode toggle
+  const [parserMode, setParserMode] = useState('vm')
+  const [parserModeLoading, setParserModeLoading] = useState(false)
 
   const fetchStatus = async () => {
     setLoading(true)
@@ -108,10 +112,42 @@ export default function ServiceTesterPage({ apiBase }) {
     setTimeout(() => setCopiedLogs(false), 2000)
   }
 
+  const fetchParserMode = async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/service-tester/parser-mode`)
+      if (res.ok) {
+        const data = await res.json()
+        setParserMode(data.mode || 'vm')
+      }
+    } catch (err) {
+      console.error('Failed to fetch parser mode', err)
+    }
+  }
+
+  const switchParserMode = async (newMode) => {
+    setParserModeLoading(true)
+    try {
+      const res = await fetch(`${apiBase}/api/service-tester/parser-mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: newMode })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setParserMode(data.mode)
+      }
+    } catch (err) {
+      console.error('Failed to switch parser mode', err)
+    } finally {
+      setParserModeLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchStatus()
     fetchServerLogs()
     fetchDiscoveryTrace()
+    fetchParserMode()
 
     // Listen for global action logs updates
     const handleLogUpdate = () => {
@@ -190,6 +226,71 @@ export default function ServiceTesterPage({ apiBase }) {
           <p style={{ margin: '8px 0 0 0', fontSize: 13, color: 'var(--muted)' }}>{error}</p>
         </div>
       )}
+
+      {/* ── PARSER ENGINE MODE TOGGLE ── */}
+      <div className="glass-card" style={{ padding: 24, border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ padding: 10, background: parserMode === 'vm' ? 'rgba(163,113,247,0.12)' : 'rgba(58,166,255,0.12)', borderRadius: 10 }}>
+              {parserMode === 'vm' ? <Box size={22} style={{ color: '#a371f7' }} /> : <Zap size={22} style={{ color: '#58a6ff' }} />}
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>JavaScript Parser Engine Mode</h3>
+              <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+                {parserMode === 'vm'
+                  ? 'V8 Sandbox Mode — Isolated vm.createContext() execution. Preferred for security.'
+                  : 'Direct Eval Mode — new Function() execution. Use when VM sandbox is blocked (e.g. enterprise VMs).'}
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+            <button
+              disabled={parserModeLoading || parserMode === 'vm'}
+              onClick={() => switchParserMode('vm')}
+              style={{
+                padding: '9px 20px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: parserMode === 'vm' ? 'default' : 'pointer',
+                border: parserMode === 'vm' ? '2px solid #a371f7' : '1px solid var(--line)',
+                background: parserMode === 'vm' ? 'rgba(163,113,247,0.15)' : 'var(--surface-2)',
+                color: parserMode === 'vm' ? '#a371f7' : 'var(--muted)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Box size={14} /> VM Sandbox
+                {parserMode === 'vm' && <Check size={13} style={{ marginLeft: 2 }} />}
+              </span>
+            </button>
+
+            <div style={{ width: 1, height: 32, background: 'var(--line)' }} />
+
+            <button
+              disabled={parserModeLoading || parserMode === 'direct'}
+              onClick={() => switchParserMode('direct')}
+              style={{
+                padding: '9px 20px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: parserMode === 'direct' ? 'default' : 'pointer',
+                border: parserMode === 'direct' ? '2px solid #58a6ff' : '1px solid var(--line)',
+                background: parserMode === 'direct' ? 'rgba(58,166,255,0.15)' : 'var(--surface-2)',
+                color: parserMode === 'direct' ? '#58a6ff' : 'var(--muted)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Zap size={14} /> Direct Eval
+                {parserMode === 'direct' && <Check size={13} style={{ marginLeft: 2 }} />}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {parserMode === 'direct' && (
+          <div style={{ marginTop: 14, padding: '10px 14px', background: 'rgba(58,166,255,0.06)', border: '1px solid rgba(58,166,255,0.2)', borderRadius: 8, fontSize: 12, color: '#58a6ff', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <Info size={15} style={{ marginTop: 1, flexShrink: 0 }} />
+            <span>Direct Eval mode uses <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: 4 }}>new Function()</code> instead of the Node VM sandbox. This bypasses virtualization restrictions on locked-down enterprise machines. The next poll/discovery will use this mode automatically.</span>
+          </div>
+        )}
+      </div>
 
       {/* ── LIVE DISCOVERY PIPELINE TRACER ── */}
       <div className="glass-card" style={{ padding: 24, border: '1px solid var(--line)', background: 'var(--surface-1)', borderRadius: 12 }}>
