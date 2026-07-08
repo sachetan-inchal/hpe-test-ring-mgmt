@@ -10,6 +10,7 @@ export default function SearchBar({
   candidates = [],
   isolateSelected,
   onToggleIsolateId,
+  onSelectCandidate,
 }) {
   const list = useMemo(() => (candidates || []).slice(0, 25), [candidates])
 
@@ -33,6 +34,68 @@ export default function SearchBar({
             onFocus={(e) => { e.target.style.borderColor = 'var(--accent-blue)'; e.target.style.boxShadow = '0 0 0 2px rgba(88, 166, 255, 0.15)'; }}
             onBlur={(e) => { e.target.style.borderColor = 'var(--line)'; e.target.style.boxShadow = 'none'; }}
           />
+
+          {/* Suggestions Dropdown */}
+          {value && value.trim().length > 0 && onSelectCandidate && (
+            (() => {
+              const q = value.toLowerCase();
+              const filtered = (candidates || [])
+                .filter(c => 
+                  (c.name || '').toLowerCase().includes(q) || 
+                  (c.id || '').toLowerCase().includes(q) || 
+                  (c.type || '').toLowerCase().includes(q)
+                )
+                .slice(0, 8);
+                
+              if (filtered.length === 0) return null;
+              
+              return (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: 4,
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 8,
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                    zIndex: 100,
+                    maxHeight: 240,
+                    overflowY: 'auto',
+                    padding: '4px 0'
+                  }}
+                >
+                  {filtered.map(n => (
+                    <div
+                      key={n.id}
+                      onMouseDown={(e) => {
+                        // Use onMouseDown so it fires before onBlur
+                        e.preventDefault();
+                        onSelectCandidate(n.id);
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: 'var(--foreground)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        transition: 'background 0.2s',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <span style={{ fontWeight: 600 }}>{n.name || n.id}</span>
+                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>Category: {n.type || n.category} ({n.id})</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          )}
         </div>
         
         {onPickModeChange && (

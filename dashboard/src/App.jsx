@@ -12,7 +12,52 @@ import HealthPage from './pages/HealthPage'
 import InventoryPage from './pages/InventoryPage'
 import SSHRingPage from './pages/SSHRingPage'
 import TestcasesMarkdownViewerPage from './pages/TestcasesMarkdownViewerPage'
-import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check, Cpu, PanelTop, FileCode, Sun, Moon } from 'lucide-react'
+import ServiceTesterPage from './pages/ServiceTesterPage'
+import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check, Cpu, PanelTop, FileCode, Sun, Moon, ShieldAlert } from 'lucide-react'
+
+// Global fetch interceptor to trace application actions
+if (typeof window !== 'undefined' && !window.__fetch_interceptor_registered) {
+  window.__fetch_interceptor_registered = true;
+  window.__api_logs = [];
+  const originalFetch = window.fetch;
+  window.fetch = async function(...args) {
+    const url = args[0];
+    const options = args[1] || {};
+    const method = options.method || 'GET';
+    const timestamp = new Date().toLocaleTimeString();
+    
+    // Create new log entry
+    const logEntry = {
+      id: Date.now() + Math.random().toString(36).substr(2, 5),
+      url: String(url),
+      method: method,
+      timestamp: timestamp,
+      status: 'pending',
+      statusCode: null,
+      error: null
+    };
+    
+    // Add to global logs array (cap at 50 logs)
+    window.__api_logs.unshift(logEntry);
+    if (window.__api_logs.length > 50) window.__api_logs.pop();
+    
+    // Trigger custom event so any active ServiceTesterPage can refresh in real time!
+    window.dispatchEvent(new CustomEvent('api_log_updated'));
+    
+    try {
+      const response = await originalFetch(...args);
+      logEntry.status = response.ok ? 'success' : 'failure';
+      logEntry.statusCode = response.status;
+      window.dispatchEvent(new CustomEvent('api_log_updated'));
+      return response;
+    } catch (err) {
+      logEntry.status = 'failure';
+      logEntry.error = err.message;
+      window.dispatchEvent(new CustomEvent('api_log_updated'));
+      throw err;
+    }
+  };
+}
 
 const FLASK_API = `http://${window.location.hostname}:5005`
 const CHATBOT_API = '/chatbot'
@@ -27,6 +72,7 @@ const NAV_ITEMS = [
   { path: '/discovery', label: '(Virtual demo) Discovery', icon: Radar, desc: 'Live BFS network scan' },
   { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
   { path: '/parser-editor', label: 'Parser Editor', icon: FileCode, desc: 'View parser output for testcases-markdown.md' },
+  { path: '/service-tester', label: 'Service Tester', icon: ShieldAlert, desc: 'Check dependent packages & services' },
 ]
 
 function ProtectedRoute({ children }) {
@@ -448,6 +494,7 @@ export default function App() {
         '/discovery': false,
         '/emulator': true,
         '/parser-editor': true,
+        '/service-tester': true,
       }
     } catch {
       return {
@@ -460,6 +507,7 @@ export default function App() {
         '/discovery': false,
         '/emulator': true,
         '/parser-editor': true,
+        '/service-tester': true,
       }
     }
   })
@@ -690,6 +738,7 @@ export default function App() {
                   <Route path="/admin" element={isAdmin ? <AdminPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} /> : <Navigate to="/ssh-ring" replace />} />
                   <Route path="/health" element={<HealthPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="/parser-editor" element={<TestcasesMarkdownViewerPage apiBase={FLASK_API} />} />
+                  <Route path="/service-tester" element={<ServiceTesterPage apiBase={FLASK_API} />} />
                   <Route path="*" element={<Navigate to="/ssh-ring" replace />} />
                 </Routes>
               </div>

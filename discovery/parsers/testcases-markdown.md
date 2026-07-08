@@ -772,8 +772,36 @@ Id Name            Persona      -WWN/iSCSI_Name/NQN- Port
 function parseShowHost(cliOutput) {
     const lines = cliOutput.split(/\r?\n/);
     const result = { hosts: [], total: null };
-    const wwnMap = new Map();
     let parsing = false;
+    
+    // Check if the input contains at least one numeric Host ID
+    let hasNumericHostId = false;
+    for (let line of lines) {
+        if (line.includes("-WWN/iSCSI_Name/NQN-") && line.includes("Port")) {
+            parsing = true;
+            continue;
+        }
+        if (!parsing) continue;
+        if (/^-{10,}/.test(line.trim())) continue;
+        
+        const wwnMatch = line.match(/([0-9A-Fa-f]{12,16})/);
+        if (!wwnMatch) continue;
+        
+        const prefix = line.substring(0, wwnMatch.index).trim();
+        if (prefix && prefix !== '--') {
+            const parts = prefix.split(/\s+/);
+            let idx = 0;
+            if (parts[idx] === '--') idx++;
+            if (idx < parts.length && /^\d+$/.test(parts[idx])) {
+                hasNumericHostId = true;
+                break;
+            }
+        }
+    }
+    
+    parsing = false;
+    let currentHost = null;
+    const wwnMap = new Map();
     
     for (let line of lines) {
         if (line.includes("-WWN/iSCSI_Name/NQN-") && line.includes("Port")) {
@@ -810,35 +838,60 @@ function parseShowHost(cliOutput) {
             if (idx < parts.length) persona = parts[idx++];
         }
         
-        if (!wwnMap.has(wwn)) {
-            wwnMap.set(wwn, {
-                wwn: wwn,
-                host_id: hostId,
-                name: name || `host-${wwn.substring(0, 8)}`, // fallback name if blank
-                persona: persona,
-                Port: []
-            });
-        } else if (name) {
-            // Update name if we found it on a subsequent line (rare)
-            wwnMap.get(wwn).name = name;
-            if (hostId !== null) wwnMap.get(wwn).host_id = hostId;
-            if (persona) wwnMap.get(wwn).persona = persona;
-        }
-        
+        let portObj = null;
         if (nsp && nsp !== "---") {
             const pParts = nsp.split(":");
-            let portObj = { nsp: nsp };
+            portObj = { nsp: nsp };
             if (pParts.length === 3) {
                 portObj.node = parseInt(pParts[0], 10);
                 portObj.slot = parseInt(pParts[1], 10);
                 portObj.port = parseInt(pParts[2], 10);
             }
-            wwnMap.get(wwn).Port.push(portObj);
+        }
+        
+        if (hasNumericHostId) {
+            if (hostId !== null) {
+                currentHost = {
+                    host_id: hostId,
+                    name: name || `host-${wwn.substring(0, 8)}`,
+                    persona: persona || null,
+                    wwn: wwn,
+                    wwns: [wwn],
+                    Port: []
+                };
+                if (portObj) currentHost.Port.push(portObj);
+                result.hosts.push(currentHost);
+            } else if (currentHost) {
+                if (!currentHost.wwns.includes(wwn)) {
+                    currentHost.wwns.push(wwn);
+                }
+                if (portObj) {
+                    const exists = currentHost.Port.some(p => p.nsp === portObj.nsp);
+                    if (!exists) {
+                        currentHost.Port.push(portObj);
+                    }
+                }
+            }
+        } else {
+            if (!wwnMap.has(wwn)) {
+                wwnMap.set(wwn, {
+                    wwn: wwn,
+                    host_id: hostId,
+                    name: name || `host-${wwn.substring(0, 8)}`,
+                    persona: persona,
+                    Port: []
+                });
+            }
+            if (portObj) {
+                wwnMap.get(wwn).Port.push(portObj);
+            }
         }
     }
     
-    for (const hostData of wwnMap.values()) {
-        result.hosts.push(hostData);
+    if (!hasNumericHostId) {
+        for (const hostData of wwnMap.values()) {
+            result.hosts.push(hostData);
+        }
     }
     
     return result;

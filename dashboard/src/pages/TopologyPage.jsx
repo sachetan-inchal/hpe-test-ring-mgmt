@@ -236,9 +236,9 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
     const seed = (teamId || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
     
     // Generation counts
-    const g10 = Math.round(total * (0.3 + (seed % 10) / 50));
-    const g11 = Math.round(total * (0.5 - (seed % 10) / 100));
-    const g12 = Math.max(0, total - g10 - g11);
+    const g9 = Math.round(total * (0.3 + (seed % 10) / 50));
+    const g10 = Math.round(total * (0.5 - (seed % 10) / 100));
+    const g11 = Math.max(0, total - g9 - g10);
 
     // Array node node-count split
     const twoNode = Math.round(arrays * (0.6 + (seed % 5) / 25));
@@ -265,9 +265,9 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
       normal,
       degraded,
       failed,
+      g9,
       g10,
       g11,
-      g12,
       twoNode,
       fourNode,
       switched,
@@ -1025,9 +1025,9 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
                 ]
 
                 const genSplit = [
-                  { label: 'GEN10', value: metrics.g10, color: '#ff7b72' },
-                  { label: 'GEN11', value: metrics.g11, color: '#f0883e' },
-                  { label: 'GEN12', value: metrics.g12, color: '#58a6ff' }
+                  { label: 'GEN9', value: metrics.g9, color: '#ff7b72' },
+                  { label: 'GEN10', value: metrics.g10, color: '#f0883e' },
+                  { label: 'GEN11', value: metrics.g11, color: '#58a6ff' }
                 ]
 
                 const arrayNodeSplit = [
@@ -1072,7 +1072,7 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
               })()}
             </div>
 
-            {/* Bottom Row: Topology Graph Visualization Map (GEN10, GEN11, GEN12) */}
+            {/* Bottom Row: Topology Graph Visualization Map (GEN9, GEN10, GEN11) */}
             <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--line)', borderRadius: 8, padding: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground)' }}>
@@ -1094,16 +1094,16 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
                         <line x1="110" y1="50" x2="180" y2="50" stroke="rgba(255,255,255,0.15)" strokeWidth="2" strokeDasharray="4 2" />
                         
                         <circle cx="40" cy="50" r="24" fill="rgba(248,81,73,0.1)" stroke="#ff7b72" strokeWidth="2" />
-                        <text x="40" y="46" fill="#ff7b72" fontSize="9" fontWeight="bold" textAnchor="middle">GEN10</text>
-                        <text x="40" y="58" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g10}</text>
+                        <text x="40" y="46" fill="#ff7b72" fontSize="9" fontWeight="bold" textAnchor="middle">GEN9</text>
+                        <text x="40" y="58" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g9}</text>
 
                         <circle cx="110" cy="50" r="28" fill="rgba(240,136,62,0.1)" stroke="#f0883e" strokeWidth="2" />
-                        <text x="110" y="46" fill="#f0883e" fontSize="9" fontWeight="bold" textAnchor="middle">GEN11</text>
-                        <text x="110" y="58" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g11}</text>
+                        <text x="110" y="46" fill="#f0883e" fontSize="9" fontWeight="bold" textAnchor="middle">GEN10</text>
+                        <text x="110" y="58" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g10}</text>
 
                         <circle cx="180" cy="50" r="24" fill="rgba(88,166,255,0.1)" stroke="#58a6ff" strokeWidth="2" />
-                        <text x="180" y="46" fill="#58a6ff" fontSize="9" fontWeight="bold" textAnchor="middle">GEN12</text>
-                        <text x="180" y="58" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g12}</text>
+                        <text x="180" y="46" fill="#58a6ff" fontSize="9" fontWeight="bold" textAnchor="middle">GEN11</text>
+                        <text x="180" y="58" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g11}</text>
                       </svg>
                     </div>
 
@@ -1112,7 +1112,7 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Generations in Ring:</span>
                         <span style={{ color: 'var(--foreground)' }}>
-                          {[metrics.g10 > 0 && 'Gen10', metrics.g11 > 0 && 'Gen11', metrics.g12 > 0 && 'Gen12'].filter(Boolean).join(' + ') || 'None'}
+                          {[metrics.g9 > 0 && 'Gen9', metrics.g10 > 0 && 'Gen10', metrics.g11 > 0 && 'Gen11'].filter(Boolean).join(' + ') || 'None'}
                         </span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>

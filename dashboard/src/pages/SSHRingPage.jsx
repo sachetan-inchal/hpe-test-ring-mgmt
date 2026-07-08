@@ -24,12 +24,11 @@ export default function SSHRingPage({ apiBase }) {
       "showcage -pci",
       "showcage -sfp",
       "showcage -state",
+      "showcage",
       "showpd",
       "showpd -s",
       "showpd -i",
-      "showportdev",
-      "showportdev ns -nohdtot 0:3:1",
-      "showportdev ns -nohdtot 1:3:1"
+      "showportdev"
     ],
     Host: [
       "lscpu",
@@ -907,7 +906,7 @@ export default function SSHRingPage({ apiBase }) {
               )}
               {category === 'Host' && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Dependent Switch</label>
+                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Dependent Device</label>
                   {(() => {
                     const getTeamAccentColor = (teamName) => {
                       const colors = ['#58a6ff', '#3fb950', '#bc8cff', '#f0883e', '#ff7b72']
@@ -931,11 +930,11 @@ export default function SSHRingPage({ apiBase }) {
                         }}
                       >
                         <option value="" style={{ background: '#1a1a1a', color: '#fff' }}>None</option>
-                        {devices.filter(d => d.category === 'Switch').map(d => {
+                        {devices.filter(d => d.category === 'Switch' || d.category === 'Array').map(d => {
                           const col = getTeamAccentColor(d.team)
                           return (
                             <option key={d.device_name} value={d.device_name} style={{ background: '#1a1a1a', color: col || '#fff', fontWeight: col ? 600 : 400 }}>
-                              {d.device_name}
+                              {d.device_name} (Category: {d.category})
                             </option>
                           )
                         })}

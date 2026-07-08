@@ -78,7 +78,19 @@ _PARSERS = {
     "showcage": parse_showcage,
 }
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s [api] %(message)s")
+LOG_FILE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "server.log"))
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s %(levelname)s [api] %(message)s")
+
+file_handler = logging.FileHandler(LOG_FILE_PATH, mode="a", encoding="utf-8")
+file_handler.setFormatter(formatter)
+root_logger.addHandler(file_handler)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+root_logger.addHandler(stream_handler)
+
 log = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder=os.path.join(MONOREPO, "dashboard", "dist"), static_url_path="")
@@ -1542,9 +1554,8 @@ def ssh_ring_discover_all():
     PRESET_COMMANDS = {
         "Array": [
             "showversion -b", "showsys", "shownode", "showport", "showhost",
-            "showcage -pci", "showcage -sfp", "showcage -state", "showpd",
-            "showpd -s", "showpd -i", "showportdev",
-            "showportdev ns -nohdtot 0:3:1", "showportdev ns -nohdtot 1:3:1"
+            "showcage -pci", "showcage -sfp", "showcage -state", "showcage", "showpd",
+            "showpd -s", "showpd -i", "showportdev"
         ],
         "Host": [
             "lscpu", "systool -c fc_host -v", "lspci -nnk"
@@ -1566,8 +1577,23 @@ def ssh_ring_discover_all():
         return jsonify({"error": "No credentials registered"}), 400
 
     if target_ips:
-        # Filter to only the selected device IPs
-        creds = [c for c in creds if c.get("ip_address") in target_ips or c.get("ip") in target_ips]
+        target_names_or_ips = set(target_ips)
+        # Identify arrays that are targets
+        target_arrays = {c.get("device_name") for c in creds if (c.get("ip_address") in target_names_or_ips or c.get("ip") in target_names_or_ips or c.get("device_name") in target_names_or_ips) and c.get("category") == "Array"}
+        
+        # Include any hosts that depend on these arrays
+        additional_ips = []
+        for c in creds:
+            if c.get("category") == "Host" and c.get("connected_to") in target_arrays:
+                ip_addr = c.get("ip_address") or c.get("ip")
+                if ip_addr:
+                    additional_ips.append(ip_addr)
+                    
+        if additional_ips:
+            target_names_or_ips.update(additional_ips)
+
+        # Filter to target device credentials
+        creds = [c for c in creds if c.get("ip_address") in target_names_or_ips or c.get("ip") in target_names_or_ips or c.get("device_name") in target_names_or_ips]
         if not creds:
             return jsonify({"error": "None of the selected devices have registered credentials"}), 400
 
@@ -4744,8 +4770,98 @@ def serve_react(path):
             return send_from_directory(build_dir, "index.html")
         return jsonify({"message": "HPE SAN API running. Build the React dashboard for the UI."}), 200
     
-    # 2. Serve the actual static file (JS, CSS, images)
     return send_from_directory(build_dir, path)
+
+@app.route("/api/service-tester/status", methods=["GET"])
+def get_service_tester_status():
+    import importlib
+    import shutil
+    import subprocess
+    import json
+    
+    libs = ["pymongo", "neo4j", "paramiko", "requests", "flask"]
+    lib_status = {}
+    for l in libs:
+        try:
+            importlib.import_module(l)
+            lib_status[l] = "available"
+        except ImportError:
+            lib_status[l] = "missing"
+            
+    execs = ["node", "python"]
+    exec_status = {}
+    for e in execs:
+        path = shutil.which(e)
+        if path:
+            try:
+                if e == "node":
+                    v = subprocess.check_output(["node", "-v"], text=True).strip()
+                else:
+                    v = subprocess.check_output(["python", "--version"], text=True).strip()
+                exec_status[e] = {"status": "available", "path": path, "version": v}
+            except Exception as ex:
+                exec_status[e] = {"status": "available", "path": path, "version": f"Error: {ex}"}
+        else:
+            exec_status[e] = {"status": "missing", "path": None, "version": None}
+            
+    service_status = {
+        "mongodb": "connected" if mongo.available else "disconnected",
+        "neo4j": "connected" if neo4j.available else "disconnected"
+    }
+    
+    js_status = "unknown"
+    js_error = None
+    parser_runner_path = os.path.join(os.path.dirname(__file__), "..", "discovery", "parsers", "js_parser_runner.js")
+    parser_runner_path = os.path.abspath(parser_runner_path)
+    
+    if exec_status.get("node", {}).get("status") == "available" and os.path.exists(parser_runner_path):
+        try:
+            proc = subprocess.Popen(
+                ["node", parser_runner_path, "parseShowHost"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True
+            )
+            test_input = "0 c3-dl360g10-174-FC0 Generic-ALUA 100008F1EABAC933     0:3:1\n"
+            stdout, stderr = proc.communicate(input=test_input, timeout=5)
+            if proc.returncode == 0:
+                parsed = json.loads(stdout)
+                if "hosts" in parsed:
+                    js_status = "working"
+                else:
+                    js_status = "invalid_output"
+                    js_error = f"Parsed structure missing hosts: {stdout}"
+            else:
+                js_status = "failed"
+                js_error = stderr or f"Exit code: {proc.returncode}"
+        except Exception as ex:
+            js_status = "error"
+            js_error = str(ex)
+    else:
+        js_status = "node_or_script_missing"
+        js_error = f"Node.js missing or script not found at {parser_runner_path}"
+        
+    return jsonify({
+        "python_libraries": lib_status,
+        "system_binaries": exec_status,
+        "services": service_status,
+        "v8_parser_status": {
+            "status": js_status,
+            "error": js_error,
+            "script_path": parser_runner_path
+        }
+    })
+
+@app.route("/api/service-tester/server-logs", methods=["GET"])
+def get_service_tester_server_logs():
+    try:
+        if os.path.exists(LOG_FILE_PATH):
+            with open(LOG_FILE_PATH, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                return jsonify({"logs": "".join(lines[-500:])})
+        else:
+            return jsonify({"logs": "Log file not created yet."})
+    except Exception as e:
+        return jsonify({"logs": f"Error reading log file: {e}"}), 500
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 

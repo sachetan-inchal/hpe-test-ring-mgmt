@@ -117,22 +117,126 @@ def parse_showport(text):
 
 
 def parse_showhost(text):
-    """Parse 'showhost' output → list of host dicts {wwn, ports[], multipath_status}."""
-    host_map = {}
-    for line in text.splitlines():
-        m = re.match(r"^\s*(?:--\s+)?(\w{16})\s+(\d+:\d+:\d+|\-{3})\s*$", line)
-        if m:
-            wwn, port = m.group(1), m.group(2)
-            if wwn not in host_map:
-                host_map[wwn] = {"wwn": wwn, "ports": [], "missing_path": False}
-            if port != "---":
-                host_map[wwn]["ports"].append(port)
-            else:
-                host_map[wwn]["missing_path"] = True
-    for h in host_map.values():
-        unique_nodes = {p.split(":")[0] for p in h["ports"]}
-        h["multipath_status"] = "dual" if len(unique_nodes) >= 2 else ("single" if unique_nodes else "none")
-    return list(host_map.values())
+    """Parse 'showhost' output → list of host dicts."""
+    lines = text.splitlines()
+    result_hosts = []
+    parsing = False
+    
+    # Check if there is at least one numeric host ID in the input
+    has_numeric_host_id = False
+    for line in lines:
+        if "-WWN/iSCSI_Name/NQN-" in line and "Port" in line:
+            parsing = True
+            continue
+        if not parsing:
+            continue
+        if line.strip().startswith("---------"):
+            continue
+        
+        wwn_match = re.search(r"\b([0-9A-Fa-f]{16})\b", line)
+        if not wwn_match:
+            continue
+            
+        prefix = line[:wwn_match.start()].strip()
+        if prefix and prefix != "--":
+            parts = prefix.split()
+            idx = 0
+            if len(parts) > 0 and parts[idx] == "--":
+                idx += 1
+            if idx < len(parts) and parts[idx].isdigit():
+                has_numeric_host_id = True
+                break
+                
+    parsing = False
+    current_host = None
+    wwn_map = {}
+    
+    for line in lines:
+        if "-WWN/iSCSI_Name/NQN-" in line and "Port" in line:
+            parsing = True
+            continue
+        if not parsing:
+            continue
+        if line.strip().startswith("---------"):
+            continue
+            
+        total_match = re.search(r"(\d+)\s*total", line)
+        if total_match:
+            break
+            
+        wwn_match = re.search(r"\b([0-9A-Fa-f]{16})\b", line)
+        port_match = re.search(r"\b(\d+:\d+:\d+|---)\b", line)
+        
+        if not wwn_match:
+            continue
+            
+        wwn = wwn_match.group(1)
+        nsp = port_match.group(1) if port_match else None
+        
+        # Extract ID, Name, Persona
+        host_id = None
+        name = None
+        persona = None
+        prefix = line[:wwn_match.start()].strip()
+        
+        if prefix and prefix != "--":
+            parts = prefix.split()
+            idx = 0
+            if len(parts) > 0 and parts[idx] == "--":
+                idx += 1
+            if idx < len(parts) and parts[idx].isdigit():
+                host_id = int(parts[idx])
+                idx += 1
+            if idx < len(parts):
+                name = parts[idx]
+                idx += 1
+            if idx < len(parts):
+                persona = parts[idx]
+                
+        port_obj = None
+        if nsp and nsp != "---":
+            p_parts = nsp.split(":")
+            port_obj = {"nsp": nsp}
+            if len(p_parts) == 3:
+                port_obj["node"] = int(p_parts[0])
+                port_obj["slot"] = int(p_parts[1])
+                port_obj["port"] = int(p_parts[2])
+                
+        if has_numeric_host_id:
+            if host_id is not None:
+                current_host = {
+                    "host_id": host_id,
+                    "name": name or f"host-{wwn[:8]}",
+                    "persona": persona,
+                    "wwn": wwn,
+                    "wwns": [wwn],
+                    "Port": []
+                }
+                if port_obj:
+                    current_host["Port"].append(port_obj)
+                result_hosts.append(current_host)
+            elif current_host:
+                if wwn not in current_host["wwns"]:
+                    current_host["wwns"].append(wwn)
+                if port_obj:
+                    if not any(p["nsp"] == port_obj["nsp"] for p in current_host["Port"]):
+                        current_host["Port"].append(port_obj)
+        else:
+            if wwn not in wwn_map:
+                wwn_map[wwn] = {
+                    "wwn": wwn,
+                    "host_id": host_id,
+                    "name": name or f"host-{wwn[:8]}",
+                    "persona": persona,
+                    "Port": []
+                }
+            if port_obj:
+                wwn_map[wwn]["Port"].append(port_obj)
+                
+    if not has_numeric_host_id:
+        result_hosts = list(wwn_map.values())
+        
+    return result_hosts
 
 
 def parse_showswitch(text):

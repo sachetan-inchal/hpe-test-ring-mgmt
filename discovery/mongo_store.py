@@ -18,6 +18,16 @@ log = logging.getLogger(__name__)
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://127.0.0.1:27017/hpe_san")
 
 
+def _safe_float(val):
+    if val is None or val == "":
+        return None
+    val_str = str(val).strip()
+    try:
+        return float(val_str)
+    except ValueError:
+        return val_str
+
+
 class MongoStore:
     def __init__(self, uri=MONGO_URI, is_real=False):
         self.uri = uri
@@ -237,7 +247,7 @@ class MongoStore:
                 "cageModel": cage.get("model", ""),
                 "formFactor": cage.get("form_factor", ""),
                 "driveCount": cage.get("drives", cage.get("drive_count", 0)),
-                "temperature": float(cage.get("temp", cage.get("temperature"))) if (cage.get("temp") or cage.get("temperature")) else None
+                "temperature": _safe_float(cage.get("temp", cage.get("temperature")))
             }
             self.edges.add((array_id, cid, "has_cage"))
             self.current_run_node_ids.add(cid)

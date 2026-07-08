@@ -348,8 +348,20 @@ export default function InventoryPage({ apiBase, deviceKindMap }) {
               <Zap size={14} style={{ marginRight: 6 }} /> Data Flow Map
             </button>
           </div>
-          
-          <SearchBar value={searchQuery} onChange={setSearchQuery} />
+          <SearchBar 
+            value={searchQuery} 
+            onChange={setSearchQuery} 
+            candidates={activeNodes}
+            onSelectCandidate={(id) => {
+              setSelectedNodeId(id);
+              // Expand parent node to ensure it is visible in the directory tree
+              const node = activeNodes.find(n => n.id === id);
+              if (node && node.parentId) {
+                setExpandedIds(prev => prev.includes(node.parentId) ? prev : [...prev, node.parentId]);
+              }
+              setSearchQuery('');
+            }}
+          />
         </div>
       </div>
 
