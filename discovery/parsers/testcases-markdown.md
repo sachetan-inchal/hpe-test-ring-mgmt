@@ -21,105 +21,132 @@ Upgrade Tool                     643 (250602-10.6.0)
 **PARSING FUNCTION:**
 ```javascript
 function parseShowVersion(cliOutput) {
-    const lines = cliOutput.split(/\r?\n/);
-    
     const result = {
         release_version: null,
         release_type: null,
         components: []
     };
-    
+
+    const lines = cliOutput.split(/\r?\n/);
+
     let inTable = false;
-    
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i];
-        
-        // Parse first line: "Release version 10.6.0.40"
-        if (line.startsWith("Release version")) {
-            const match = line.match(/Release version\s+(\S+)/);
-            if (match) result.release_version = match[1];
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line) continue;
+
+        // Release version
+        let match = line.match(/^Release version\s+(.+)$/);
+        if (match) {
+            result.release_version = match[1].trim();
             continue;
         }
-        
-        // Parse second line: "Release Type: Standard Support Release"
-        if (line.startsWith("Release Type:")) {
-            const match = line.match(/Release Type:\s+(.+)/);
-            if (match) result.release_type = match[1].trim();
+
+        // Release type
+        match = line.match(/^Release Type:\s*(.+)$/);
+        if (match) {
+            result.release_type = match[1].trim();
             continue;
         }
-        
-        // Detect table header
-        if (line.includes("Component Name") && line.includes("Version")) {
+
+        // Table starts
+        if (/^Component Name\s+Version$/i.test(line)) {
             inTable = true;
             continue;
         }
-        
-        // Skip empty lines
-        if (!line.trim()) continue;
-        
-        // Parse table rows (after header)
-        if (inTable) {
-            // Split by 2+ spaces (table uses spaces for alignment)
-            const parts = line.trim().split(/\s{2,}/);
-            if (parts.length >= 2) {
-                const version = parts[parts.length - 1];
-                const name = parts.slice(0, -1).join(" ").trim();
-                if (name && version) {
-                    result.components.push({
-                        name: name,
-                        version: version
-                    });
-                }
-            }
-        }
+
+        if (!inTable)
+            continue;
+
+        // Parse from the right.
+        //
+        // Everything before the version = component name.
+        //
+        // Handles:
+        // Upgrade Tool   643 (250602-10.6.0)
+        // CLI Server     10.6.0.40
+        // Kernel         10.6.0.38
+
+        match = line.match(/^(.+?)\s{2,}(.+)$/);
+
+        if (!match)
+            continue;
+
+        result.components.push({
+            name: match[1].trim(),
+            version: match[2].trim()
+        });
     }
-    
+
     return result;
 }
 ```
 
-**PARSED OUTPUT:** 
+**EXTRACTED PARAMETERS:**
+- components[].name
+- components[].version
+- release_type
+- release_version
 
+**PARSED OUTPUT:**
 ```json
-// Example output:
 {
   "release_version": "10.6.0.40",
   "release_type": "Standard Support Release",
   "components": [
-    { "name": "CLI Server", "version": "10.6.0.40" },
-    { "name": "CLI Client", "version": "10.6.0.40" },
-    { "name": "System Manager", "version": "10.6.0.40" },
-    { "name": "Kernel", "version": "10.6.0.38" },
-    { "name": "IO Stack", "version": "10.6.0.40" },
-    { "name": "Drive Firmware", "version": "10.6.0.40" },
-    { "name": "Enclosure Firmware", "version": "10.6.0.40" },
-    { "name": "Switch Firmware", "version": "10.15.1010" },
-    { "name": "Upgrade Tool", "version": "643 (250602-10.6.0)" }
+    {
+      "name": "CLI Server",
+      "version": "10.6.0.40"
+    },
+    {
+      "name": "CLI Client",
+      "version": "10.6.0.40"
+    },
+    {
+      "name": "System Manager",
+      "version": "10.6.0.40"
+    },
+    {
+      "name": "Kernel",
+      "version": "10.6.0.38"
+    },
+    {
+      "name": "IO Stack",
+      "version": "10.6.0.40"
+    },
+    {
+      "name": "Drive Firmware",
+      "version": "10.6.0.40"
+    },
+    {
+      "name": "Enclosure Firmware",
+      "version": "10.6.0.40"
+    },
+    {
+      "name": "Switch Firmware",
+      "version": "10.15.1010"
+    },
+    {
+      "name": "Upgrade Tool",
+      "version": "643 (250602-10.6.0)"
+    }
   ]
 }
 ```
+
 ## FOR SHOWSYS
 
-**CLI O/P (Variant 1 - Compact):**
+**CLI O/P:**
 ```
 showsys
 ID -Name- --------Model--------- --Serial-- Nodes Master TotalCap   AllocCap   FreeCap FailedCap
 0xD0001 s9999  HPE Alletra Storage MP DUMMY000999     2      0 703070208 536439706 118486118         0
 ```
 
-**CLI O/P (Variant 2 - Expanded with MiB header):**
-```
-showsys
-                                                                     ------------------(MiB)------------------
-     ID -Name- ------------Model------------ --Serial-- Nodes Master TotalCap    AllocCap    FreeCap FailedCap
-0x7F065 s4634  HPE Alletra Storage MP B10240 4UW0004634     4      0 5624758272 328458240 5263330304         0
-```
-
 **PARSING FUNCTION:**
 ```javascript
 function parseShowSys(cliOutput) {
-    const lines = cliOutput.split(/\r?\n/);
-
     const result = {
         id: null,
         name: null,
@@ -133,62 +160,65 @@ function parseShowSys(cliOutput) {
         failed_cap: null
     };
 
-    // Find data line
-    let dataLine = null;
-    for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
-        if (line.includes("ID") && line.includes("Name")) continue;
-        if (line.includes("---")) continue;
-        if (line.includes("(MiB)")) continue;
+    // Find the data line
+    const lines = cliOutput.split(/\r?\n/);
 
-        if (line.match(/^(0x[0-9A-F]+|\w+)\s+\S+/)) {
-            dataLine = line;
+    let dataLine = null;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+
+        if (!trimmed) continue;
+        if (/^ID\b/.test(trimmed)) continue;
+        if (/^-+/.test(trimmed)) continue;
+        if (trimmed.includes("(MiB)")) continue;
+
+        if (/^0x[0-9A-Fa-f]+\s+/.test(trimmed)) {
+            dataLine = trimmed;
             break;
         }
     }
 
     if (!dataLine) return result;
 
-    // Normalize spacing (critical fix)
-    const parts = dataLine.trim().split(/\s+/);
+    const parts = dataLine.split(/\s+/);
 
-    if (parts.length < 10) return result;
+    // Need:
+    // id name model... serial nodes master total alloc free failed
+    if (parts.length < 9) return result;
 
-    result.id = parts[0];
-    result.name = parts[1].replace(/-/g, '');
+    // Parse fixed fields from the right
+    result.failed_cap = Number(parts.pop());
+    result.free_cap   = Number(parts.pop());
+    result.alloc_cap  = Number(parts.pop());
+    result.total_cap  = Number(parts.pop());
+    result.master     = Number(parts.pop());
+    result.nodes      = Number(parts.pop());
 
-    // Detect serial dynamically
-    let serialIndex = -1;
-    for (let i = 2; i < parts.length; i++) {
-        if (/^[A-Z0-9]{6,}$/.test(parts[i])) {
-            serialIndex = i;
-            break;
-        }
-    }
+    result.serial = parts.pop();
 
-    if (serialIndex === -1) return result;
+    result.id = parts.shift();
+    result.name = parts.shift();
 
-    // Model = everything between name and serial
-    result.model = parts.slice(2, serialIndex).join(" ");
-    result.serial = parts[serialIndex];
-
-    const remaining = parts.slice(serialIndex + 1);
-
-    if (remaining.length >= 6) {
-        result.nodes = parseInt(remaining[0], 10);
-        result.master = parseInt(remaining[1], 10);
-        result.total_cap = parseInt(remaining[2], 10);
-        result.alloc_cap = parseInt(remaining[3], 10);
-        result.free_cap = parseInt(remaining[4], 10);
-        result.failed_cap = parseInt(remaining[5], 10);
-    }
+    result.model = parts.join(" ");
 
     return result;
 }
 ```
 
-**PARSED OUTPUT (Variant 1):**
+**EXTRACTED PARAMETERS:**
+- alloc_cap
+- failed_cap
+- free_cap
+- id
+- master
+- model
+- name
+- nodes
+- serial
+- total_cap
+
+**PARSED OUTPUT:**
 ```json
 {
   "id": "0xD0001",
@@ -204,24 +234,9 @@ function parseShowSys(cliOutput) {
 }
 ```
 
-**PARSED OUTPUT (Variant 2):**
-```json
-{
-  "id": "0x7F065",
-  "name": "s4634",
-  "model": "HPE Alletra Storage MP B10240",
-  "serial": "4UW0004634",
-  "nodes": 4,
-  "master": 0,
-  "total_cap": 5624758272,
-  "alloc_cap": 328458240,
-  "free_cap": 5263330304,
-  "failed_cap": 0
-}
-```
 ## FOR SHOWNODE
 
-**CLI O/P (Variant 1):**
+**CLI O/P:**
 ```
 shownode
 Node ----Name---- Encl:Bay Master InCluster Mem(MiB) -------Up_Since--------
@@ -231,90 +246,87 @@ Node ----Name---- Encl:Bay Master InCluster Mem(MiB) -------Up_Since--------
    3 4UW0004634-3      2:2 No     Yes         515539 2026-03-10 01:25:00 PDT
 ```
 
-**CLI O/P (Variant 2):**
-```
-shownode
-Node ----Name---- Encl:Bay Master InCluster Mem(MiB) -------Up_Since--------
-   0 ARRAYDUMMY-0       1:1 Yes    Yes         257499 2026-03-11 21:44:19 PDT
-   1 ARRAYDUMMY-1       1:2 No     Yes         257499 2026-03-11 21:54:14 PDT
-```
-
 **PARSING FUNCTION:**
 ```javascript
 function parseShowNode(cliOutput) {
-    const lines = cliOutput.split(/\r?\n/);
-    
     const result = {
         nodes: []
     };
-    
-    let parsing = false;
-    let headerFound = false;
-    
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i];
-        
-        // Detect header line
-        if (line.includes("Node") && line.includes("Name") && line.includes("Encl:Bay")) {
-            headerFound = true;
-            parsing = true;
+
+    const lines = cliOutput.split(/\r?\n/);
+
+    let inTable = false;
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line)
+            continue;
+
+        // Detect table header
+        if (/^Node\b.*\bName\b.*\bEncl:Bay\b/i.test(line)) {
+            inTable = true;
             continue;
         }
-        
-        // Skip dashed separator lines
-        if (/^[-]{10,}/.test(line)) {
+
+        if (!inTable)
             continue;
-        }
-        
-        // Parse data rows
-        if (parsing && headerFound && line.trim()) {
-            // Split by whitespace, but preserve the Name which may contain hyphens
-            const parts = line.trim().split(/\s+/);
-            
-            // Expected pattern: [NodeID, Name, Encl:Bay, Master, InCluster, Mem(MiB), Up_Since_Date, Up_Since_Time, Timezone]
-            if (parts.length >= 9) {
-                // Node ID (first column)
-                const nodeId = parseInt(parts[0], 10);
-                
-                // Name (second column) - may contain hyphens like "4UW0004634-0"
-                const name = parts[1];
-                
-                // Encl:Bay (third column) - format like "1:1"
-                const enclBay = parts[2];
-                
-                // Master (fourth column) - "Yes" or "No"
-                const isMaster = parts[3] === "Yes";
-                
-                // InCluster (fifth column) - "Yes" or "No"
-                const inCluster = parts[4] === "Yes";
-                
-                // Memory in MiB (sixth column)
-                const memMiB = parseInt(parts[5], 10);
-                
-                // Up_Since: combine date, time, and timezone
-                const upSinceDate = parts[6];
-                const upSinceTime = parts[7];
-                const timezone = parts[8];
-                const upSince = `${upSinceDate} ${upSinceTime} ${timezone}`;
-                
-                result.nodes.push({
-                    node_id: nodeId,
-                    name: name,
-                    encl_bay: enclBay,
-                    is_master: isMaster,
-                    in_cluster: inCluster,
-                    mem_mib: memMiB,
-                    up_since: upSince
-                });
-            }
-        }
+
+        // Ignore separator lines
+        if (/^-+$/.test(line))
+            continue;
+
+        const parts = line.split(/\s+/);
+
+        // Need at least:
+        // Node Name Encl:Bay Master InCluster Mem Date Time TZ
+        if (parts.length < 9)
+            continue;
+
+        const nodeId = Number(parts.shift());
+
+        if (Number.isNaN(nodeId))
+            continue;
+
+        const name = parts.shift();
+        const enclBay = parts.shift();
+
+        const master = parts.shift();
+        const inCluster = parts.shift();
+
+        const mem = Number(parts.shift());
+
+        if (Number.isNaN(mem))
+            continue;
+
+        // Whatever remains belongs to Up_Since.
+        const upSince = parts.join(" ");
+
+        result.nodes.push({
+            node_id: nodeId,
+            name,
+            encl_bay: enclBay,
+            is_master: /^yes$/i.test(master),
+            in_cluster: /^yes$/i.test(inCluster),
+            mem_mib: mem,
+            up_since: upSince
+        });
     }
-    
+
     return result;
 }
 ```
 
-**PARSED OUTPUT (Variant 1):**
+**EXTRACTED PARAMETERS:**
+- nodes[].encl_bay
+- nodes[].in_cluster
+- nodes[].is_master
+- nodes[].mem_mib
+- nodes[].name
+- nodes[].node_id
+- nodes[].up_since
+
+**PARSED OUTPUT:**
 ```json
 {
   "nodes": [
@@ -358,34 +370,9 @@ function parseShowNode(cliOutput) {
 }
 ```
 
-**PARSED OUTPUT (Variant 2):**
-```json
-{
-  "nodes": [
-    {
-      "node_id": 0,
-      "name": "ARRAYDUMMY-0",
-      "encl_bay": "1:1",
-      "is_master": true,
-      "in_cluster": true,
-      "mem_mib": 257499,
-      "up_since": "2026-03-11 21:44:19 PDT"
-    },
-    {
-      "node_id": 1,
-      "name": "ARRAYDUMMY-1",
-      "encl_bay": "1:2",
-      "is_master": false,
-      "in_cluster": true,
-      "mem_mib": 257499,
-      "up_since": "2026-03-11 21:54:14 PDT"
-    }
-  ]
-}
-```
 ## FOR SHOWPORT (Token-Based with N:S:P Decomposition)
 
-**CLI O/P (Example 1):**
+**CLI O/P:**
 ```
 showport
 N:S:P      Mode     State --Node_WWN/IP--- -Port_WWN/HW_Addr-    Type Protocol Label
@@ -417,128 +404,95 @@ N:S:P      Mode     State --Node_WWN/IP--- -Port_WWN/HW_Addr-    Type Protocol L
    24
 ```
 
-**CLI O/P (Example 2):**
-```
-showport
-N:S:P      Mode     State --Node_WWN/IP--- -Port_WWN/HW_Addr- Type Protocol Label
-0:1:1 initiator     ready       16.1.14.90       946DAED6F21A disk     NVMe  DP-1
-0:1:2 initiator     ready       16.1.15.90       946DAED6F21B disk     NVMe  DP-2
-0:2:1 initiator     ready         16.1.8.1       946DAED6F32E disk     NVMe  DP-1
-0:2:2 initiator     ready         16.1.9.1       946DAED6F32F disk     NVMe  DP-2
-0:3:1    target     ready 2FF70002AC07F065   20310002AC07F065 host       FC     -
-0:3:2    target loss_sync 2FF70002AC07F065   20320002AC07F065 free       FC     -
-0:3:3    target loss_sync 2FF70002AC07F065   20330002AC07F065 free       FC     -
-0:3:4    target loss_sync 2FF70002AC07F065   20340002AC07F065 free       FC     -
-0:4:1    target     ready       20.4.16.34       40A6B78A9A30 file       IP     -
-0:4:2    target     ready       20.4.26.34       40A6B78A9A31 file       IP     -
-0:4:3      peer   offline                -       40A6B78A9A32 free       IP     -
-0:4:4      peer   offline                -       40A6B78A9A33 free       IP     -
-1:1:1 initiator     ready       16.1.14.91       946DAED6F06A disk     NVMe  DP-1
-1:1:2 initiator     ready       16.1.15.91       946DAED6F06B disk     NVMe  DP-2
-1:2:1 initiator     ready         16.1.8.2       946DAED6F00A disk     NVMe  DP-1
-1:2:2 initiator     ready         16.1.9.2       946DAED6F00B disk     NVMe  DP-2
-1:3:1    target     ready 2FF70002AC07F065   21310002AC07F065 host       FC     -
-1:3:2    target loss_sync 2FF70002AC07F065   21320002AC07F065 free       FC     -
-1:3:3    target loss_sync 2FF70002AC07F065   21330002AC07F065 free       FC     -
-1:3:4    target loss_sync 2FF70002AC07F065   21340002AC07F065 free       FC     -
-1:4:1    target     ready      20.14.16.34       40A6B78A9850 file       IP     -
-1:4:2    target     ready      20.14.26.34       40A6B78A9851 file       IP     -
-1:4:3      peer   offline                -       40A6B78A9852 free       IP     -
-1:4:4      peer   offline                -       40A6B78A9853 free       IP     -
-2:1:1 initiator     ready       16.1.14.92       946DAED6F220 disk     NVMe  DP-1
-2:1:2 initiator     ready       16.1.15.92       946DAED6F221 disk     NVMe  DP-2
-2:2:1 initiator     ready         16.1.8.3       946DAED6F17E disk     NVMe  DP-1
-2:2:2 initiator     ready         16.1.9.3       946DAED6F17F disk     NVMe  DP-2
-2:3:1    target     ready 2FF70002AC07F065   22310002AC07F065 host       FC     -
-2:3:2    target loss_sync 2FF70002AC07F065   22320002AC07F065 free       FC     -
-2:3:3    target loss_sync 2FF70002AC07F065   22330002AC07F065 free       FC     -
-2:3:4    target loss_sync 2FF70002AC07F065   22340002AC07F065 free       FC     -
-2:4:1    target     ready      20.24.16.34       40A6B78A9810 file       IP     -
-2:4:2    target     ready      20.24.26.34       40A6B78A9811 file       IP     -
-2:4:3      peer   offline                -       40A6B78A9812 free       IP     -
-2:4:4      peer   offline                -       40A6B78A9813 free       IP     -
-3:1:1 initiator     ready       16.1.14.93       946DAED6F4C0 disk     NVMe  DP-1
-3:1:2 initiator     ready       16.1.15.93       946DAED6F4C1 disk     NVMe  DP-2
-3:2:1 initiator     ready         16.1.8.4       946DAED6EFCE disk     NVMe  DP-1
-3:2:2 initiator     ready         16.1.9.4       946DAED6EFCF disk     NVMe  DP-2
-3:3:1    target     ready 2FF70002AC07F065   23310002AC07F065 host       FC     -
-3:3:2    target loss_sync 2FF70002AC07F065   23320002AC07F065 free       FC     -
-3:3:3    target loss_sync 2FF70002AC07F065   23330002AC07F065 free       FC     -
-3:3:4    target loss_sync 2FF70002AC07F065   23340002AC07F065 free       FC     -
-3:4:1    target     ready      20.34.16.34       40A6B78A9680 file       IP     -
-3:4:2    target     ready      20.34.26.34       40A6B78A9681 file       IP     -
-3:4:3      peer   offline                -       40A6B78A9682 free       IP     -
-3:4:4      peer   offline                -       40A6B78A9683 free       IP     -
----------------------------------------------------------------------------------
-   48
-```
-
-**PARSING FUNCTION (Enhanced - Token-Based with N:S:P Decomposition):**
+**PARSING FUNCTION:**
 ```javascript
 function parseShowPort(cliOutput) {
-    const lines = cliOutput.split(/\r?\n/);
-    
     const result = {
         ports: [],
         total: null
     };
-    
-    let parsing = false;
-    
-    for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
-        
-        // Start parsing after header line
-        if (line.includes("N:S:P") && line.includes("Mode") && line.includes("State")) {
-            parsing = true;
+
+    const lines = cliOutput.split(/\r?\n/);
+
+    let inTable = false;
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line)
+            continue;
+
+        // Detect header
+        if (/^N:S:P\b.*\bMode\b.*\bState\b/i.test(line)) {
+            inTable = true;
             continue;
         }
-        
-        // Skip dashed separator lines
-        if (/^-{10,}/.test(line)) continue;
-        
-        // Detect total line (e.g., "24" or "48")
+
+        if (!inTable)
+            continue;
+
+        // Ignore separator lines
+        if (/^-+$/.test(line))
+            continue;
+
+        // Total count (appears after the separator)
         if (/^\d+$/.test(line)) {
-            result.total = parseInt(line, 10);
+            result.total = Number(line);
             break;
         }
-        
-        if (!parsing) continue;
-        
+
         const parts = line.split(/\s+/);
-        if (parts.length < 7) continue;
-        
+
+        // Expected:
+        // NSP Mode State NodeWWN/IP PortWWN/HW Type Protocol Label
+        if (parts.length < 8)
+            continue;
+
         const port = {};
-        
-        // N:S:P parsing and decomposition
-        port.nsp = parts[0];
-        const nspParts = parts[0].split(':');
-        if (nspParts.length === 3) {
-            port.node = parseInt(nspParts[0], 10);
-            port.slot = parseInt(nspParts[1], 10);
-            port.port = parseInt(nspParts[2], 10);
-        }
-        
-        port.mode = parts[1];
-        port.state = parts[2];
-        
-        // Stable suffix fields (order from right to left)
-        port.label = parts[parts.length - 1];
-        port.protocol = parts[parts.length - 2];
-        port.type = parts[parts.length - 3];
-        port.port_wwn_hw = parts[parts.length - 4];
-        port.node_wwn_ip = parts[3];
-        
+
+        // Consume from left
+        port.nsp = parts.shift();
+
+        const [node, slot, portNum] = port.nsp.split(":").map(Number);
+
+        port.node = Number.isNaN(node) ? null : node;
+        port.slot = Number.isNaN(slot) ? null : slot;
+        port.port = Number.isNaN(portNum) ? null : portNum;
+
+        port.mode = parts.shift();
+        port.state = parts.shift();
+
+        // Consume from right
+        port.label = parts.pop();
+        port.protocol = parts.pop();
+        port.type = parts.pop();
+        port.port_wwn_hw = parts.pop();
+
+        // Whatever remains is Node_WWN/IP
+        port.node_wwn_ip = parts.join(" ");
+
         result.ports.push(port);
     }
-    
+
     return result;
 }
 ```
 
-**PARSED OUTPUT: (truncated)** 
+**EXTRACTED PARAMETERS:**
+- ports[].label
+- ports[].mode
+- ports[].node
+- ports[].node_wwn_ip
+- ports[].nsp
+- ports[].port
+- ports[].port_wwn_hw
+- ports[].protocol
+- ports[].slot
+- ports[].state
+- ports[].type
+- total
 
+**PARSED OUTPUT:**
 ```json
 {
   "ports": [
@@ -585,94 +539,98 @@ function parseShowPort(cliOutput) {
   "total": 24
 }
 ```
+
 ## FOR SHOWSWITCH
 
-**CLI O/P (Variant 1 - No switches):**
+**CLI O/P:**
 ```
 showswitch
 No switches listed
 ```
 
-**CLI O/P (Variant 2 - With switches):**
-```
-showswitch
-Name State  Mode   LocateLED Serial     PS1 PS2 Fans Temp
-sw1  Normal Online off       TW32KM3056 ok  ok  ok   normal
-sw2  Normal Online off       TW32KM303T ok  ok  ok   normal
------------------------------------------------------------
-2    total
-```
-
 **PARSING FUNCTION:**
 ```javascript
 function parseShowSwitch(cliOutput) {
-    const lines = cliOutput.split(/\r?\n/);
-    
     const result = {
         switches: [],
         total: null,
         message: null
     };
-    
-    let parsing = false;
-    let headerFound = false;
-    
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-        if (!line) continue;
-        
-        // Check for "No switches listed" message
-        if (line.includes("No switches listed")) {
+
+    const lines = cliOutput.split(/\r?\n/);
+
+    let inTable = false;
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line)
+            continue;
+
+        // "No switches listed"
+        if (/^No switches listed$/i.test(line)) {
             result.message = "No switches listed";
             return result;
         }
-        
-        // Detect header line
-        if (line.includes("Name") && line.includes("State") && line.includes("Mode")) {
-            headerFound = true;
-            parsing = true;
+
+        // Header
+        if (/^Name\b.*\bState\b.*\bMode\b/i.test(line)) {
+            inTable = true;
             continue;
         }
-        
-        // Skip dashed separator lines
-        if (/^-{10,}/.test(line)) continue;
-        
-        // Detect total line (e.g., "2    total")
-        const totalMatch = line.match(/(\d+)\s*total/);
+
+        if (!inTable)
+            continue;
+
+        // Separator
+        if (/^-+$/.test(line))
+            continue;
+
+        // Footer
+        const totalMatch = line.match(/^(\d+)\s+total$/i);
         if (totalMatch) {
-            result.total = parseInt(totalMatch[1], 10);
-            parsing = false;
+            result.total = Number(totalMatch[1]);
             break;
         }
-        
-        // Parse data rows
-        if (parsing && headerFound) {
-            // Split by whitespace (token-based)
-            const parts = line.split(/\s+/);
-            
-            // Expected: [Name, State, Mode, LocateLED, Serial, PS1, PS2, Fans, Temp]
-            if (parts.length >= 9) {
-                const switchInfo = {
-                    name: parts[0],
-                    state: parts[1],
-                    mode: parts[2],
-                    locate_led: parts[3],
-                    serial: parts[4],
-                    ps1: parts[5],
-                    ps2: parts[6],
-                    fans: parts[7],
-                    temp: parts[8]
-                };
-                result.switches.push(switchInfo);
-            }
-        }
+
+        const parts = line.split(/\s+/);
+
+        // Expected:
+        // Name State Mode LocateLED Serial PS1 PS2 Fans Temp
+        if (parts.length < 9)
+            continue;
+
+        result.switches.push({
+            name: parts.shift(),
+            state: parts.shift(),
+            mode: parts.shift(),
+            locate_led: parts.shift(),
+            serial: parts.shift(),
+            ps1: parts.shift(),
+            ps2: parts.shift(),
+            fans: parts.shift(),
+            temp: parts.join(" ") // preserves any future multi-word temperature/status
+        });
     }
-    
+
     return result;
 }
 ```
 
-**PARSED OUTPUT (Variant 1 - No switches):**
+**EXTRACTED PARAMETERS:**
+- message
+- switches[].fans
+- switches[].locate_led
+- switches[].mode
+- switches[].name
+- switches[].ps1
+- switches[].ps2
+- switches[].serial
+- switches[].state
+- switches[].temp
+- total
+
+**PARSED OUTPUT:**
 ```json
 {
   "switches": [],
@@ -681,39 +639,9 @@ function parseShowSwitch(cliOutput) {
 }
 ```
 
-**PARSED OUTPUT (Variant 2 - With switches):**
-```json
-{
-  "switches": [
-    {
-      "name": "sw1",
-      "state": "Normal",
-      "mode": "Online",
-      "locate_led": "off",
-      "serial": "TW32KM3056",
-      "ps1": "ok",
-      "ps2": "ok",
-      "fans": "ok",
-      "temp": "normal"
-    },
-    {
-      "name": "sw2",
-      "state": "Normal",
-      "mode": "Online",
-      "locate_led": "off",
-      "serial": "TW32KM303T",
-      "ps1": "ok",
-      "ps2": "ok",
-      "fans": "ok",
-      "temp": "normal"
-    }
-  ],
-  "total": 2,
-  "message": null
-}
-```
 ## FOR SHOWHOST
-**CLI O/P (Variant 1):**
+
+**CLI O/P:**
 ```
 showhost
 Id Name            Persona      -WWN/iSCSI_Name/NQN- Port
@@ -722,47 +650,6 @@ Id Name            Persona      -WWN/iSCSI_Name/NQN- Port
                                 1000AAAABBBB1003     1:3:1
                                 1000AAAABBBB1003     0:3:1
 ...
-----------------------------------------------------------
-22 total
-```
-
-**CLI O/P (Variant 2):**
-```
-showhost
-Id Name  Persona -WWN/iSCSI_Name/NQN- Port
---               51402EC0181CFF12     3:3:1
-                 51402EC0181CFF12     2:3:1
-...
--------------------------------------------
-58 total
-```
-
-**CLI O/P (Variant 3):**
-```
-showhost
-Id Name            Persona      -WWN/iSCSI_Name/NQN- Port
-                                1000AAAABBBB1001     0:3:1
-                                1000AAAABBBB1002     1:3:1
-                                1000AAAABBBB1003     1:3:1
-                                1000AAAABBBB1003     0:3:1
-                                1000AAAABBBB1004     ---
-                                1000AAAABBBB1005     1:3:1
-                                1000AAAABBBB1005     0:3:1
-                                1000AAAABBBB1006     ---
-                                1000AAAABBBB1007     0:3:1
-                                1000AAAABBBB1008     1:3:1
---                              1000AAAABBBB1009     1:3:1
-                                1000AAAABBBB1010     1:3:1
-                                5140CCCCDDDD1001     1:3:1
-                                1000AAAABBBB1011     1:3:1
-                                1000AAAABBBB1012     1:3:1
-                                1000AAAABBBB1013     1:3:1
-                                1000AAAABBBB1009     0:3:1
-                                5140CCCCDDDD1000     0:3:1
-                                1000AAAABBBB1010     0:3:1
-                                1000AAAABBBB1012     0:3:1
-                                1000AAAABBBB1011     0:3:1
-                                1000AAAABBBB1013     0:3:1
 ----------------------------------------------------------
 22 total
 ```
@@ -770,135 +657,164 @@ Id Name            Persona      -WWN/iSCSI_Name/NQN- Port
 **PARSING FUNCTION:**
 ```javascript
 function parseShowHost(cliOutput) {
+    const result = {
+        hosts: [],
+        total: null
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { hosts: [], total: null };
-    let parsing = false;
-    
-    // Check if the input contains at least one numeric Host ID
-    let hasNumericHostId = false;
-    for (let line of lines) {
-        if (line.includes("-WWN/iSCSI_Name/NQN-") && line.includes("Port")) {
-            parsing = true;
-            continue;
-        }
-        if (!parsing) continue;
-        if (/^-{10,}/.test(line.trim())) continue;
-        
-        const wwnMatch = line.match(/([0-9A-Fa-f]{12,16})/);
-        if (!wwnMatch) continue;
-        
-        const prefix = line.substring(0, wwnMatch.index).trim();
-        if (prefix && prefix !== '--') {
-            const parts = prefix.split(/\s+/);
-            let idx = 0;
-            if (parts[idx] === '--') idx++;
-            if (idx < parts.length && /^\d+$/.test(parts[idx])) {
-                hasNumericHostId = true;
-                break;
-            }
-        }
-    }
-    
-    parsing = false;
+
+    let inTable = false;
     let currentHost = null;
-    const wwnMap = new Map();
-    
-    for (let line of lines) {
-        if (line.includes("-WWN/iSCSI_Name/NQN-") && line.includes("Port")) {
-            parsing = true;
+    const standaloneHosts = new Map();
+
+    for (const rawLine of lines) {
+        const line = rawLine.trimEnd();
+
+        if (!line.trim())
+            continue;
+
+        // Header
+        if (/-WWN\/iSCSI_Name\/NQN-/.test(line)) {
+            inTable = true;
             continue;
         }
-        if (!parsing) continue;
-        if (/^-{10,}/.test(line.trim())) continue;
-        
-        const totalMatch = line.match(/(\d+)\s*total/);
+
+        if (!inTable)
+            continue;
+
+        // Separator
+        if (/^-+$/.test(line.trim()))
+            continue;
+
+        // Footer
+        const totalMatch = line.match(/^(\d+)\s+total$/i);
         if (totalMatch) {
-            result.total = parseInt(totalMatch[1], 10);
+            result.total = Number(totalMatch[1]);
             break;
         }
-        
-        const wwnMatch = line.match(/([0-9A-Fa-f]{12,16})/);
-        const portMatch = line.match(/(\d+:\d+:\d+|---)/);
-        
-        if (!wwnMatch) continue;
-        
-        const wwn = wwnMatch[1];
-        const nsp = portMatch ? portMatch[1] : null;
-        
-        // Extract ID, Name, Persona from the text before the WWN
-        let hostId = null, name = null, persona = null;
-        const prefix = line.substring(0, wwnMatch.index).trim();
-        
-        if (prefix && prefix !== '--') {
-            const parts = prefix.split(/\s+/);
-            let idx = 0;
-            if (parts[idx] === '--') idx++;
-            if (idx < parts.length && /^\d+$/.test(parts[idx])) hostId = parseInt(parts[idx++], 10);
-            if (idx < parts.length) name = parts[idx++];
-            if (idx < parts.length) persona = parts[idx++];
-        }
-        
+
+        const parts = line.trim().split(/\s+/);
+
+        if (parts.length < 2)
+            continue;
+
+        //------------------------------------------------------------------
+        // Find WWN
+        //------------------------------------------------------------------
+
+        const wwnIndex = parts.findIndex(p =>
+            /^[A-Fa-f0-9]{12,32}$/.test(p)
+        );
+
+        if (wwnIndex === -1)
+            continue;
+
+        const wwn = parts[wwnIndex];
+
+        //------------------------------------------------------------------
+        // Port
+        //------------------------------------------------------------------
+
         let portObj = null;
-        if (nsp && nsp !== "---") {
-            const pParts = nsp.split(":");
-            portObj = { nsp: nsp };
-            if (pParts.length === 3) {
-                portObj.node = parseInt(pParts[0], 10);
-                portObj.slot = parseInt(pParts[1], 10);
-                portObj.port = parseInt(pParts[2], 10);
-            }
+
+        const nsp = parts.find(p => /^\d+:\d+:\d+$/.test(p));
+
+        if (nsp) {
+            const [node, slot, port] = nsp.split(":").map(Number);
+
+            portObj = {
+                nsp,
+                node,
+                slot,
+                port
+            };
         }
-        
-        if (hasNumericHostId) {
-            if (hostId !== null) {
-                currentHost = {
-                    host_id: hostId,
-                    name: name || `host-${wwn.substring(0, 8)}`,
-                    persona: persona || null,
-                    wwn: wwn,
-                    wwns: [wwn],
-                    Port: []
-                };
-                if (portObj) currentHost.Port.push(portObj);
-                result.hosts.push(currentHost);
-            } else if (currentHost) {
-                if (!currentHost.wwns.includes(wwn)) {
-                    currentHost.wwns.push(wwn);
-                }
-                if (portObj) {
-                    const exists = currentHost.Port.some(p => p.nsp === portObj.nsp);
-                    if (!exists) {
-                        currentHost.Port.push(portObj);
-                    }
-                }
+
+        //------------------------------------------------------------------
+        // Prefix before WWN
+        //------------------------------------------------------------------
+
+        const prefix = parts.slice(0, wwnIndex);
+
+        //------------------------------------------------------------------
+        // New host?
+        //------------------------------------------------------------------
+
+        if (prefix.length >= 3 && /^\d+$/.test(prefix[0])) {
+
+            const host = {
+                host_id: Number(prefix[0]),
+                name: prefix[1] || null,
+                persona: prefix.slice(2).join(" ") || null,
+                wwn,
+                wwns: [wwn],
+                Port: []
+            };
+
+            if (portObj)
+                host.Port.push(portObj);
+
+            result.hosts.push(host);
+            currentHost = host;
+            continue;
+        }
+
+        //------------------------------------------------------------------
+        // Continuation line?
+        //------------------------------------------------------------------
+
+        if (currentHost) {
+
+            if (!currentHost.wwns.includes(wwn))
+                currentHost.wwns.push(wwn);
+
+            if (portObj &&
+                !currentHost.Port.some(p => p.nsp === portObj.nsp)) {
+                currentHost.Port.push(portObj);
             }
-        } else {
-            if (!wwnMap.has(wwn)) {
-                wwnMap.set(wwn, {
-                    wwn: wwn,
-                    host_id: hostId,
-                    name: name || `host-${wwn.substring(0, 8)}`,
-                    persona: persona,
-                    Port: []
-                });
-            }
-            if (portObj) {
-                wwnMap.get(wwn).Port.push(portObj);
-            }
+
+            continue;
+        }
+
+        //------------------------------------------------------------------
+        // Standalone WWN
+        //------------------------------------------------------------------
+
+        if (!standaloneHosts.has(wwn)) {
+
+            standaloneHosts.set(wwn, {
+                wwn,
+                Port: []
+            });
+        }
+
+        if (portObj) {
+
+            const host = standaloneHosts.get(wwn);
+
+            if (!host.Port.some(p => p.nsp === portObj.nsp))
+                host.Port.push(portObj);
         }
     }
-    
-    if (!hasNumericHostId) {
-        for (const hostData of wwnMap.values()) {
-            result.hosts.push(hostData);
-        }
-    }
-    
+
+    // Add WWN-only hosts
+    result.hosts.push(...standaloneHosts.values());
+
     return result;
 }
 ```
 
-**PARSED OUTPUT (Variant 1):**
+**EXTRACTED PARAMETERS:**
+- hosts[].Port
+- hosts[].Port[].node
+- hosts[].Port[].nsp
+- hosts[].Port[].port
+- hosts[].Port[].slot
+- hosts[].wwn
+- total
+
+**PARSED OUTPUT:**
 ```json
 {
   "hosts": [
@@ -930,224 +846,6 @@ function parseShowHost(cliOutput) {
 }
 ```
 
-**PARSED OUTPUT (Variant 2):**
-```json
-{
-  "hosts": [
-    {
-      "wwn": "51402EC0181CFF12",
-      "Port": [
-        { "nsp": "3:3:1", "node": 3, "slot": 3, "port": 1 },
-        { "nsp": "2:3:1", "node": 2, "slot": 3, "port": 1 },
-        { "nsp": "1:3:1", "node": 1, "slot": 3, "port": 1 },
-        { "nsp": "0:3:1", "node": 0, "slot": 3, "port": 1 }
-      ]
-    }
-  ],
-  "total": 58
-}
-```
-**PARSED OUTPUT (Variant 3):**
-```json
-{
-  "hosts": [
-    {
-      "wwn": "1000AAAABBBB1001",
-      "Port": [
-        {
-          "nsp": "0:3:1",
-          "node": 0,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "1000AAAABBBB1002",
-      "Port": [
-        {
-          "nsp": "1:3:1",
-          "node": 1,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "1000AAAABBBB1003",
-      "Port": [
-        {
-          "nsp": "1:3:1",
-          "node": 1,
-          "slot": 3,
-          "port": 1
-        },
-        {
-          "nsp": "0:3:1",
-          "node": 0,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "1000AAAABBBB1004",
-      "Port": []
-    },
-    {
-      "wwn": "1000AAAABBBB1005",
-      "Port": [
-        {
-          "nsp": "1:3:1",
-          "node": 1,
-          "slot": 3,
-          "port": 1
-        },
-        {
-          "nsp": "0:3:1",
-          "node": 0,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "1000AAAABBBB1006",
-      "Port": []
-    },
-    {
-      "wwn": "1000AAAABBBB1007",
-      "Port": [
-        {
-          "nsp": "0:3:1",
-          "node": 0,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "1000AAAABBBB1008",
-      "Port": [
-        {
-          "nsp": "1:3:1",
-          "node": 1,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "1000AAAABBBB1009",
-      "Port": [
-        {
-          "nsp": "1:3:1",
-          "node": 1,
-          "slot": 3,
-          "port": 1
-        },
-        {
-          "nsp": "0:3:1",
-          "node": 0,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "1000AAAABBBB1010",
-      "Port": [
-        {
-          "nsp": "1:3:1",
-          "node": 1,
-          "slot": 3,
-          "port": 1
-        },
-        {
-          "nsp": "0:3:1",
-          "node": 0,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "5140CCCCDDDD1001",
-      "Port": [
-        {
-          "nsp": "1:3:1",
-          "node": 1,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "1000AAAABBBB1011",
-      "Port": [
-        {
-          "nsp": "1:3:1",
-          "node": 1,
-          "slot": 3,
-          "port": 1
-        },
-        {
-          "nsp": "0:3:1",
-          "node": 0,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "1000AAAABBBB1012",
-      "Port": [
-        {
-          "nsp": "1:3:1",
-          "node": 1,
-          "slot": 3,
-          "port": 1
-        },
-        {
-          "nsp": "0:3:1",
-          "node": 0,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "1000AAAABBBB1013",
-      "Port": [
-        {
-          "nsp": "1:3:1",
-          "node": 1,
-          "slot": 3,
-          "port": 1
-        },
-        {
-          "nsp": "0:3:1",
-          "node": 0,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    },
-    {
-      "wwn": "5140CCCCDDDD1000",
-      "Port": [
-        {
-          "nsp": "0:3:1",
-          "node": 0,
-          "slot": 3,
-          "port": 1
-        }
-      ]
-    }
-  ],
-  "total": 22
-}
-```
 ## FOR SHOWCAGE (Basic)
 
 **CLI O/P:**
@@ -1161,53 +859,76 @@ Id Name   Drives Temp  Model FormFactor State
 **PARSING FUNCTION:**
 ```javascript
 function parseShowCageBasic(cliOutput) {
+    const result = {
+        cages: []
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { cages: [] };
-    let parsing = false;
 
-    for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
+    let inTable = false;
 
-        if (line.includes("Id") && line.includes("Name")) {
-            parsing = true;
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line)
+            continue;
+
+        // Header
+        if (/^Id\b.*\bName\b.*\bDrives\b/i.test(line)) {
+            inTable = true;
             continue;
         }
-        if (/^-{5,}/.test(line)) continue;
-        if (!parsing) continue;
+
+        if (!inTable)
+            continue;
+
+        // Separator
+        if (/^-+$/.test(line))
+            continue;
 
         const parts = line.split(/\s+/);
-        if (parts.length < 7) continue;
 
-        const id = parseInt(parts[0], 10);
-        const name = parts[1];
+        // Need at least:
+        // Id Name Drives Temp Model FormFactor State
+        if (parts.length < 7)
+            continue;
 
-        let drives = 0;
-        let temp = "0";
-        let model = "";
-        let formFactor = "";
-        let state = "";
+        const state = parts.pop();
+        const formFactor = parts.pop();
 
-        if (parts.length >= 9) {
-            state = parts[2];
-            drives = parseInt(parts[4], 10) || 0;
-            temp = parts[5];
-            model = parts[6];
-            formFactor = parts[7];
-        } else {
-            drives = parseInt(parts[2], 10) || 0;
-            temp = parts[3];
-            formFactor = parts[parts.length - 2];
-            state = parts[parts.length - 1];
-            const modelParts = parts.slice(4, parts.length - 2);
-            model = modelParts.join(" ");
-        }
+        const id = Number(parts.shift());
+        const name = parts.shift();
+        const drives = Number(parts.shift());
+        const temp = parts.shift();
 
-        result.cages.push({ id, name, drives, temp, model, form_factor: formFactor, state });
+        const model = parts.join(" ");
+
+        if (Number.isNaN(id) || Number.isNaN(drives))
+            continue;
+
+        result.cages.push({
+            id,
+            name,
+            drives,
+            temp,
+            model,
+            form_factor: formFactor,
+            state
+        });
     }
+
     return result;
 }
 ```
+
+**EXTRACTED PARAMETERS:**
+- cages[].drives
+- cages[].form_factor
+- cages[].id
+- cages[].model
+- cages[].name
+- cages[].state
+- cages[].temp
 
 **PARSED OUTPUT:**
 ```json
@@ -1235,8 +956,6 @@ function parseShowCageBasic(cliOutput) {
 }
 ```
 
----
-
 ## FOR SHOWCAGE -STATE
 
 **CLI O/P:**
@@ -1262,49 +981,77 @@ total                12
 **PARSING FUNCTION:**
 ```javascript
 function parseShowCageState(cliOutput) {
+    const result = {
+        cages: [],
+        total: null
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { cages: [], total: null };
-    let parsing = false;
 
-    for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
+    let inTable = false;
 
-        if (line.includes("Id") && line.includes("Name") && line.includes("State")) {
-            parsing = true;
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line)
+            continue;
+
+        // Header
+        if (/^Id\b.*\bName\b.*\bState\b/i.test(line)) {
+            inTable = true;
             continue;
         }
-        if (/^-{5,}/.test(line)) continue;
 
-        const totalMatch = line.match(/(\d+)\s*total|total\s+(\d+)/i);
+        if (!inTable)
+            continue;
+
+        // Separator
+        if (/^-+$/.test(line))
+            continue;
+
+        // Footer
+        const totalMatch = line.match(/^(?:total\s+(\d+)|(\d+)\s+total)$/i);
         if (totalMatch) {
-            result.total = parseInt(totalMatch[1] || totalMatch[2], 10);
+            result.total = Number(totalMatch[1] || totalMatch[2]);
             break;
         }
-        if (!parsing) continue;
 
         const parts = line.split(/\s+/);
-        if (parts.length < 4) continue;
 
-        const id = parseInt(parts[0], 10);
-        const name = parts[1];
+        // Minimum:
+        // Id Name State DetailedState
+        if (parts.length < 4)
+            continue;
 
-        let state = "";
-        let detailedState = "";
+        const id = Number(parts.shift());
 
-        if (parts.length >= 8) {
-            state = parts[2];
-            detailedState = parts[2];
-        } else {
-            state = parts[parts.length - 2];
-            detailedState = parts[parts.length - 1];
-        }
+        if (Number.isNaN(id))
+            continue;
 
-        result.cages.push({ id, name, state, detailed_state: detailedState });
+        const name = parts.shift();
+        const state = parts.shift();
+
+        // Everything remaining belongs to DetailedState
+        const detailedState = parts.join(" ");
+
+        result.cages.push({
+            id,
+            name,
+            state,
+            detailed_state: detailedState
+        });
     }
+
     return result;
 }
 ```
+
+**EXTRACTED PARAMETERS:**
+- cages[].detailed_state
+- cages[].id
+- cages[].name
+- cages[].state
+- total
 
 **PARSED OUTPUT:**
 ```json
@@ -1327,8 +1074,6 @@ function parseShowCageState(cliOutput) {
 }
 ```
 
----
-
 ## FOR SHOWCAGE -PCI
 
 **CLI O/P:**
@@ -1345,47 +1090,106 @@ total                                                                36
 **PARSING FUNCTION:**
 ```javascript
 function parseShowCagePCI(cliOutput) {
+    const result = {
+        slots: [],
+        total: null
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { slots: [], total: null };
-    let parsing = false;
 
-    for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
+    let inTable = false;
 
-        if (line.includes("Cage") && line.includes("IOM") && line.includes("Slot")) {
-            parsing = true;
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line)
+            continue;
+
+        // Header
+        if (/^Cage\b.*\bIOM\b.*\bSlot\b/i.test(line)) {
+            inTable = true;
             continue;
         }
-        if (/^-{5,}/.test(line)) continue;
 
-        const totalMatch = line.match(/(\d+)\s*total|total\s+(\d+)/i);
+        if (!inTable)
+            continue;
+
+        // Separator
+        if (/^-+$/.test(line))
+            continue;
+
+        // Footer
+        const totalMatch = line.match(/^(?:total\s+(\d+)|(\d+)\s+total)$/i);
         if (totalMatch) {
-            result.total = parseInt(totalMatch[1] || totalMatch[2], 10);
+            result.total = Number(totalMatch[1] || totalMatch[2]);
             break;
         }
-        if (!parsing) continue;
 
         const parts = line.split(/\s+/);
-        if (parts.length < 9) continue;
 
-        const cage = parseInt(parts[0], 10);
-        const iom = parseInt(parts[1], 10);
-        const slot = parseInt(parts[2], 10);
-        const type = parts[3];
-        const rev = parts[parts.length - 2];
-        const firmware = parts[parts.length - 1];
+        if (parts.length < 9)
+            continue;
 
-        const middleParts = parts.slice(4, parts.length - 2);
-        const manufacturer = middleParts[0] || "";
-        const model = middleParts[1] || "";
-        const serial = middleParts[middleParts.length - 1] || "";
+        const firmware = parts.pop();
+        const rev = parts.pop();
 
-        result.slots.push({ cage, iom, slot, type, manufacturer, model, serial, rev, firmware });
+        const cage = Number(parts.shift());
+        const iom = Number(parts.shift());
+        const slot = Number(parts.shift());
+        const type = parts.shift();
+
+        if ([cage, iom, slot].some(Number.isNaN))
+            continue;
+
+        const middle = [...parts];
+
+        let manufacturer = "";
+        let model = "";
+        let serial = "";
+
+        // Current firmware appears to use:
+        // Manufacturer Model Serial
+        if (middle.length >= 3) {
+            manufacturer = middle.shift();
+            serial = middle.pop();
+            model = middle.join(" ");
+        }
+        else if (middle.length === 2) {
+            manufacturer = middle[0];
+            serial = middle[1];
+        }
+        else if (middle.length === 1) {
+            manufacturer = middle[0];
+        }
+
+        result.slots.push({
+            cage,
+            iom,
+            slot,
+            type,
+            manufacturer,
+            model,
+            serial,
+            rev,
+            firmware
+        });
     }
+
     return result;
 }
 ```
+
+**EXTRACTED PARAMETERS:**
+- slots[].cage
+- slots[].firmware
+- slots[].iom
+- slots[].manufacturer
+- slots[].model
+- slots[].rev
+- slots[].serial
+- slots[].slot
+- slots[].type
+- total
 
 **PARSED OUTPUT:**
 ```json
@@ -1418,8 +1222,6 @@ function parseShowCagePCI(cliOutput) {
 }
 ```
 
----
-
 ## FOR SHOWCAGE -SFP
 
 **CLI O/P:**
@@ -1434,59 +1236,118 @@ showcage -sfp
 total                                                                                                                              20
 ```
 
-**PARSING FUNCTION:** 
+**PARSING FUNCTION:**
 ```javascript
 function parseShowCageSFP(cliOutput) {
+    const result = {
+        sfps: [],
+        total: null
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { sfps: [], total: null };
-    let parsing = false;
 
-    for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
+    let inTable = false;
 
-        if (line.includes("Cage") && line.includes("IOM") && line.includes("SFP") && line.includes("State")) {
-            parsing = true;
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line)
+            continue;
+
+        // Header
+        if (/^Cage\b.*\bIOM\b.*\bSFP\b.*\bState\b/i.test(line)) {
+            inTable = true;
             continue;
         }
-        if (/^-{5,}/.test(line)) continue;
 
-        const totalMatch = line.match(/(\d+)\s*total|total\s+(\d+)/i);
+        if (!inTable)
+            continue;
+
+        // Separator
+        if (/^-+$/.test(line))
+            continue;
+
+        // Footer
+        const totalMatch = line.match(/^(?:total\s+(\d+)|(\d+)\s+total)$/i);
         if (totalMatch) {
-            result.total = parseInt(totalMatch[1] || totalMatch[2], 10);
+            result.total = Number(totalMatch[1] || totalMatch[2]);
             break;
         }
-        if (!parsing) continue;
 
         const parts = line.split(/\s+/);
-        if (parts.length < 10) continue;
 
-        const sfp = {};
-        sfp.cage = parseInt(parts[0], 10);
-        sfp.iom = parseInt(parts[1], 10);
-        sfp.sfp = parseInt(parts[2], 10);
-        sfp.label = parts[3];
+        if (parts.length < 15)
+            continue;
 
-        sfp.state = parts[parts.length - 1];
-        sfp.ddm = parts[parts.length - 2];
-        sfp.rx_power_low = parts[parts.length - 3];
-        sfp.rx_loss = parts[parts.length - 4];
-        sfp.tx_fault = parts[parts.length - 5];
-        sfp.tx_disable = parts[parts.length - 6];
-        sfp.max_speed_gbps = parseFloat(parts[parts.length - 7]);
-        sfp.qualified = parts[parts.length - 8];
-        sfp.revision = parts[parts.length - 9];
-        sfp.serial_number = parts[parts.length - 10];
-        sfp.part_number = parts[parts.length - 11];
+        // ---------- Consume from right ----------
 
-        const manufacturerParts = parts.slice(4, parts.length - 11);
-        sfp.manufacturer = manufacturerParts.join(" ");
+        const state = parts.pop();
+        const ddm = parts.pop();
+        const rxPowerLow = parts.pop();
+        const rxLoss = parts.pop();
+        const txFault = parts.pop();
+        const txDisable = parts.pop();
+        const maxSpeedGbps = Number(parts.pop());
+        const qualified = parts.pop();
+        const revision = parts.pop();
+        const serialNumber = parts.pop();
+        const partNumber = parts.pop();
 
-        result.sfps.push(sfp);
+        // ---------- Consume from left ----------
+
+        const cage = Number(parts.shift());
+        const iom = Number(parts.shift());
+        const sfp = Number(parts.shift());
+        const label = parts.shift();
+
+        if ([cage, iom, sfp].some(Number.isNaN))
+            continue;
+
+        // Everything remaining is Manufacturer
+        const manufacturer = parts.join(" ");
+
+        result.sfps.push({
+            cage,
+            iom,
+            sfp,
+            label,
+            manufacturer,
+            part_number: partNumber,
+            serial_number: serialNumber,
+            revision,
+            qualified,
+            max_speed_gbps: maxSpeedGbps,
+            tx_disable: txDisable,
+            tx_fault: txFault,
+            rx_loss: rxLoss,
+            rx_power_low: rxPowerLow,
+            ddm,
+            state
+        });
     }
+
     return result;
 }
 ```
+
+**EXTRACTED PARAMETERS:**
+- sfps[].cage
+- sfps[].ddm
+- sfps[].iom
+- sfps[].label
+- sfps[].manufacturer
+- sfps[].max_speed_gbps
+- sfps[].part_number
+- sfps[].qualified
+- sfps[].revision
+- sfps[].rx_loss
+- sfps[].rx_power_low
+- sfps[].serial_number
+- sfps[].sfp
+- sfps[].state
+- sfps[].tx_disable
+- sfps[].tx_fault
+- total
 
 **PARSED OUTPUT:**
 ```json
@@ -1514,6 +1375,7 @@ function parseShowCageSFP(cliOutput) {
   "total": 20
 }
 ```
+
 ## FOR SHOWPD (Basic – Capacity Table)
 
 **CLI O/P:**
@@ -1531,49 +1393,102 @@ Id CagePos Type RPM State      Total     Free Capacity(GB)
 **PARSING FUNCTION:**
 ```javascript
 function parseShowPdBasic(cliOutput) {
+    const result = {
+        drives: [],
+        total: null,
+        total_cap: null,
+        free_cap: null
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { drives: [], total: null, total_cap: null, free_cap: null };
-    let parsing = false;
 
-    for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
+    let inTable = false;
 
-        if (line.includes("Id") && line.includes("CagePos") && line.includes("Type")) {
-            parsing = true;
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line)
+            continue;
+
+        // Header
+        if (/^Id\b.*\bCagePos\b.*\bType\b/i.test(line)) {
+            inTable = true;
             continue;
         }
-        if (/^-{5,}/.test(line)) continue;
 
-        // Total line: "48 total                   703070208 56586240"
-        const totalMatch = line.match(/(\d+)\s*total\s+(\d+)\s+(\d+)/i);
+        if (!inTable)
+            continue;
+
+        // Separator
+        if (/^-+$/.test(line))
+            continue;
+
+        // Footer
+        const totalMatch = line.match(/^(\d+)\s+total\s+(\d+)\s+(\d+)$/i);
         if (totalMatch) {
-            result.total = parseInt(totalMatch[1], 10);
-            result.total_cap = parseInt(totalMatch[2], 10);
-            result.free_cap = parseInt(totalMatch[3], 10);
+            result.total = Number(totalMatch[1]);
+            result.total_cap = Number(totalMatch[2]);
+            result.free_cap = Number(totalMatch[3]);
             break;
         }
-        if (!parsing) continue;
 
         const parts = line.split(/\s+/);
-        if (parts.length < 8) continue;
+
+        if (parts.length !== 8)
+            continue;
+
+        const id = Number(parts.shift());
+        const cagePos = parts.shift();
+        const type = parts.shift();
+
+        const rpmToken = parts.shift();
+        const rpm = rpmToken === "N/A" ? null : Number(rpmToken);
+
+        const state = parts.shift();
+        const totalMiB = Number(parts.shift());
+        const freeMiB = Number(parts.shift());
+        const capacityGB = Number(parts.shift());
+
+        if (
+            Number.isNaN(id) ||
+            Number.isNaN(totalMiB) ||
+            Number.isNaN(freeMiB) ||
+            Number.isNaN(capacityGB) ||
+            (rpm !== null && Number.isNaN(rpm))
+        ) {
+            continue;
+        }
 
         result.drives.push({
-            id: parseInt(parts[0], 10),
-            cage_pos: parts[1],
-            type: parts[2],
-            rpm: parts[3] === "N/A" ? null : parseInt(parts[3], 10),
-            state: parts[4],
-            total_mib: parseInt(parts[5], 10),
-            free_mib: parseInt(parts[6], 10),
-            capacity_gb: parseInt(parts[7], 10)
+            id,
+            cage_pos: cagePos,
+            type,
+            rpm,
+            state,
+            total_mib: totalMiB,
+            free_mib: freeMiB,
+            capacity_gb: capacityGB
         });
     }
+
     return result;
 }
 ```
 
-**PARSED OUTPUT:** 
+**EXTRACTED PARAMETERS:**
+- drives[].cage_pos
+- drives[].capacity_gb
+- drives[].free_mib
+- drives[].id
+- drives[].rpm
+- drives[].state
+- drives[].total_mib
+- drives[].type
+- free_cap
+- total
+- total_cap
+
+**PARSED OUTPUT:**
 ```json
 {
   "drives": [
@@ -1603,7 +1518,6 @@ function parseShowPdBasic(cliOutput) {
   "free_cap": 56586240
 }
 ```
----
 
 ## FOR SHOWPD -S (Drive State & SED)
 
@@ -1621,44 +1535,86 @@ Id CagePos Type -State- -Detailed_State- --SedState--
 **PARSING FUNCTION:**
 ```javascript
 function parseShowPdS(cliOutput) {
+    const result = {
+        drives: [],
+        total: null
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { drives: [], total: null };
-    let parsing = false;
 
-    for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
+    let inTable = false;
 
-        if (line.includes("Id") && line.includes("CagePos") && line.includes("Type")) {
-            parsing = true;
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line)
+            continue;
+
+        // Header
+        if (/^Id\b.*\bCagePos\b.*\bType\b/i.test(line)) {
+            inTable = true;
             continue;
         }
-        if (/^-{5,}/.test(line)) continue;
 
-        const totalMatch = line.match(/(\d+)\s*total/i);
+        if (!inTable)
+            continue;
+
+        // Separator
+        if (/^-+$/.test(line))
+            continue;
+
+        // Footer
+        const totalMatch = line.match(/^(\d+)\s+total$/i);
         if (totalMatch) {
-            result.total = parseInt(totalMatch[1], 10);
+            result.total = Number(totalMatch[1]);
             break;
         }
-        if (!parsing) continue;
 
         const parts = line.split(/\s+/);
-        if (parts.length < 6) continue;
+
+        if (parts.length < 6)
+            continue;
+
+        const id = Number(parts.shift());
+        const cagePos = parts.shift();
+        const type = parts.shift();
+
+        if (Number.isNaN(id))
+            continue;
+
+        // Consume fixed rightmost field
+        const sedState = parts.pop();
+
+        // Consume fixed left field
+        const state = parts.shift();
+
+        // Whatever remains belongs to Detailed_State
+        const detailedState = parts.join(" ");
 
         result.drives.push({
-            id: parseInt(parts[0], 10),
-            cage_pos: parts[1],
-            type: parts[2],
-            state: parts[3],
-            detailed_state: parts[4],
-            sed_state: parts[5]
+            id,
+            cage_pos: cagePos,
+            type,
+            state,
+            detailed_state: detailedState,
+            sed_state: sedState
         });
     }
+
     return result;
 }
 ```
 
-**PARSED OUTPUT:** 
+**EXTRACTED PARAMETERS:**
+- drives[].cage_pos
+- drives[].detailed_state
+- drives[].id
+- drives[].sed_state
+- drives[].state
+- drives[].type
+- total
+
+**PARSED OUTPUT:**
 ```json
 {
   "drives": [
@@ -2051,8 +2007,6 @@ function parseShowPdS(cliOutput) {
 }
 ```
 
----
-
 ## FOR SHOWPD -I (Detailed Drive Info)
 
 **CLI O/P:**
@@ -2069,79 +2023,122 @@ showpd -i
 **PARSING FUNCTION:**
 ```javascript
 function parseShowPdI(cliOutput) {
+    const result = {
+        drives: [],
+        total: null
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { drives: [], total: null };
-    let parsing = false;
 
-    for (let line of lines) {
-        line = line.trim();
-        if (!line) continue;
+    let inTable = false;
 
-        if (line.includes("Id") && line.includes("CagePos") && line.includes("State")) {
-            parsing = true;
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line)
+            continue;
+
+        // Header
+        if (/^Id\b.*\bCagePos\b.*\bState\b/i.test(line)) {
+            inTable = true;
             continue;
         }
-        if (/^-{5,}/.test(line)) continue;
 
-        const totalMatch = line.match(/(\d+)\s*total/i);
+        if (!inTable)
+            continue;
+
+        // Separator
+        if (/^-+$/.test(line))
+            continue;
+
+        // Footer
+        const totalMatch = line.match(/^(\d+)\s+total$/i);
         if (totalMatch) {
-            result.total = parseInt(totalMatch[1], 10);
+            result.total = Number(totalMatch[1]);
             break;
         }
-        if (!parsing) continue;
 
         const parts = line.split(/\s+/);
-        if (parts.length < 12) continue;  // enough tokens
 
-        // Parse fixed prefix: Id, CagePos, State
-        const id = parseInt(parts[0], 10);
-        const cagePos = parts[1];
-        const state = parts[2];
+        if (parts.length < 12)
+            continue;
 
-        // Admission time is the last 3 tokens (date, time, timezone)
-        const admissionTime = parts.slice(-3).join(" ");
-        // Remaining tokens from index 3 to end-3 are middle fields
-        const middle = parts.slice(3, -3);
+        // ---------- Right side ----------
 
-        // Known field order: Node_WWN, MFR, Model, Serial, FW_Rev, Protocol, Type
-        // Model can be multiple words, so we need to find where Serial starts.
-        // Serial typically starts with 'S' followed by alphanumeric (e.g., "S7PNNE0X400136")
-        // We'll search for the first token that looks like a serial (starts with 'S' and has length > 8)
-        let serialIndex = -1;
-        for (let i = 0; i < middle.length; i++) {
-            if (/^S[A-Z0-9]{8,}$/.test(middle[i])) {
-                serialIndex = i;
-                break;
-            }
-        }
-        if (serialIndex === -1) continue;  // fallback, skip this row
+        const timezone = parts.pop();
+        const time = parts.pop();
+        const date = parts.pop();
 
-        const nodeWwn = middle[0];
-        const mfr = middle[1];
-        const model = middle.slice(2, serialIndex).join(" ");
-        const serial = middle[serialIndex];
-        const fwRev = middle[serialIndex + 1];
-        const protocol = middle[serialIndex + 2];
-        const type = middle[serialIndex + 3];
+        const driveType = parts.pop();
+        const protocol = parts.pop();
+        const firmwareRev = parts.pop();
+
+        const admissionTime = `${date} ${time} ${timezone}`;
+
+        // ---------- Left side ----------
+
+        const id = Number(parts.shift());
+        const cagePos = parts.shift();
+        const state = parts.shift();
+
+        if (Number.isNaN(id))
+            continue;
+
+        // ---------- Middle ----------
+
+        const nodeWwn = parts.shift();
+
+        if (!nodeWwn)
+            continue;
+
+        const manufacturer = parts.shift();
+
+        if (!manufacturer)
+            continue;
+
+        // Remaining:
+        // Model ... Serial
+
+        if (parts.length < 2)
+            continue;
+
+        const serial = parts.pop();
+        const model = parts.join(" ");
 
         result.drives.push({
-            id: id,
+            id,
             cage_pos: cagePos,
-            state: state,
+            state,
             node_wwn: nodeWwn,
-            manufacturer: mfr,
-            model: model,
-            serial: serial,
-            firmware_rev: fwRev,
-            protocol: protocol,
-            drive_type: type,
+            manufacturer,
+            model,
+            serial,
+            firmware_rev: firmwareRev,
+            protocol,
+            drive_type: driveType,
             admission_time: admissionTime
         });
     }
+
     return result;
 }
 ```
-PARSER O/P:
+
+**EXTRACTED PARAMETERS:**
+- drives[].admission_time
+- drives[].cage_pos
+- drives[].drive_type
+- drives[].firmware_rev
+- drives[].id
+- drives[].manufacturer
+- drives[].model
+- drives[].node_wwn
+- drives[].protocol
+- drives[].serial
+- drives[].state
+- total
+
+**PARSED OUTPUT:**
 ```json
 {
   "drives": [
@@ -4645,6 +4642,7 @@ PARSER O/P:
   "total": 192
 }
 ```
+
 ## FOR SHOWHOST (SSH CLI Format — Id / Name / Persona / WWN / Port)
 
 **CLI O/P:**
@@ -4660,29 +4658,94 @@ Id Name            Persona      -WWN/iSCSI_Name/NQN- Port
 **PARSING FUNCTION:**
 ```javascript
 function parseShowHostSSH(cliOutput) {
+    const result = {
+        hosts: [],
+        total: null
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { hosts: [], total: null };
-    let parsing = false;
+
+    let inTable = false;
     let currentHost = null;
-    for (let line of lines) {
-        if (line.includes('-WWN/iSCSI_Name/NQN-') && line.includes('Port')) { parsing = true; continue; }
-        if (!parsing) continue;
-        if (/^-{10,}/.test(line.trim())) continue;
-        const totalMatch = line.match(/(\d+)\s*total/);
-        if (totalMatch) { result.total = parseInt(totalMatch[1], 10); break; }
-        // Line with Id + Name (new host entry)
-        const fullMatch = line.match(/^\s*(\d+|--)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*$/);
-        if (fullMatch) {
-            currentHost = { id: fullMatch[1] === '--' ? null : parseInt(fullMatch[1], 10), name: fullMatch[2], persona: fullMatch[3], wwns: [{ wwn: fullMatch[4], port: fullMatch[5] }] };
-            result.hosts.push(currentHost);
+
+    for (const rawLine of lines) {
+        const line = rawLine;
+
+        if (/-WWN\/iSCSI_Name\/NQN-/.test(line)) {
+            inTable = true;
             continue;
         }
-        // Continuation line (WWN + Port only)
-        const contMatch = line.match(/^\s+(\S{10,})\s+(\S+)\s*$/);
-        if (contMatch && currentHost) {
-            currentHost.wwns.push({ wwn: contMatch[1], port: contMatch[2] });
+
+        if (!inTable)
+            continue;
+
+        if (!line.trim())
+            continue;
+
+        if (/^-+$/.test(line.trim()))
+            continue;
+
+        const totalMatch = line.trim().match(/^(\d+)\s+total$/i);
+        if (totalMatch) {
+            result.total = Number(totalMatch[1]);
+            break;
         }
+
+        const parts = line.trim().split(/\s+/);
+
+        if (parts.length < 2)
+            continue;
+
+        //----------------------------------------------------
+        // Continuation line
+        //----------------------------------------------------
+
+        if (!/^(\d+|--)$/.test(parts[0])) {
+
+            if (!currentHost)
+                continue;
+
+            const wwn = parts[0];
+            const port = parts[1];
+
+            currentHost.wwns.push({
+                wwn,
+                port
+            });
+
+            continue;
+        }
+
+        //----------------------------------------------------
+        // New host
+        //----------------------------------------------------
+
+        if (parts.length < 5)
+            continue;
+
+        const id = parts.shift();
+        const name = parts.shift();
+
+        const port = parts.pop();
+        const wwn = parts.pop();
+
+        const persona = parts.join(" ");
+
+        currentHost = {
+            id: id === "--" ? null : Number(id),
+            name,
+            persona,
+            wwns: [
+                {
+                    wwn,
+                    port
+                }
+            ]
+        };
+
+        result.hosts.push(currentHost);
     }
+
     return result;
 }
 ```
@@ -4700,7 +4763,7 @@ function parseShowHostSSH(cliOutput) {
 
 ## FOR SHOWPORTDEV NS -NOHDTOT
 
-**CLI O/P (excerpt):**
+**CLI O/P:**
 ```
 showportdev ns -nohdtot 0:3:1
 0xc0200 0x00 0x00 2FF70000DUMMY001 20310000DUMMY001 0x8800 0x0012 n/a 0x0800 20310000DUMMY001 HPE Alletra Storage MP - DUMMY000999 - fw:105600   0:3:1
@@ -4711,45 +4774,97 @@ showportdev ns -nohdtot 0:3:1
 **PARSING FUNCTION:**
 ```javascript
 function parseShowPortDevNS(cliOutput) {
+    const result = {
+        array_port: null,
+        entries: []
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { array_port: null, entries: [] };
-    for (let line of lines) {
-        if (!line.trim() || line.startsWith('showportdev')) continue;
-        const parts = line.trim().split(/\s+/);
-        if (parts.length < 11) continue;
-        const descRaw = parts.slice(10).join(' ');
-        // Skip array self-entries (no HN: field)
-        if (!descRaw.includes('HN:')) {
-            // Extract array port from last token if N:S:P pattern
-            if (/^\d+:\d+:\d+$/.test(parts[parts.length - 1]) && !result.array_port) {
-                result.array_port = parts[parts.length - 1];
-            }
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (!line || line.startsWith("showportdev"))
+            continue;
+
+        const parts = line.split(/\s+/);
+
+        // Fixed binary columns
+        if (parts.length < 11)
+            continue;
+
+        const nodeWwn = parts[3];
+        const portWwn = parts[4];
+
+        const description = parts.slice(10).join(" ");
+
+        //--------------------------------------------------
+        // Array self entry
+        //--------------------------------------------------
+
+        if (!description.includes("HN:")) {
+
+            const portMatch = description.match(/(\d+:\d+:\d+)$/);
+
+            if (portMatch && !result.array_port)
+                result.array_port = portMatch[1];
+
             continue;
         }
-        const entry = {};
-        entry.node_wwn = parts[3];
-        entry.port_wwn = parts[4];
-        // Parse HBA model, FW, DV from description
-        const hnMatch = descRaw.match(/HN:(\S+)/);
-        const osMatch = descRaw.match(/OS:(.+?)(?:\s{2,}|$)/);
-        const fvMatch = descRaw.match(/FV([\d.]+)/);
-        const dvMatch = descRaw.match(/DV([\d.]+)/);
-        const modelMatch = descRaw.match(/^(Emulex \S+|SN\w+|Qlogic \S+)/);
-        entry.hostname = hnMatch ? hnMatch[1] : null;
-        entry.os = osMatch ? osMatch[1].trim() : null;
-        entry.hba_fw = fvMatch ? fvMatch[1] : null;
-        entry.hba_driver = dvMatch ? dvMatch[1] : null;
-        entry.hba_model = modelMatch ? modelMatch[1] : null;
+
+        //--------------------------------------------------
+        // Tagged fields
+        //--------------------------------------------------
+
+        const hostname =
+            description.match(/\bHN:(\S+)/)?.[1] ?? null;
+
+        const os =
+            description.match(/\bOS:(.+?)(?=\s+(?:HN:|FV|DV|$))/)?.[1]?.trim() ??
+            description.match(/\bOS:(.+?)(?=\s+\S+$)/)?.[1]?.trim() ??
+            null;
+
+        const fw =
+            description.match(/\bFV([\d.]+)/)?.[1] ?? null;
+
+        const driver =
+            description.match(/\bDV([\d.]+)/)?.[1] ?? null;
+
+        //--------------------------------------------------
+        // HBA model
+        //--------------------------------------------------
+
+        let hbaModel = null;
+
+        const firstTag = description.search(/\b(?:FV|DV|HN:|OS:)/);
+
+        if (firstTag > 0)
+            hbaModel = description.substring(0, firstTag).trim();
+
+        //--------------------------------------------------
+        // Connected host
+        //--------------------------------------------------
+
         const lastToken = parts[parts.length - 1];
-        entry.path_active = lastToken !== '-';
-        entry.connected_host = entry.path_active ? lastToken : null;
-        result.entries.push(entry);
+
+        result.entries.push({
+            node_wwn: nodeWwn,
+            port_wwn: portWwn,
+            hostname,
+            os,
+            hba_fw: fw,
+            hba_driver: driver,
+            hba_model: hbaModel,
+            path_active: lastToken !== "-",
+            connected_host: lastToken === "-" ? null : lastToken
+        });
     }
+
     return result;
 }
 ```
 
-**PARSED OUTPUT (excerpt):**
+**PARSED OUTPUT:**
 ```json
 {
   "array_port": "0:3:1",
@@ -4761,6 +4876,56 @@ function parseShowPortDevNS(cliOutput) {
 ```
 
 ## FOR FABRICSHOW (Brocade FC Switch)
+
+**CLI O/P:**
+```
+fabricshow
+Switch ID   Worldwide Name          Enet IP Addr    FC IP Addr      Name
+-------------------------------------------------------------------------
+  1: dmyc01 10:00:aa:aa:aa:aa:aa:01 192.168.10.11   0.0.0.0         "sw-core-01"
+  2: dmyc02 10:00:aa:aa:aa:aa:aa:02 192.168.10.12   0.0.0.0         "sw-core-02"
+  3: dmyc03 10:00:aa:aa:aa:aa:aa:03 192.168.10.13   0.0.0.0         "sw-core-03"
+  4: dmyc04 10:00:aa:aa:aa:aa:aa:04 192.168.10.14   0.0.0.0         "sw-core-04"
+  5: dmyc05 10:00:aa:aa:aa:aa:aa:05 192.168.10.15   0.0.0.0         "sw-core-05"
+  6: dmyc06 10:00:aa:aa:aa:aa:aa:06 192.168.10.16   0.0.0.0         "sw-core-06"
+  7: dmyc07 10:00:aa:aa:aa:aa:aa:07 192.168.10.17   0.0.0.0         "sw-core-07"
+  8: dmyc08 10:00:aa:aa:aa:aa:aa:08 192.168.10.18   0.0.0.0         "sw-core-08"
+  9: dmyc09 10:00:aa:aa:aa:aa:aa:09 192.168.10.19   0.0.0.0         "sw-core-09"
+ 10: dmyc0a 10:00:aa:aa:aa:aa:aa:0a 192.168.10.20   0.0.0.0         "sw-core-10"
+ 11: dmyc0b 10:00:aa:aa:aa:aa:aa:0b 192.168.10.21   0.0.0.0         "sw-core-11"
+ 12: dmyc0c 10:00:aa:aa:aa:aa:aa:0c 192.168.10.22   0.0.0.0         "sw-core-12"
+ 13: dmyc0d 10:00:aa:aa:aa:aa:aa:0d 192.168.10.23   0.0.0.0         "sw-core-13"
+ 14: dmyc0e 10:00:aa:aa:aa:aa:aa:0e 192.168.10.24   0.0.0.0         "sw-core-14"
+ 15: dmyc0f 10:00:aa:aa:aa:aa:aa:0f 192.168.10.25   0.0.0.0         "sw-core-15"
+ 16: dmyc10 10:00:aa:aa:aa:aa:aa:10 192.168.10.26   0.0.0.0         "sw-core-16"
+ 17: dmyc11 10:00:aa:aa:aa:aa:aa:11 192.168.10.27   0.0.0.0         "sw-core-17"
+ 18: dmyc12 10:00:aa:aa:aa:aa:aa:12 192.168.10.28   0.0.0.0         "sw-core-18"
+ 19: dmyc13 10:00:aa:aa:aa:aa:aa:13 192.168.10.29   0.0.0.0         "sw-core-19"
+ 30: dmyc1e 10:00:aa:aa:aa:aa:aa:1e 192.168.10.30   0.0.0.0         "sw-core-30"
+ 31: dmyc1f 10:00:aa:aa:aa:aa:aa:1f 192.168.10.31   0.0.0.0         "sw-core-31"
+ 32: dmyc20 10:00:aa:aa:aa:aa:aa:20 192.168.10.32   0.0.0.0         "sw-core-32"
+ 61: dmyc3d 10:00:aa:aa:aa:aa:aa:3d 192.168.10.61   0.0.0.0         "sw-edge-61"
+ 66: dmyc42 10:00:aa:aa:aa:aa:aa:42 192.168.10.66   0.0.0.0         "sw-edge-66"
+ 67: dmyc43 10:00:aa:aa:aa:aa:aa:43 192.168.10.67   0.0.0.0         "sw-edge-67"
+ 73: dmyc49 10:00:aa:aa:aa:aa:aa:49 192.168.10.73   0.0.0.0         "sw-edge-73"
+ 74: dmyc4a 10:00:aa:aa:aa:aa:aa:4a 192.168.10.74   0.0.0.0         "sw-edge-74"
+ 75: dmyc4b 10:00:aa:aa:aa:aa:aa:4b 192.168.10.75   0.0.0.0         "sw-edge-75"
+ 76: dmyc4c 10:00:aa:aa:aa:aa:aa:4c 192.168.10.76   0.0.0.0         "sw-edge-76"
+ 77: dmyc4d 10:00:aa:aa:aa:aa:aa:4d 192.168.10.77   0.0.0.0         "sw-edge-77"
+ 78: dmyc4e 10:00:aa:aa:aa:aa:aa:4e 192.168.10.78   0.0.0.0         "sw-edge-78"
+ 79: dmyc4f 10:00:aa:aa:aa:aa:aa:4f 192.168.10.79   0.0.0.0         "sw-edge-79"
+ 97: dmyc61 10:00:aa:aa:aa:aa:aa:61 192.168.10.97   0.0.0.0         "sw-edge-97"
+ 99: dmyc63 10:00:aa:aa:aa:aa:aa:63 192.168.10.99   0.0.0.0         "sw-edge-99"
+100: dmyc64 10:00:aa:aa:aa:aa:aa:64 192.168.10.100  0.0.0.0         "sw-edge-100"
+101: dmyc65 10:00:aa:aa:aa:aa:aa:65 192.168.10.101  0.0.0.0         "sw-edge-101"
+116: dmyc74 10:00:aa:aa:aa:aa:aa:74 192.168.10.116  0.0.0.0         "sw-edge-116"
+117: dmyc75 10:00:aa:aa:aa:aa:aa:75 192.168.10.117  0.0.0.0         "sw-edge-117"
+173: dmycad 10:00:aa:aa:aa:aa:aa:ad 192.168.10.173  0.0.0.0         "sw-edge-173"
+201: dmycc9 10:00:aa:aa:aa:aa:aa:c9 192.168.10.201  0.0.0.0         "sw-edge-201"
+
+The Fabric has 40 switches
+Fabric Name: FABRIC_DUMMY_01
+```
 
 **PARSING FUNCTION:**
 ```javascript
@@ -4792,89 +4957,1068 @@ function parseFabricShow(cliOutput) {
 }
 ```
 
+**PARSED OUTPUT:**
+```json
+{
+  "fabric_name": "FABRIC_DUMMY_01",
+  "switches": [
+    {
+      "domain_id": 1,
+      "domain_hex": "dmyc01",
+      "wwn": "10:00:aa:aa:aa:aa:aa:01",
+      "ip": "192.168.10.11",
+      "name": "sw-core-01"
+    },
+    {
+      "domain_id": 2,
+      "domain_hex": "dmyc02",
+      "wwn": "10:00:aa:aa:aa:aa:aa:02",
+      "ip": "192.168.10.12",
+      "name": "sw-core-02"
+    },
+    {
+      "domain_id": 3,
+      "domain_hex": "dmyc03",
+      "wwn": "10:00:aa:aa:aa:aa:aa:03",
+      "ip": "192.168.10.13",
+      "name": "sw-core-03"
+    },
+    {
+      "domain_id": 4,
+      "domain_hex": "dmyc04",
+      "wwn": "10:00:aa:aa:aa:aa:aa:04",
+      "ip": "192.168.10.14",
+      "name": "sw-core-04"
+    },
+    {
+      "domain_id": 5,
+      "domain_hex": "dmyc05",
+      "wwn": "10:00:aa:aa:aa:aa:aa:05",
+      "ip": "192.168.10.15",
+      "name": "sw-core-05"
+    },
+    {
+      "domain_id": 6,
+      "domain_hex": "dmyc06",
+      "wwn": "10:00:aa:aa:aa:aa:aa:06",
+      "ip": "192.168.10.16",
+      "name": "sw-core-06"
+    },
+    {
+      "domain_id": 7,
+      "domain_hex": "dmyc07",
+      "wwn": "10:00:aa:aa:aa:aa:aa:07",
+      "ip": "192.168.10.17",
+      "name": "sw-core-07"
+    },
+    {
+      "domain_id": 8,
+      "domain_hex": "dmyc08",
+      "wwn": "10:00:aa:aa:aa:aa:aa:08",
+      "ip": "192.168.10.18",
+      "name": "sw-core-08"
+    },
+    {
+      "domain_id": 9,
+      "domain_hex": "dmyc09",
+      "wwn": "10:00:aa:aa:aa:aa:aa:09",
+      "ip": "192.168.10.19",
+      "name": "sw-core-09"
+    },
+    {
+      "domain_id": 10,
+      "domain_hex": "dmyc0a",
+      "wwn": "10:00:aa:aa:aa:aa:aa:0a",
+      "ip": "192.168.10.20",
+      "name": "sw-core-10"
+    },
+    {
+      "domain_id": 11,
+      "domain_hex": "dmyc0b",
+      "wwn": "10:00:aa:aa:aa:aa:aa:0b",
+      "ip": "192.168.10.21",
+      "name": "sw-core-11"
+    },
+    {
+      "domain_id": 12,
+      "domain_hex": "dmyc0c",
+      "wwn": "10:00:aa:aa:aa:aa:aa:0c",
+      "ip": "192.168.10.22",
+      "name": "sw-core-12"
+    },
+    {
+      "domain_id": 13,
+      "domain_hex": "dmyc0d",
+      "wwn": "10:00:aa:aa:aa:aa:aa:0d",
+      "ip": "192.168.10.23",
+      "name": "sw-core-13"
+    },
+    {
+      "domain_id": 14,
+      "domain_hex": "dmyc0e",
+      "wwn": "10:00:aa:aa:aa:aa:aa:0e",
+      "ip": "192.168.10.24",
+      "name": "sw-core-14"
+    },
+    {
+      "domain_id": 15,
+      "domain_hex": "dmyc0f",
+      "wwn": "10:00:aa:aa:aa:aa:aa:0f",
+      "ip": "192.168.10.25",
+      "name": "sw-core-15"
+    },
+    {
+      "domain_id": 16,
+      "domain_hex": "dmyc10",
+      "wwn": "10:00:aa:aa:aa:aa:aa:10",
+      "ip": "192.168.10.26",
+      "name": "sw-core-16"
+    },
+    {
+      "domain_id": 17,
+      "domain_hex": "dmyc11",
+      "wwn": "10:00:aa:aa:aa:aa:aa:11",
+      "ip": "192.168.10.27",
+      "name": "sw-core-17"
+    },
+    {
+      "domain_id": 18,
+      "domain_hex": "dmyc12",
+      "wwn": "10:00:aa:aa:aa:aa:aa:12",
+      "ip": "192.168.10.28",
+      "name": "sw-core-18"
+    },
+    {
+      "domain_id": 19,
+      "domain_hex": "dmyc13",
+      "wwn": "10:00:aa:aa:aa:aa:aa:13",
+      "ip": "192.168.10.29",
+      "name": "sw-core-19"
+    },
+    {
+      "domain_id": 30,
+      "domain_hex": "dmyc1e",
+      "wwn": "10:00:aa:aa:aa:aa:aa:1e",
+      "ip": "192.168.10.30",
+      "name": "sw-core-30"
+    },
+    {
+      "domain_id": 31,
+      "domain_hex": "dmyc1f",
+      "wwn": "10:00:aa:aa:aa:aa:aa:1f",
+      "ip": "192.168.10.31",
+      "name": "sw-core-31"
+    },
+    {
+      "domain_id": 32,
+      "domain_hex": "dmyc20",
+      "wwn": "10:00:aa:aa:aa:aa:aa:20",
+      "ip": "192.168.10.32",
+      "name": "sw-core-32"
+    },
+    {
+      "domain_id": 61,
+      "domain_hex": "dmyc3d",
+      "wwn": "10:00:aa:aa:aa:aa:aa:3d",
+      "ip": "192.168.10.61",
+      "name": "sw-edge-61"
+    },
+    {
+      "domain_id": 66,
+      "domain_hex": "dmyc42",
+      "wwn": "10:00:aa:aa:aa:aa:aa:42",
+      "ip": "192.168.10.66",
+      "name": "sw-edge-66"
+    },
+    {
+      "domain_id": 67,
+      "domain_hex": "dmyc43",
+      "wwn": "10:00:aa:aa:aa:aa:aa:43",
+      "ip": "192.168.10.67",
+      "name": "sw-edge-67"
+    },
+    {
+      "domain_id": 73,
+      "domain_hex": "dmyc49",
+      "wwn": "10:00:aa:aa:aa:aa:aa:49",
+      "ip": "192.168.10.73",
+      "name": "sw-edge-73"
+    },
+    {
+      "domain_id": 74,
+      "domain_hex": "dmyc4a",
+      "wwn": "10:00:aa:aa:aa:aa:aa:4a",
+      "ip": "192.168.10.74",
+      "name": "sw-edge-74"
+    },
+    {
+      "domain_id": 75,
+      "domain_hex": "dmyc4b",
+      "wwn": "10:00:aa:aa:aa:aa:aa:4b",
+      "ip": "192.168.10.75",
+      "name": "sw-edge-75"
+    },
+    {
+      "domain_id": 76,
+      "domain_hex": "dmyc4c",
+      "wwn": "10:00:aa:aa:aa:aa:aa:4c",
+      "ip": "192.168.10.76",
+      "name": "sw-edge-76"
+    },
+    {
+      "domain_id": 77,
+      "domain_hex": "dmyc4d",
+      "wwn": "10:00:aa:aa:aa:aa:aa:4d",
+      "ip": "192.168.10.77",
+      "name": "sw-edge-77"
+    },
+    {
+      "domain_id": 78,
+      "domain_hex": "dmyc4e",
+      "wwn": "10:00:aa:aa:aa:aa:aa:4e",
+      "ip": "192.168.10.78",
+      "name": "sw-edge-78"
+    },
+    {
+      "domain_id": 79,
+      "domain_hex": "dmyc4f",
+      "wwn": "10:00:aa:aa:aa:aa:aa:4f",
+      "ip": "192.168.10.79",
+      "name": "sw-edge-79"
+    },
+    {
+      "domain_id": 97,
+      "domain_hex": "dmyc61",
+      "wwn": "10:00:aa:aa:aa:aa:aa:61",
+      "ip": "192.168.10.97",
+      "name": "sw-edge-97"
+    },
+    {
+      "domain_id": 99,
+      "domain_hex": "dmyc63",
+      "wwn": "10:00:aa:aa:aa:aa:aa:63",
+      "ip": "192.168.10.99",
+      "name": "sw-edge-99"
+    },
+    {
+      "domain_id": 100,
+      "domain_hex": "dmyc64",
+      "wwn": "10:00:aa:aa:aa:aa:aa:64",
+      "ip": "192.168.10.100",
+      "name": "sw-edge-100"
+    },
+    {
+      "domain_id": 101,
+      "domain_hex": "dmyc65",
+      "wwn": "10:00:aa:aa:aa:aa:aa:65",
+      "ip": "192.168.10.101",
+      "name": "sw-edge-101"
+    },
+    {
+      "domain_id": 116,
+      "domain_hex": "dmyc74",
+      "wwn": "10:00:aa:aa:aa:aa:aa:74",
+      "ip": "192.168.10.116",
+      "name": "sw-edge-116"
+    },
+    {
+      "domain_id": 117,
+      "domain_hex": "dmyc75",
+      "wwn": "10:00:aa:aa:aa:aa:aa:75",
+      "ip": "192.168.10.117",
+      "name": "sw-edge-117"
+    },
+    {
+      "domain_id": 173,
+      "domain_hex": "dmycad",
+      "wwn": "10:00:aa:aa:aa:aa:aa:ad",
+      "ip": "192.168.10.173",
+      "name": "sw-edge-173"
+    },
+    {
+      "domain_id": 201,
+      "domain_hex": "dmycc9",
+      "wwn": "10:00:aa:aa:aa:aa:aa:c9",
+      "ip": "192.168.10.201",
+      "name": "sw-edge-201"
+    }
+  ],
+  "total": 40
+}
+```
+
 ## FOR SWITCHSHOW (Brocade FC Switch)
+
+**CLI O/P:**
+```
+switchshow
+switchName:     sw-fabric-99
+switchType:     109.1
+switchState:    Online
+switchMode:     Native
+switchRole:     Subordinate
+switchDomain:   99
+switchId:       dmyc63
+switchWwn:      10:00:aa:bb:cc:dd:ee:99
+zoning:         ON (FABRIC_DUMMY_1)
+switchBeacon:   OFF
+FC Router:      OFF
+Fabric Name:    FABRIC_DUMMY_01
+HIF Mode:       OFF
+Allow XISL Use: OFF
+LS Attributes:  [FID: 128, Base Switch: No, Default Switch: Yes, Address Mode 0]
+
+Index Port Address  Media Speed   State       Proto
+==================================================
+   0   0   630000   id    N16     Online      FC  E-Port  10:00:aa:bb:cc:00:00:08 "sw-bridge-08" (Trunk master)
+   1   1   630100   id    N16     Online      FC  E-Port  (Trunk port, master is Port  0 )
+   2   2   630200   id    N16     Online      FC  E-Port  10:00:aa:bb:cc:00:00:01 "sw-core-01" (upstream)(Trunk master)
+   3   3   630300   id    N16     Online      FC  E-Port  (Trunk port, master is Port  2 )
+   4   4   630400   id    N16     No_Light    FC
+   5   5   630500   id    N16     No_Light    FC
+   6   6   630600   id    N16     No_Light    FC
+   7   7   630700   id    N16     No_Light    FC
+   8   8   630800   id    N16     No_Light    FC
+   9   9   630900   id    N16     No_Light    FC
+  10  10   630a00   id    N16     No_Light    FC
+  11  11   630b00   id    N16     No_Light    FC
+  12  12   630c00   id    N16     No_Light    FC
+  13  13   630d00   id    N16     No_Light    FC
+  14  14   630e00   id    N16     No_Light    FC
+  15  15   630f00   id    N16     No_Light    FC
+  16  16   631000   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:10
+  17  17   631100   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:11
+  18  18   631200   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:12
+  19  19   631300   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:13
+  20  20   631400   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:14
+  21  21   631500   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:15
+  22  22   631600   id    N16     No_Light    FC
+  23  23   631700   id    N16     No_Light    FC
+  24  24   631800   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:18
+  25  25   631900   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:19
+  26  26   631a00   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:1a
+  27  27   631b00   id    N16     Online      FC  F-Port  10:00:11:22:33:44:55:1b
+  28  28   631c00   id    N16     No_Light    FC
+  29  29   631d00   id    N16     No_Light    FC
+  30  30   631e00   id    N16     No_Light    FC
+  31  31   631f00   id    N16     No_Light    FC
+  32  32   632000   id    N16     No_Light    FC
+  33  33   632100   id    N16     No_Light    FC
+  34  34   632200   id    N16     No_Light    FC
+  35  35   632300   id    N16     No_Light    FC
+  36  36   632400   id    N16     No_Light    FC
+  37  37   632500   id    N16     No_Light    FC
+  38  38   632600   id    N16     No_Light    FC
+  39  39   632700   id    N16     No_Light    FC
+  40  40   632800   id    N16     No_Light    FC
+  41  41   632900   id    N16     No_Light    FC
+  42  42   632a00   id    N16     No_Light    FC
+  43  43   632b00   id    N16     No_Light    FC
+  44  44   632c00   id    N16     No_Light    FC
+  45  45   632d00   id    N16     No_Light    FC
+  46  46   632e00   id    N16     No_Light    FC
+  47  47   632f00   id    N16     No_Light    FC
+```
 
 **PARSING FUNCTION:**
 ```javascript
 function parseSwitchShow(cliOutput) {
-    const lines = cliOutput.split(/\r?\n/);
-    const result = { info: {}, ports: [], port_summary: { online: 0, no_light: 0, e_ports: 0, f_ports: 0 } };
-    let inPortTable = false;
-    for (let line of lines) {
-        if (line.startsWith('switchName:'))  { result.info.name = line.split(':')[1].trim(); continue; }
-        if (line.startsWith('switchState:')) { result.info.state = line.split(':')[1].trim(); continue; }
-        if (line.startsWith('switchRole:'))  { result.info.role = line.split(':')[1].trim(); continue; }
-        if (line.startsWith('switchDomain:')){ result.info.domain = line.split(':')[1].trim(); continue; }
-        if (line.startsWith('switchWwn:'))   { result.info.wwn = line.split(':').slice(1).join(':').trim(); continue; }
-        if (line.startsWith('zoning:'))      { result.info.zoning = line.split(':')[1].trim(); continue; }
-        if (line.startsWith('Fabric Name:')) { result.info.fabric_name = line.split(':')[1].trim(); continue; }
-        if (line.includes('Index Port Address')) { inPortTable = true; continue; }
-        if (!inPortTable) continue;
-        if (/^={5,}/.test(line.trim())) continue;
-        const portMatch = line.match(/^\s*(\d+)\s+(\d+)\s+(\S+)\s+\S+\s+\S+\s+(\S+)/);
-        if (portMatch) {
-            const state = portMatch[4];
-            const isEPort = line.includes('E-Port');
-            const isFPort = line.includes('F-Port');
-            const port = { index: parseInt(portMatch[1]), port: parseInt(portMatch[2]), address: portMatch[3], state };
-            if (isEPort) { port.type = 'E-Port'; result.port_summary.e_ports++; }
-            else if (isFPort) { port.type = 'F-Port'; result.port_summary.f_ports++; }
-            if (state === 'Online') result.port_summary.online++;
-            else if (state === 'No_Light') result.port_summary.no_light++;
-            result.ports.push(port);
+    const result = {
+        info: {},
+        ports: [],
+        port_summary: {
+            online: 0,
+            no_light: 0,
+            e_ports: 0,
+            f_ports: 0
         }
+    };
+
+    const lines = cliOutput.split(/\r?\n/);
+
+    let inPorts = false;
+
+    for (const rawLine of lines) {
+        const line = rawLine.trimEnd();
+
+        if (!line)
+            continue;
+
+        //--------------------------------------------------
+        // Header key:value pairs
+        //--------------------------------------------------
+
+        if (!inPorts) {
+
+            const kv = line.match(/^([^:]+):\s*(.*)$/);
+
+            if (kv) {
+
+                const key = kv[1].trim();
+                const value = kv[2].trim();
+
+                switch (key) {
+
+                    case "switchName":
+                        result.info.name = value;
+                        break;
+
+                    case "switchState":
+                        result.info.state = value;
+                        break;
+
+                    case "switchRole":
+                        result.info.role = value;
+                        break;
+
+                    case "switchDomain":
+                        result.info.domain = value;
+                        break;
+
+                    case "switchWwn":
+                        result.info.wwn = value;
+                        break;
+
+                    case "zoning":
+                        result.info.zoning = value;
+                        break;
+
+                    case "Fabric Name":
+                        result.info.fabric_name = value;
+                        break;
+                }
+
+                continue;
+            }
+        }
+
+        //--------------------------------------------------
+        // Beginning of port table
+        //--------------------------------------------------
+
+        if (/^Index\s+Port\s+Address/i.test(line)) {
+            inPorts = true;
+            continue;
+        }
+
+        if (!inPorts)
+            continue;
+
+        if (/^=+$/.test(line))
+            continue;
+
+        //--------------------------------------------------
+        // Port row
+        //--------------------------------------------------
+
+        const parts = line.trim().split(/\s+/);
+
+        if (parts.length < 6)
+            continue;
+
+        const port = {
+            index: Number(parts[0]),
+            port: Number(parts[1]),
+            address: parts[2],
+            state: parts[5]
+        };
+
+        const typeToken = parts.find(p =>
+            p === "E-Port" ||
+            p === "F-Port" ||
+            p === "G-Port" ||
+            p === "L-Port"
+        );
+
+        if (typeToken)
+            port.type = typeToken;
+
+        //--------------------------------------------------
+        // Summary
+        //--------------------------------------------------
+
+        if (port.state === "Online")
+            result.port_summary.online++;
+
+        if (port.state === "No_Light")
+            result.port_summary.no_light++;
+
+        switch (port.type) {
+
+            case "E-Port":
+                result.port_summary.e_ports++;
+                break;
+
+            case "F-Port":
+                result.port_summary.f_ports++;
+                break;
+        }
+
+        result.ports.push(port);
     }
+
     return result;
+}
+```
+
+**PARSED OUTPUT:**
+```json
+{
+  "info": {
+    "name": "sw-fabric-99",
+    "state": "Online",
+    "role": "Subordinate",
+    "domain": "99",
+    "wwn": "10:00:aa:bb:cc:dd:ee:99",
+    "zoning": "ON (FABRIC_DUMMY_1)",
+    "fabric_name": "FABRIC_DUMMY_01"
+  },
+  "ports": [
+    {
+      "index": 0,
+      "port": 0,
+      "address": "630000",
+      "state": "Online",
+      "type": "E-Port"
+    },
+    {
+      "index": 1,
+      "port": 1,
+      "address": "630100",
+      "state": "Online",
+      "type": "E-Port"
+    },
+    {
+      "index": 2,
+      "port": 2,
+      "address": "630200",
+      "state": "Online",
+      "type": "E-Port"
+    },
+    {
+      "index": 3,
+      "port": 3,
+      "address": "630300",
+      "state": "Online",
+      "type": "E-Port"
+    },
+    {
+      "index": 4,
+      "port": 4,
+      "address": "630400",
+      "state": "No_Light"
+    },
+    {
+      "index": 5,
+      "port": 5,
+      "address": "630500",
+      "state": "No_Light"
+    },
+    {
+      "index": 6,
+      "port": 6,
+      "address": "630600",
+      "state": "No_Light"
+    },
+    {
+      "index": 7,
+      "port": 7,
+      "address": "630700",
+      "state": "No_Light"
+    },
+    {
+      "index": 8,
+      "port": 8,
+      "address": "630800",
+      "state": "No_Light"
+    },
+    {
+      "index": 9,
+      "port": 9,
+      "address": "630900",
+      "state": "No_Light"
+    },
+    {
+      "index": 10,
+      "port": 10,
+      "address": "630a00",
+      "state": "No_Light"
+    },
+    {
+      "index": 11,
+      "port": 11,
+      "address": "630b00",
+      "state": "No_Light"
+    },
+    {
+      "index": 12,
+      "port": 12,
+      "address": "630c00",
+      "state": "No_Light"
+    },
+    {
+      "index": 13,
+      "port": 13,
+      "address": "630d00",
+      "state": "No_Light"
+    },
+    {
+      "index": 14,
+      "port": 14,
+      "address": "630e00",
+      "state": "No_Light"
+    },
+    {
+      "index": 15,
+      "port": 15,
+      "address": "630f00",
+      "state": "No_Light"
+    },
+    {
+      "index": 16,
+      "port": 16,
+      "address": "631000",
+      "state": "Online",
+      "type": "F-Port"
+    },
+    {
+      "index": 17,
+      "port": 17,
+      "address": "631100",
+      "state": "Online",
+      "type": "F-Port"
+    },
+    {
+      "index": 18,
+      "port": 18,
+      "address": "631200",
+      "state": "Online",
+      "type": "F-Port"
+    },
+    {
+      "index": 19,
+      "port": 19,
+      "address": "631300",
+      "state": "Online",
+      "type": "F-Port"
+    },
+    {
+      "index": 20,
+      "port": 20,
+      "address": "631400",
+      "state": "Online",
+      "type": "F-Port"
+    },
+    {
+      "index": 21,
+      "port": 21,
+      "address": "631500",
+      "state": "Online",
+      "type": "F-Port"
+    },
+    {
+      "index": 22,
+      "port": 22,
+      "address": "631600",
+      "state": "No_Light"
+    },
+    {
+      "index": 23,
+      "port": 23,
+      "address": "631700",
+      "state": "No_Light"
+    },
+    {
+      "index": 24,
+      "port": 24,
+      "address": "631800",
+      "state": "Online",
+      "type": "F-Port"
+    },
+    {
+      "index": 25,
+      "port": 25,
+      "address": "631900",
+      "state": "Online",
+      "type": "F-Port"
+    },
+    {
+      "index": 26,
+      "port": 26,
+      "address": "631a00",
+      "state": "Online",
+      "type": "F-Port"
+    },
+    {
+      "index": 27,
+      "port": 27,
+      "address": "631b00",
+      "state": "Online",
+      "type": "F-Port"
+    },
+    {
+      "index": 28,
+      "port": 28,
+      "address": "631c00",
+      "state": "No_Light"
+    },
+    {
+      "index": 29,
+      "port": 29,
+      "address": "631d00",
+      "state": "No_Light"
+    },
+    {
+      "index": 30,
+      "port": 30,
+      "address": "631e00",
+      "state": "No_Light"
+    },
+    {
+      "index": 31,
+      "port": 31,
+      "address": "631f00",
+      "state": "No_Light"
+    },
+    {
+      "index": 32,
+      "port": 32,
+      "address": "632000",
+      "state": "No_Light"
+    },
+    {
+      "index": 33,
+      "port": 33,
+      "address": "632100",
+      "state": "No_Light"
+    },
+    {
+      "index": 34,
+      "port": 34,
+      "address": "632200",
+      "state": "No_Light"
+    },
+    {
+      "index": 35,
+      "port": 35,
+      "address": "632300",
+      "state": "No_Light"
+    },
+    {
+      "index": 36,
+      "port": 36,
+      "address": "632400",
+      "state": "No_Light"
+    },
+    {
+      "index": 37,
+      "port": 37,
+      "address": "632500",
+      "state": "No_Light"
+    },
+    {
+      "index": 38,
+      "port": 38,
+      "address": "632600",
+      "state": "No_Light"
+    },
+    {
+      "index": 39,
+      "port": 39,
+      "address": "632700",
+      "state": "No_Light"
+    },
+    {
+      "index": 40,
+      "port": 40,
+      "address": "632800",
+      "state": "No_Light"
+    },
+    {
+      "index": 41,
+      "port": 41,
+      "address": "632900",
+      "state": "No_Light"
+    },
+    {
+      "index": 42,
+      "port": 42,
+      "address": "632a00",
+      "state": "No_Light"
+    },
+    {
+      "index": 43,
+      "port": 43,
+      "address": "632b00",
+      "state": "No_Light"
+    },
+    {
+      "index": 44,
+      "port": 44,
+      "address": "632c00",
+      "state": "No_Light"
+    },
+    {
+      "index": 45,
+      "port": 45,
+      "address": "632d00",
+      "state": "No_Light"
+    },
+    {
+      "index": 46,
+      "port": 46,
+      "address": "632e00",
+      "state": "No_Light"
+    },
+    {
+      "index": 47,
+      "port": 47,
+      "address": "632f00",
+      "state": "No_Light"
+    }
+  ],
+  "port_summary": {
+    "online": 14,
+    "no_light": 34,
+    "e_ports": 4,
+    "f_ports": 10
+  }
 }
 ```
 
 ## FOR SYSTOOL -C FC_HOST (Linux HBA FC Info)
 
+**CLI O/P:**
+```
+systool -c fc_host -v | grep -E 'Class Device|port_state|port_name|speed'
+  Class Device = "host5"
+  Class Device path = "/sys/devices/pci0000:09/0000:09:00.0/0000:0a:00.0/host5/fc_host/host5"
+    port_name           = "0x1000aaaabbbb0001"
+    port_state          = "Online"
+    speed               = "16 Gbit"
+    supported_speeds    = "4 Gbit, 8 Gbit, 16 Gbit"
+  Class Device = "host6"
+  Class Device path = "/sys/devices/pci0000:09/0000:09:00.0/0000:0a:00.1/host6/fc_host/host6"
+    port_name           = "0x1000aaaabbbb0002"
+    port_state          = "Online"
+    speed               = "16 Gbit"
+    supported_speeds    = "4 Gbit, 8 Gbit, 16 Gbit"
+```
+
 **PARSING FUNCTION:**
 ```javascript
 function parseSystoolFCHost(cliOutput) {
+    const result = {
+        adapter: {
+            model: null,
+            driver: null,
+            pci_slots: []
+        },
+        hbas: []
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { hbas: [] };
+
     let current = null;
-    for (let line of lines) {
-        const devMatch = line.match(/Class Device\s*=\s*"(host\d+)"/);
-        if (devMatch) { current = { host_id: devMatch[1], port_name: null, port_state: null, speed: null, supported_speeds: null }; result.hbas.push(current); continue; }
-        if (!current) continue;
-        const pnMatch = line.match(/port_name\s*=\s*"?(0x[\da-fA-F]+)"?/);
-        if (pnMatch) { current.port_name = pnMatch[1]; continue; }
-        const psMatch = line.match(/port_state\s*=\s*"?(\S+)"?/);
-        if (psMatch) { current.port_state = psMatch[1]; continue; }
-        const spMatch = line.match(/^\s+speed\s*=\s*"?(.+?)"?\s*$/);
-        if (spMatch) { current.speed = spMatch[1].trim(); continue; }
-        const ssMatch = line.match(/supported_speeds\s*=\s*"?(.+?)"?\s*$/);
-        if (ssMatch) { current.supported_speeds = ssMatch[1].trim(); }
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        //--------------------------------------------------
+        // Optional summary lines
+        //--------------------------------------------------
+
+        let m;
+
+        if ((m = line.match(/^HBA:\s*(.+)$/i))) {
+            result.adapter.model = m[1];
+            continue;
+        }
+
+        if ((m = line.match(/^Driver:\s*(.+)$/i))) {
+            result.adapter.driver = m[1];
+            continue;
+        }
+
+        if ((m = line.match(/^PCI slots:\s*(.+)$/i))) {
+            result.adapter.pci_slots =
+                m[1]
+                    .split(",")
+                    .map(s => s.trim())
+                    .filter(Boolean);
+
+            continue;
+        }
+
+        //--------------------------------------------------
+        // New fc_host
+        //--------------------------------------------------
+
+        if ((m = line.match(/^Class Device\s*=\s*"?(host\d+)"?/i))) {
+
+            current = {
+                host_id: m[1],
+                port_name: null,
+                port_state: null,
+                speed: null,
+                supported_speeds: null
+            };
+
+            result.hbas.push(current);
+            continue;
+        }
+
+        if (!current)
+            continue;
+
+        //--------------------------------------------------
+        // Attributes
+        //--------------------------------------------------
+
+        if ((m = line.match(/^port_name\s*=\s*"?(.*?)"?$/i))) {
+            current.port_name = m[1];
+            continue;
+        }
+
+        if ((m = line.match(/^port_state\s*=\s*"?(.*?)"?$/i))) {
+            current.port_state = m[1];
+            continue;
+        }
+
+        if ((m = line.match(/^speed\s*=\s*"?(.*?)"?$/i))) {
+            current.speed = m[1];
+            continue;
+        }
+
+        if ((m = line.match(/^supported_speeds\s*=\s*"?(.*?)"?$/i))) {
+            current.supported_speeds = m[1];
+            continue;
+        }
     }
+
     return result;
+}
+```
+
+**PARSED OUTPUT:**
+```json
+{
+  "hbas": [
+    {
+      "host_id": "host5",
+      "port_name": "0x1000aaaabbbb0001",
+      "port_state": "Online\"",
+      "speed": "16 Gbit",
+      "supported_speeds": "4 Gbit, 8 Gbit, 16 Gbit"
+    },
+    {
+      "host_id": "host6",
+      "port_name": "0x1000aaaabbbb0002",
+      "port_state": "Online\"",
+      "speed": "16 Gbit",
+      "supported_speeds": "4 Gbit, 8 Gbit, 16 Gbit"
+    }
+  ]
 }
 ```
 
 ## FOR LSPCI (Linux FC PCI Adapters)
 
+**CLI O/P:**
+```
+lspci -nnk | grep -A3 -i 'fibre|fc|emulex|qlogic|lpfc|qlgc'
+0a:00.0 Fibre Channel [0c04]: Emulex Corporation LPe31000/LPe32000 Series 16Gb/32Gb Fibre Channel Adapter [10df:e300] (rev 01)
+        Subsystem: Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]
+        Kernel driver in use: lpfc
+        Kernel modules: lpfc
+0a:00.1 Fibre Channel [0c04]: Emulex Corporation LPe31000/LPe32000 Series 16Gb/32Gb Fibre Channel Adapter [10df:e300] (rev 01)
+        Subsystem: Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]
+        Kernel driver in use: lpfc
+        Kernel modules: lpfc
+1f:00.0 PCI bridge [0604]: Intel Corporation Sky Lake-E PCI Express Root Port A [8086:2030] (rev 04)
+        Kernel driver in use: pcieport
+1f:05.0 System peripheral [0880]: Intel Corporation Sky Lake-E VT-d [8086:2034] (rev 04)
+
+HBA:       HPE StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter (Emulex LPe32000)
+Driver:    lpfc
+PCI slots: 0a:00.0, 0a:00.1
+```
+
 **PARSING FUNCTION:**
 ```javascript
 function parseLspciFC(cliOutput) {
+    const result = {
+        adapters: []
+    };
+
     const lines = cliOutput.split(/\r?\n/);
-    const result = { adapters: [] };
+
     let current = null;
-    for (let line of lines) {
-        // New PCI device line
-        const devMatch = line.match(/^([\da-f:]+\.\d)\s+Fibre Channel/i);
-        if (devMatch) { current = { pci_slot: devMatch[1], description: line.trim(), subsystem: null, driver: null, modules: null }; result.adapters.push(current); continue; }
-        if (!current) continue;
-        const subMatch = line.match(/Subsystem:\s*(.+)/);
-        if (subMatch) { current.subsystem = subMatch[1].trim(); continue; }
-        const drvMatch = line.match(/Kernel driver in use:\s*(\S+)/);
-        if (drvMatch) { current.driver = drvMatch[1]; continue; }
-        const modMatch = line.match(/Kernel modules:\s*(.+)/);
-        if (modMatch) { current.modules = modMatch[1].trim(); continue; }
-        // Non-FC line resets current
-        if (/^\S/.test(line) && !line.includes('Fibre Channel')) current = null;
+
+    for (const rawLine of lines) {
+        const line = rawLine;
+
+        //--------------------------------------------------
+        // Beginning of a PCI device
+        //--------------------------------------------------
+
+        const pciMatch = line.match(/^([0-9a-f]{2}:[0-9a-f]{2}\.[0-7])\s+(.+)$/i);
+
+        if (pciMatch) {
+
+            // Finish previous device
+            current = null;
+
+            const description = pciMatch[2];
+
+            // Only keep Fibre Channel adapters
+            if (
+                /Fibre Channel/i.test(description) ||
+                /\bEmulex\b/i.test(description) ||
+                /\bQLogic\b/i.test(description)
+            ) {
+                current = {
+                    pci_slot: pciMatch[1],
+                    description: line.trim(),
+                    subsystem: null,
+                    driver: null,
+                    modules: null
+                };
+
+                result.adapters.push(current);
+            }
+
+            continue;
+        }
+
+        if (!current)
+            continue;
+
+        //--------------------------------------------------
+        // Attribute lines
+        //--------------------------------------------------
+
+        const trimmed = line.trim();
+
+        const sub = trimmed.match(/^Subsystem:\s*(.+)$/i);
+        if (sub) {
+            current.subsystem = sub[1];
+            continue;
+        }
+
+        const drv = trimmed.match(/^Kernel driver in use:\s*(.+)$/i);
+        if (drv) {
+            current.driver = drv[1];
+            continue;
+        }
+
+        const mod = trimmed.match(/^Kernel modules:\s*(.+)$/i);
+        if (mod) {
+            current.modules = mod[1];
+            continue;
+        }
     }
+
     return result;
 }
 ```
@@ -4883,8 +6027,20 @@ function parseLspciFC(cliOutput) {
 ```json
 {
   "adapters": [
-    { "pci_slot": "0a:00.0", "subsystem": "Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]", "driver": "lpfc", "modules": "lpfc" },
-    { "pci_slot": "0a:00.1", "subsystem": "Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]", "driver": "lpfc", "modules": "lpfc" }
+    {
+      "pci_slot": "0a:00.0",
+      "description": "0a:00.0 Fibre Channel [0c04]: Emulex Corporation LPe31000/LPe32000 Series 16Gb/32Gb Fibre Channel Adapter [10df:e300] (rev 01)",
+      "subsystem": "Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]",
+      "driver": "lpfc",
+      "modules": "lpfc"
+    },
+    {
+      "pci_slot": "0a:00.1",
+      "description": "0a:00.1 Fibre Channel [0c04]: Emulex Corporation LPe31000/LPe32000 Series 16Gb/32Gb Fibre Channel Adapter [10df:e300] (rev 01)",
+      "subsystem": "Hewlett Packard Enterprise StoreFabric SN1200E 2-Port 16Gb Fibre Channel Adapter [1590:0214]",
+      "driver": "lpfc",
+      "modules": "lpfc"
+    }
   ]
 }
 ```

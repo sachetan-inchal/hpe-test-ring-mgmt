@@ -121,7 +121,7 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('diagram')
-  const [sidebarWidth, setSidebarWidth] = useState(340)
+  const [sidebarWidth, setSidebarWidth] = useState(420)
 
   const isResizing = useRef(false)
 
@@ -559,10 +559,30 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
     }).catch(() => {})
   }
 
+  const handleDeleteNode = (id) => {
+    if (!window.confirm(`Are you sure you want to delete device ${id}?`)) return
+    setData(prev => ({
+      ...prev,
+      nodes: prev.nodes.filter(n => n.id !== id),
+      edges: prev.edges.filter(e => e.from !== id && e.to !== id)
+    }))
+    fetch(`${apiBase}/api/graph/nodes/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    }).catch(err => {
+      console.error("Failed to delete node:", err)
+    })
+  }
+
   const handleUpdate = (id, props) => {
     setData(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === id ? { ...n, ...props } : n) }))
+    const { isDecommissioned, ...otherProps } = props
     fetch(`${apiBase}/api/ontology/nodes/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(props)
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        isDecommissioned,
+        properties: otherProps
+      })
     }).catch(() => {})
   }
 
@@ -963,17 +983,11 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
                 </p>
               </div>
 
-              {/* Counts Summary */}
               {(() => {
                 const metrics = getTeamDashboardMetrics(selectedTeamId, data.nodes)
                 return (
                   <>
                     <div style={{ background: 'rgba(255,255,255,0.02)', padding: 14, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-around' }}>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--foreground)' }}>{metrics.total}</div>
-                        <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Total Devices</div>
-                      </div>
-                      <div style={{ width: 1, height: 40, background: 'var(--line)' }} />
                       <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: 20, fontWeight: 700, color: '#3fb950' }}>{metrics.arrays}</div>
                         <div style={{ fontSize: 10, color: 'var(--muted)' }}>Arrays</div>
@@ -985,27 +999,6 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
                       <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: 20, fontWeight: 700, color: '#bc8cff' }}>{metrics.hosts}</div>
                         <div style={{ fontSize: 10, color: 'var(--muted)' }}>Hosts</div>
-                      </div>
-                    </div>
-
-                    {/* Health Status Split (like health tab) */}
-                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: 14, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Overall Health Status (Realtime)
-                      </span>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <div style={{ flex: 1, background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.2)', borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#3fb950' }}>{metrics.normal}</span>
-                          <span style={{ fontSize: 9, color: 'var(--muted)' }}>Normal</span>
-                        </div>
-                        <div style={{ flex: 1, background: 'rgba(210,153,34,0.1)', border: '1px solid rgba(210,153,34,0.2)', borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#d29922' }}>{metrics.degraded}</span>
-                          <span style={{ fontSize: 9, color: 'var(--muted)' }}>Degraded</span>
-                        </div>
-                        <div style={{ flex: 1, background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.2)', borderRadius: 6, padding: '8px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#ff7b72' }}>{metrics.failed}</span>
-                          <span style={{ fontSize: 9, color: 'var(--muted)' }}>Failed</span>
-                        </div>
                       </div>
                     </div>
                   </>
@@ -1063,25 +1056,12 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
                       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textAlign: 'center' }}>Fabric Connectivity</span>
                       <PieChart data={fabricSplit} size={80} />
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textAlign: 'center' }}>Switch Protocol</span>
-                      <PieChart data={switchSplit} size={80} />
-                    </div>
                   </>
                 )
               })()}
             </div>
 
-            {/* Bottom Row: Topology Graph Visualization Map (GEN9, GEN10, GEN11) */}
             <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--line)', borderRadius: 8, padding: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground)' }}>
-                  🌐 Topology Graph Spec & Map Visualization
-                </span>
-                <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                  Interactive Generation Node Distribution Map
-                </span>
-              </div>
 
               {(() => {
                 const metrics = getTeamDashboardMetrics(selectedTeamId, data.nodes)
@@ -1095,34 +1075,16 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
                         
                         <circle cx="40" cy="50" r="24" fill="rgba(248,81,73,0.1)" stroke="#ff7b72" strokeWidth="2" />
                         <text x="40" y="46" fill="#ff7b72" fontSize="9" fontWeight="bold" textAnchor="middle">GEN9</text>
-                        <text x="40" y="58" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g9}</text>
+                        <text x="40" y="58" fill="var(--foreground)" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g9}</text>
 
                         <circle cx="110" cy="50" r="28" fill="rgba(240,136,62,0.1)" stroke="#f0883e" strokeWidth="2" />
                         <text x="110" y="46" fill="#f0883e" fontSize="9" fontWeight="bold" textAnchor="middle">GEN10</text>
-                        <text x="110" y="58" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g10}</text>
+                        <text x="110" y="58" fill="var(--foreground)" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g10}</text>
 
                         <circle cx="180" cy="50" r="24" fill="rgba(88,166,255,0.1)" stroke="#58a6ff" strokeWidth="2" />
                         <text x="180" y="46" fill="#58a6ff" fontSize="9" fontWeight="bold" textAnchor="middle">GEN11</text>
-                        <text x="180" y="58" fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g11}</text>
+                        <text x="180" y="58" fill="var(--foreground)" fontSize="10" fontWeight="bold" textAnchor="middle">{metrics.g11}</text>
                       </svg>
-                    </div>
-
-                    <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>Topology Overview Details:</span>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Generations in Ring:</span>
-                        <span style={{ color: 'var(--foreground)' }}>
-                          {[metrics.g9 > 0 && 'Gen9', metrics.g10 > 0 && 'Gen10', metrics.g11 > 0 && 'Gen11'].filter(Boolean).join(' + ') || 'None'}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Switched Fabric Count:</span>
-                        <span style={{ color: 'var(--foreground)' }}>{metrics.switched} nodes</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>FC vs Ethernet Split:</span>
-                        <span style={{ color: 'var(--foreground)' }}>{metrics.fc} FC / {metrics.ethernet} Eth</span>
-                      </div>
                     </div>
                   </div>
                 )
@@ -1133,23 +1095,9 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
         )}
       </div>
 
-      <div className="sub-tabs">
-        <button className={`sub-tab ${activeTab === 'diagram' ? 'active' : ''}`} onClick={() => setActiveTab('diagram')}>SAN Diagram</button>
-        <button className={`sub-tab ${activeTab === 'visual' ? 'active' : ''}`} onClick={() => setActiveTab('visual')}>Visual Map</button>
-        <button className={`sub-tab ${activeTab === 'decommissioned' ? 'active' : ''}`} onClick={() => setActiveTab('decommissioned')}>
-          Decommissioned ({data.nodes.filter(n => n.isDecommissioned).length})
-        </button>
-      </div>
-
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 16 }}>
         <div className="glass-card" style={{ flex: 1, minWidth: 0, overflow: 'hidden', padding: 0 }}>
-          {activeTab === 'diagram' && <SANDiagram data={activeData} focusedId={focusedId} expandedIds={expandedIds} onNodeClick={handleNodeClick} selectedIds={selectedIds} onSelectToggle={handleSelectToggle} searchQuery={searchQuery} />}
-          {activeTab === 'visual' && <TopologyCanvas data={visualMapData} onNodeClick={(id) => handleNodeClick(id, false)} />}
-          {activeTab === 'decommissioned' && (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
-              {activeNodes.length === 0 ? "No decommissioned nodes." : "Decommissioned nodes are hidden from topology views."}
-            </div>
-          )}
+          <SANDiagram data={activeData} focusedId={focusedId} expandedIds={expandedIds} onNodeClick={handleNodeClick} selectedIds={selectedIds} onSelectToggle={handleSelectToggle} searchQuery={searchQuery} onDeleteNode={handleDeleteNode} />
         </div>
         <div
           onMouseDown={startResizing}

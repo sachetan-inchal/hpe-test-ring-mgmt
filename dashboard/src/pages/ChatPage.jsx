@@ -7,6 +7,55 @@ import AgentStepTimeline from '../components/AgentStepTimeline'
 import RadialMenu from '../components/RadialMenu'
 import AgentReasoningSidebar from '../components/AgentReasoningSidebar'
 
+// ====== Expandable Reasoning Timeline Wrapper ======
+function ExpandableReasoningTimeline({ steps }) {
+  const [isOpen, setIsOpen] = useState(true);
+  return (
+    <div style={{
+      marginTop: 12,
+      border: '1px solid var(--line)',
+      borderRadius: 8,
+      background: 'var(--surface-2)',
+      overflow: 'hidden'
+    }}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: '100%',
+          padding: '8px 12px',
+          background: 'none',
+          border: 'none',
+          color: 'var(--accent-cyan)',
+          fontSize: 12,
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          outline: 'none',
+          userSelect: 'none'
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>🧠</span>
+          <span>View Execution Trace ({steps.length} steps)</span>
+        </span>
+        <span style={{ fontSize: 10 }}>{isOpen ? '▲ Collapse' : '▼ Expand'}</span>
+      </button>
+      {isOpen && (
+        <div style={{
+          padding: '12px 16px',
+          borderTop: '1px solid var(--line)',
+          background: 'var(--background)'
+        }}>
+          <AgentStepTimeline steps={steps} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Emulator constants (mirrors EmulatorPage) ──────────────────────────────
 const EMU_ARRAY_CMDS = [
   { label: 'showsys', desc: 'System overview' },
@@ -413,6 +462,12 @@ export default function ChatPage({ apiBase, chatbotApi }) {
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const [showStepsInChat, setShowStepsInChat] = useState(true)
   const [arrayHint, setArrayHint] = useState(() => sessionStorage.getItem('agent_array_hint') || '')
+  // Agent execution mode: 'auto' (default) | 'manual' (requires Plan Approved confirmation)
+  const [agentExecMode, setAgentExecMode] = useState(() => localStorage.getItem('agent_exec_mode') || 'auto')
+  const agentExecModeRef = useRef(agentExecMode)
+  useEffect(() => { agentExecModeRef.current = agentExecMode }, [agentExecMode])
+  const [pendingPlan, setPendingPlan] = useState(null) // { reasoning, toolCount, resolve }
+  const pendingPlanResolveRef = useRef(null)
   const [radialPos, setRadialPos] = useState(null)
   const [showTerminalPanel, setShowTerminalPanel] = useState(false)
   const terminalRef = useRef(null)
@@ -1126,6 +1181,42 @@ export default function ChatPage({ apiBase, chatbotApi }) {
             const step = event.step
             const title = step.title || ''
             const runMatch = title.match(/^ran command on (.+)$/i)
+
+            // ── Manual Execution Mode: intercept Plan Approved ────────────────────
+            const isPlanApproved = title === 'Plan Approved'
+            if (isPlanApproved && agentExecModeRef.current === 'manual') {
+              // Parse reasoning and scheduled count from step detail
+              const detailText = step.detail || ''
+              const toolCountMatch = detailText.match(/(\d+)\s+tool call/i)
+              const toolCount = toolCountMatch ? parseInt(toolCountMatch[1]) : 1
+              const reasoningMatch = detailText.match(/Reasoning:\s*(.+?)(?:\n|Scheduled|$)/s)
+              const reasoning = reasoningMatch ? reasoningMatch[1].trim() : detailText
+
+              // Add the Plan Approved step to visual timeline immediately
+              setAgentResult(prev => {
+                const steps = prev?.steps || []
+                if (steps.some(s => s.id === step.id)) return prev
+                return { ...(prev || {}), steps: [...steps, step] }
+              })
+              setMessages(prev => {
+                if (prev.length === 0) return prev
+                const last = prev[prev.length - 1]
+                if (last && last.role === 'assistant') {
+                  const currentSteps = last.agentSteps || []
+                  if (currentSteps.some(s => s.id === step.id)) return prev
+                  return [...prev.slice(0, -1), { ...last, agentSteps: [...currentSteps, step] }]
+                }
+                return prev
+              })
+
+              // Show approval banner — pause SSE processing via a Promise
+              // We close the EventSource temporarily and wait for user decision
+              es.close()
+              activeEsRef.current = null
+              setPendingPlan({ reasoning, toolCount, step, reqId, trimmed, arrayHint, useOllama, disableThink, ollamaModel, userParam })
+              return // Stop processing this event — user must approve or reject
+            }
+            // ─────────────────────────────────────────────────────────────────────
 
             const updateVisualSteps = () => {
               setAgentResult(prev => {
@@ -1856,6 +1947,40 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         </div>
         <div style={{ padding: 12, borderTop: '1px solid var(--line)' }}>
 
+          {/* ── Auto / Manual Execution Mode toggle ── */}
+          <div style={{ marginBottom: 12 }}>
+            <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Agent Execution Mode</span>
+            <div style={{ display: 'flex', marginTop: 6, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--line)', background: 'var(--surface-2)' }}>
+              <button
+                onClick={() => { setAgentExecMode('auto'); localStorage.setItem('agent_exec_mode', 'auto') }}
+                style={{
+                  flex: 1, padding: '5px 0', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
+                  background: agentExecMode === 'auto' ? 'var(--hpe-green)' : 'transparent',
+                  color: agentExecMode === 'auto' ? 'white' : 'var(--muted)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                ⚡ Auto
+              </button>
+              <button
+                onClick={() => { setAgentExecMode('manual'); localStorage.setItem('agent_exec_mode', 'manual') }}
+                style={{
+                  flex: 1, padding: '5px 0', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
+                  background: agentExecMode === 'manual' ? '#f0b429' : 'transparent',
+                  color: agentExecMode === 'manual' ? '#1a1200' : 'var(--muted)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                🖐 Manual
+              </button>
+            </div>
+            {agentExecMode === 'manual' && (
+              <div style={{ marginTop: 5, fontSize: 10, color: '#f0b429', lineHeight: 1.4 }}>
+                Agent will pause after planning and ask for your approval before executing any tools.
+              </div>
+            )}
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 11, color: 'var(--text-main)', fontWeight: 500 }}>Use Local Ollama</span>
             <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
@@ -2041,9 +2166,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
                   )}
 
                   {msg.agentSteps && msg.agentSteps.length > 0 && (
-                    <div style={{ marginTop: 16 }}>
-                      <AgentStepTimeline steps={msg.agentSteps} />
-                    </div>
+                    <ExpandableReasoningTimeline steps={msg.agentSteps} />
                   )}
                   {msg.isAgent && showStepsInChat && msg.isStreaming && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingLeft: 4 }}>
@@ -2093,6 +2216,92 @@ export default function ChatPage({ apiBase, chatbotApi }) {
 
         {/* Input */}
         <div style={{ padding: '12px 24px 20px', borderTop: '1px solid var(--line)', background: 'linear-gradient(to top, var(--background), transparent)' }}>
+
+          {/* ── Manual Mode: Plan Approval Banner ─────────────────────────── */}
+          {pendingPlan && (
+            <div style={{
+              marginBottom: 12,
+              padding: 16,
+              background: 'var(--surface-2)',
+              border: '1px solid var(--accent-yellow, #f0b429)',
+              borderRadius: 10,
+              boxShadow: '0 4px 20px rgba(240,180,41,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              animation: 'fadeIn 0.3s ease'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16 }}>🤖</span>
+                <span style={{ fontWeight: 700, fontSize: 12, color: '#f0b429', letterSpacing: '0.5px' }}>
+                  MANUAL MODE — AGENT PLAN APPROVAL REQUIRED
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.6 }}>
+                The agent has planned <strong style={{ color: '#f0b429' }}>{pendingPlan.toolCount} tool call{pendingPlan.toolCount !== 1 ? 's' : ''}</strong> to execute.
+              </div>
+              <div style={{
+                padding: '10px 14px',
+                background: 'rgba(240,180,41,0.06)',
+                border: '1px solid rgba(240,180,41,0.2)',
+                borderRadius: 6,
+                fontSize: 12,
+                color: 'var(--muted)',
+                fontFamily: 'var(--font-mono)',
+                lineHeight: 1.6,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word'
+              }}>
+                {pendingPlan.reasoning}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => {
+                    const plan = pendingPlan
+                    setPendingPlan(null)
+                    // Re-open SSE stream with a flag telling the backend to skip re-planning
+                    const qParam = encodeURIComponent(plan.trimmed)
+                    const aParam = encodeURIComponent(plan.arrayHint || '')
+                    const ollamaParam = plan.useOllama ? 'true' : 'false'
+                    const thinkParam = plan.disableThink ? 'true' : 'false'
+                    const newEs = new EventSource(
+                      `${apiBase}/api/agent/run/stream?query=${qParam}&array=${aParam}&useOllama=${ollamaParam}&disableThink=${thinkParam}&requestId=${plan.reqId}&ollamaModel=${encodeURIComponent(plan.ollamaModel)}&username=${plan.userParam}&skipPlan=true`
+                    )
+                    activeEsRef.current = newEs
+                    newEs.onmessage = activeEsRef._lastHandler
+                    newEs.onerror = activeEsRef._lastErrorHandler
+                  }}
+                  style={{
+                    padding: '7px 18px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    background: 'var(--hpe-green)', border: 'none', color: 'white', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 6
+                  }}
+                >
+                  ✅ Yes, Execute
+                </button>
+                <button
+                  onClick={() => {
+                    setPendingPlan(null)
+                    setLoading(false)
+                    setMessages(prev => {
+                      if (prev.length === 0) return prev
+                      const last = prev[prev.length - 1]
+                      if (last && last.role === 'assistant' && last.isStreaming) {
+                        return [...prev.slice(0, -1), { ...last, isStreaming: false, text: '⛔ Agent plan was rejected by user.' }]
+                      }
+                      return prev
+                    })
+                  }}
+                  style={{
+                    padding: '7px 18px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    background: 'rgba(255,77,77,0.12)', border: '1px solid #ff4d4d', color: '#ff7b72', cursor: 'pointer'
+                  }}
+                >
+                  ❌ No, Cancel
+                </button>
+              </div>
+            </div>
+          )}
           {pendingCommand && (
             <div style={{
               marginBottom: 12,
@@ -2175,7 +2384,7 @@ export default function ChatPage({ apiBase, chatbotApi }) {
         </div>
       </div>
 
-      {aiMode === 'agent' && agentResult && sidebarVisible && (
+      {false && aiMode === 'agent' && agentResult && sidebarVisible && (
         <>
           <div
             onMouseDown={startResizing}

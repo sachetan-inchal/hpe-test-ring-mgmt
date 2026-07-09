@@ -397,7 +397,7 @@ export const generateAIResponse = async (history, currentPrompt) => {
   }
 
   // Try OpenAI if available (fallback)
-  if (AI_PROVIDERS.openai.apiKey) {
+  if (process.env.OPENAI_API_KEY) {
     for (let i = 0; i < AI_PROVIDERS.openai.models.length; i++) {
       const modelName = AI_PROVIDERS.openai.models[i];
       try {
@@ -447,4 +447,8 @@ export const checkAIProviders = async () => {
   }
   
   return status;
+};
+
+export const resetGenAI = () => {
+  genAI = null;
 };

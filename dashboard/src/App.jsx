@@ -13,6 +13,7 @@ import InventoryPage from './pages/InventoryPage'
 import SSHRingPage from './pages/SSHRingPage'
 import TestcasesMarkdownViewerPage from './pages/TestcasesMarkdownViewerPage'
 import ServiceTesterPage from './pages/ServiceTesterPage'
+import SanParametersPage from './pages/SanParametersPage'
 import { Search, Radar, Map, Terminal, MessageSquare, Settings, Activity, LogOut, Menu, X, ChevronRight, Database, Layers, Save, RefreshCw, ChevronDown, Check, Cpu, PanelTop, FileCode, Sun, Moon, ShieldAlert } from 'lucide-react'
 
 // Global fetch interceptor to trace application actions
@@ -78,6 +79,7 @@ const NAV_ITEMS = [
   { path: '/inventory', label: 'Inventory', icon: Database, desc: 'Hierarchical resource view' },
   { path: '/parser-editor', label: 'Parser Editor', icon: FileCode, desc: 'View parser output for testcases-markdown.md' },
   { path: '/service-tester', label: 'Service Tester', icon: ShieldAlert, desc: 'Check dependent packages & services' },
+  { path: '/san-parameters', label: 'SAN parameters', icon: Database, desc: 'Extracted parameter schemas and observed values' },
 ]
 
 function ProtectedRoute({ children }) {
@@ -744,6 +746,7 @@ export default function App() {
                   <Route path="/health" element={<HealthPage apiBase={FLASK_API} chatbotApi={CHATBOT_API} />} />
                   <Route path="/parser-editor" element={<TestcasesMarkdownViewerPage apiBase={FLASK_API} />} />
                   <Route path="/service-tester" element={<ServiceTesterPage apiBase={FLASK_API} />} />
+                  <Route path="/san-parameters" element={<SanParametersPage />} />
                   <Route path="*" element={<Navigate to="/ssh-ring" replace />} />
                 </Routes>
               </div>

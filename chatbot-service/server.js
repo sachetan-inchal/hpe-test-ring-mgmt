@@ -8,6 +8,7 @@ import authRoutes from './routes/authRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
 import sanRoutes from './routes/sanRoutes.js';
+import { resetGenAI } from './utils/aiProvider.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,6 +31,18 @@ app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/san', sanRoutes);
+
+app.post('/api/config/api-keys', (req, res) => {
+  const { GEMINI_API_KEY, OPENAI_API_KEY } = req.body;
+  if (GEMINI_API_KEY !== undefined) {
+    process.env.GEMINI_API_KEY = GEMINI_API_KEY;
+  }
+  if (OPENAI_API_KEY !== undefined) {
+    process.env.OPENAI_API_KEY = OPENAI_API_KEY;
+  }
+  resetGenAI();
+  res.json({ status: 'success', message: 'API keys updated in chatbot-service' });
+});
 
 // Database Connection
 connectDB();

@@ -58,10 +58,10 @@ export default function AgentStepTimeline({ steps = [] }) {
                 {hasOutput && (
                   isExpanded ? <ChevronDown size={14} style={{ color: 'var(--muted)' }} /> : <ChevronRight size={14} style={{ color: 'var(--muted)' }} />
                 )}
-                <span className="agent-step-title" style={hasOutput ? { textDecoration: 'underline decoration-dotted', color: 'var(--accent-cyan)' } : {}}>{step.title}</span>
+                <span className="agent-step-title" style={hasOutput ? { textDecoration: 'underline decoration-dotted', color: 'var(--accent-cyan)' } : { color: 'var(--foreground)' }}>{step.title}</span>
                 {step.timestamp && <span className="agent-step-time">{step.timestamp}</span>}
               </div>
-              {step.detail && <p className="agent-step-detail">{step.detail}</p>}
+              {step.detail && <p className="agent-step-detail" style={{ color: 'var(--foreground)', opacity: 0.95 }}>{step.detail}</p>}
               {step.command && <pre className="agent-step-cmd">{step.command}</pre>}
               
               {hasOutput && isExpanded && (
@@ -72,7 +72,7 @@ export default function AgentStepTimeline({ steps = [] }) {
                     overflowY: 'auto', 
                     background: 'var(--surface-3)', 
                     borderColor: 'var(--line)', 
-                    color: 'rgba(255,255,255,0.85)',
+                    color: 'var(--foreground)',
                     padding: '8px 12px',
                     fontFamily: 'var(--font-mono)',
                     fontSize: 11,

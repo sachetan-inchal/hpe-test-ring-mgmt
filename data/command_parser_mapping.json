@@ -1,0 +1,34 @@
+{
+  "showversion -b": {
+    "parser_func": "parseShowVersion",
+    "category": "ArraySystem"
+  },
+  "showsys": {
+    "parser_func": "parseShowSys",
+    "category": "ArraySystem"
+  },
+  "shownode": {
+    "parser_func": "parseShowNode",
+    "category": "ArraySystem"
+  },
+  "showport": {
+    "parser_func": "parseShowPort",
+    "category": "Port"
+  },
+  "showswitch": {
+    "parser_func": "parseShowSwitch",
+    "category": "Switch"
+  },
+  "showhost": {
+    "parser_func": "parseShowHost",
+    "category": "Host"
+  },
+  "showcage": {
+    "parser_func": "parseShowCageBasic",
+    "category": "Cage"
+  },
+  "showpd": {
+    "parser_func": "parseShowPdBasic",
+    "category": "PhysicalDisk"
+  }
+}

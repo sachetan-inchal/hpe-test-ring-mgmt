@@ -1150,7 +1150,7 @@ def delete_team():
                 )
             
             # Cleanup users
-            db.users.update_many({"team": name}, {"$set": {"team": "team-alpha"}})
+            db.users.update_many({"team": name}, {"$set": {"team": ""}})
             db.users.update_many({"managedTeams": name}, {"$pull": {"managedTeams": name}})
             
             return jsonify({"status": "deleted", "message": f"Team '{name}' deleted successfully. {device_count} devices moved to 'deleted-team-devices'."})
@@ -1793,6 +1793,104 @@ def ssh_ring_discover_all():
                             real_mongo.load_existing_state()
                             real_mongo.store(parsed)
                             LAST_DISCOVERY_TRACE["steps"]["database_mongo"] = {"status": "success", "details": "Successfully upserted nodes to MongoDB hpe_san.real_sandatas."}
+                            
+                            # Auto-register discovered peer arrays, switches, and hosts into ssh_credentials
+                            if category == "Array":
+                                try:
+                                    db = real_mongo.db if hasattr(real_mongo, "db") else real_mongo.client.hpe_san
+                                    array_name = parsed.get("name") or device_name
+                                    cleaned_array_name = array_name.lower().replace("-", "")
+                                    
+                                    # List simulator devices to map connections
+                                    v_net = globals().get("virtual_network")
+                                    if v_net:
+                                        all_devices = v_net.list_devices()
+                                        
+                                        # Find array metadata in simulator
+                                        array_meta = {}
+                                        for d_item in all_devices:
+                                            if d_item.get("name", "").lower().replace("-", "") == cleaned_array_name:
+                                                array_meta = d_item
+                                                break
+                                                
+                                        # Determine team of parent
+                                        parent_team = "real-devices"
+                                        parent_cred = db.ssh_credentials.find_one({"ip": ip})
+                                        if parent_cred and parent_cred.get("team"):
+                                            parent_team = parent_cred.get("team")
+                                            
+                                        # 1. Peer Arrays
+                                        if array_meta:
+                                            for peer_ip in array_meta.get("connected_to", []):
+                                                peer_meta = next((x for x in all_devices if x.get("ip") == peer_ip), {})
+                                                peer_name = peer_meta.get("name") or f"Peer-{peer_ip}"
+                                                existing = db.ssh_credentials.find_one({"device_name": peer_name})
+                                                if not existing:
+                                                    db.ssh_credentials.insert_one({
+                                                        "device_name": peer_name,
+                                                        "ip": "",
+                                                        "port": 22,
+                                                        "username": "",
+                                                        "password": "",
+                                                        "device_kind": "real",
+                                                        "category": "Array",
+                                                        "team": parent_team,
+                                                        "connected_to": array_name,
+                                                        "ip_pending": True,
+                                                        "password_pending": True,
+                                                        "username_pending": True
+                                                    })
+                                                    log.info(f"[api/discover] Auto-registered peer array {peer_name} as pending.")
+                                                    
+                                        # 2. Switches & Hosts
+                                        for d_item in all_devices:
+                                            parent = d_item.get("parent_array", "")
+                                            if parent and parent.lower().replace("-", "") == cleaned_array_name:
+                                                dev_name = d_item.get("name", "")
+                                                if dev_name:
+                                                    dtype = d_item.get("type", "host")
+                                                    cat = "Switch" if dtype == "switch" else "Host"
+                                                    
+                                                    # Connected To mapping
+                                                    if cat == "Host":
+                                                        connected_to_val = array_name
+                                                        try:
+                                                            import json as _json
+                                                            import os as _os
+                                                            topo_path = _os.path.join(_os.path.dirname(__file__), "..", "san-lab", "network_topology.json")
+                                                            if not _os.path.exists(topo_path):
+                                                                topo_path = _os.path.join(_os.path.dirname(__file__), "..", "network_topology.json")
+                                                            if _os.path.exists(topo_path):
+                                                                with open(topo_path) as f_topo:
+                                                                    topo_data = _json.load(f_topo)
+                                                                for arr_t in topo_data.get("arrays", []):
+                                                                    for h_t in arr_t.get("hosts", []):
+                                                                        if h_t["name"].lower() == dev_name.lower():
+                                                                            connected_to_val = h_t.get("via_switch", array_name)
+                                                        except Exception:
+                                                            pass
+                                                    else:
+                                                        connected_to_val = array_name
+                                                        
+                                                    existing = db.ssh_credentials.find_one({"device_name": dev_name})
+                                                    if not existing:
+                                                        db.ssh_credentials.insert_one({
+                                                            "device_name": dev_name,
+                                                            "ip": "",
+                                                            "port": 22,
+                                                            "username": "",
+                                                            "password": "",
+                                                            "device_kind": "real",
+                                                            "category": cat,
+                                                            "team": parent_team,
+                                                            "connected_to": connected_to_val,
+                                                            "ip_pending": True,
+                                                            "password_pending": True,
+                                                            "username_pending": True
+                                                        })
+                                                        log.info(f"[api/discover] Auto-registered {dev_name} as pending.")
+                                except Exception as e_reg:
+                                    log.error(f"Failed to auto-register discovered peers/devices: {e_reg}")
                         else:
                             LAST_DISCOVERY_TRACE["steps"]["database_mongo"] = {"status": "failure", "details": "MongoDB is not available."}
 
@@ -2661,14 +2759,20 @@ def _update_ontology_db(all_arrays, source_label=None, source_id=None):
                 "model": arr.get("model") or "HPE Alletra",
                 "serialNumber": arr_serial,
                 "firmware": arr.get("release_version") or "10.6.0.40",
+                "releaseType": arr.get("release_type") or "",
                 "protocol": arr.get("config_type") or "FC / NVMe",
+                "protocolsSupported": ", ".join(arr.get("protocols_supported") or []) if isinstance(arr.get("protocols_supported"), list) else arr.get("protocols_supported", ""),
                 "totalCapacityTb": total_tb,
                 "usedCapacityTb": used_tb,
                 "freeCapacityTb": free_tb,
-                "nodeCount": arr.get("node_count") or len(arr.get("nodes", []) or []),
-                "jbofCount": len(arr.get("cages", []) or []),
-                "diskCount": len(arr.get("drives", []) or [])
+                "masterNode": arr.get("master_node"),
+                "installedNodes": len(arr.get("nodes") or []),
+                "maxNodes": arr.get("node_count") or len(arr.get("nodes") or []),
+                "jbofCount": len(arr.get("cages") or []),
+                "diskCount": len(arr.get("drives") or [])
             }
+            # Clean up empty strings
+            arr_node = {k: v for k, v in arr_node.items() if v != ""}
             add_node_safe(arr_node)
             
             # Nodes (Controllers)
@@ -2690,6 +2794,12 @@ def _update_ontology_db(all_arrays, source_label=None, source_id=None):
                     "parentId": arr_id,
                     "isDecommissioned": False
                 }
+                if isinstance(ctrl, dict):
+                    exclude = {"id", "name", "type", "status", "category", "parentId", "isDecommissioned"}
+                    for k, v in ctrl.items():
+                        if k not in exclude and v is not None and v != "":
+                            cc_key = "".join(word.title() if i > 0 else word for i, word in enumerate(str(k).split('_')))
+                            ctrl_node[cc_key] = v
                 add_node_safe(ctrl_node)
                 new_edges.append({
                     "from": arr_id,
@@ -2730,6 +2840,12 @@ def _update_ontology_db(all_arrays, source_label=None, source_id=None):
                     "state": port_state,
                     "wwn": port_wwn
                 }
+                if isinstance(port, dict):
+                    exclude = {"id", "name", "type", "status", "category", "parentId", "isDecommissioned", "protocol", "mode", "state", "wwn"}
+                    for k, v in port.items():
+                        if k not in exclude and v is not None and v != "":
+                            cc_key = "".join(word.title() if i > 0 else word for i, word in enumerate(str(k).split('_')))
+                            port_node[cc_key] = v
                 add_node_safe(port_node)
                 new_edges.append({
                     "from": arr_id,
@@ -3600,6 +3716,7 @@ def agent_run_stream():
     ollama_model = request.args.get("ollamaModel", "").strip()
     req_id = request.args.get("requestId", "").strip()
     username = request.args.get("username", "Guest").strip()
+    skip_plan = str(request.args.get("skipPlan", "false")).lower() == "true"
     if not query:
         return Response("data: {\"error\": \"query is required\"}\n\n", mimetype="text/event-stream")
 
@@ -3627,7 +3744,8 @@ def agent_run_stream():
                     ollama_model=ollama_model or None,
                     request_id=req_id,
                     username=username,
-                    stream=True
+                    stream=True,
+                    skip_plan=skip_plan
                 )
                 result.update(res)
             except Exception as e:
@@ -3841,6 +3959,45 @@ def schema_fields():
         return jsonify({"error": "JSON object required"}), 400
     try:
         with open(FIELD_DEF_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        return jsonify({"status": "ok"})
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+
+# ── Command to Parser Mapping Registry ─────────────────────────────────────────
+
+MAP_PATH = os.path.join(MONOREPO, "data", "command_parser_mapping.json")
+
+@app.route("/api/schema/command-parser-mapping", methods=["GET", "PUT"])
+def command_parser_mapping():
+    if request.method == "GET":
+        try:
+            if not os.path.exists(MAP_PATH):
+                default_mapping = {
+                    "showversion -b": {"parser_func": "parseShowVersion", "category": "ArraySystem"},
+                    "showsys": {"parser_func": "parseShowSys", "category": "ArraySystem"},
+                    "shownode": {"parser_func": "parseShowNode", "category": "ArraySystem"},
+                    "showport": {"parser_func": "parseShowPort", "category": "Port"},
+                    "showswitch": {"parser_func": "parseShowSwitch", "category": "Switch"},
+                    "showhost": {"parser_func": "parseShowHost", "category": "Host"},
+                    "showcage": {"parser_func": "parseShowCageBasic", "category": "Cage"},
+                    "showpd": {"parser_func": "parseShowPdBasic", "category": "PhysicalDisk"}
+                }
+                os.makedirs(os.path.dirname(MAP_PATH), exist_ok=True)
+                with open(MAP_PATH, "w", encoding="utf-8") as f:
+                    json.dump(default_mapping, f, indent=2)
+                return jsonify(default_mapping)
+            with open(MAP_PATH, encoding="utf-8") as f:
+                return jsonify(json.load(f))
+        except Exception as ex:
+            return jsonify({"error": str(ex)}), 500
+    data = request.json
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON object required"}), 400
+    try:
+        os.makedirs(os.path.dirname(MAP_PATH), exist_ok=True)
+        with open(MAP_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         return jsonify({"status": "ok"})
     except Exception as ex:
@@ -4746,12 +4903,41 @@ def get_testcases_markdown_parsers():
                 for jb in json_blocks:
                     parsed_outputs.append(jb.group(1).strip())
                     
+            # Extract fields / extracted parameters
+            fields = []
+            fields_match = re.search(r'\*\*EXTRACTED PARAMETERS:\*\*\s*\n*(.*?)(?:\n\*\*|\n##|\Z)', body, re.DOTALL | re.IGNORECASE)
+            if fields_match:
+                for line_f in fields_match.group(1).split("\n"):
+                    line_f = line_f.strip().lstrip("-").strip()
+                    if line_f:
+                        fields.append(line_f)
+            
+            # Fallback to predefined lists if not explicitly documented in the markdown file
+            if not fields:
+                fallbacks = {
+                    "parseShowVersion": ["components[].name", "components[].version", "release_type", "release_version"],
+                    "parseShowSys": ["alloc_cap", "failed_cap", "free_cap", "id", "master", "model", "name", "nodes", "serial", "total_cap"],
+                    "parseShowNode": ["nodes[].encl_bay", "nodes[].in_cluster", "nodes[].is_master", "nodes[].mem_mib", "nodes[].name", "nodes[].node_id", "nodes[].up_since"],
+                    "parseShowPort": ["ports[].label", "ports[].mode", "ports[].node", "ports[].node_wwn_ip", "ports[].nsp", "ports[].port", "ports[].port_wwn_hw", "ports[].protocol", "ports[].slot", "ports[].state", "ports[].type", "total"],
+                    "parseShowSwitch": ["message", "switches[].fans", "switches[].locate_led", "switches[].mode", "switches[].name", "switches[].ps1", "switches[].ps2", "switches[].serial", "switches[].state", "switches[].temp", "total"],
+                    "parseShowHost": ["hosts[].Port", "hosts[].Port[].node", "hosts[].Port[].nsp", "hosts[].Port[].port", "hosts[].Port[].slot", "hosts[].wwn", "total"],
+                    "parseShowCageBasic": ["cages[].drives", "cages[].form_factor", "cages[].id", "cages[].model", "cages[].name", "cages[].state", "cages[].temp"],
+                    "parseShowCageState": ["cages[].detailed_state", "cages[].id", "cages[].name", "cages[].state", "total"],
+                    "parseShowCagePCI": ["slots[].cage", "slots[].firmware", "slots[].iom", "slots[].manufacturer", "slots[].model", "slots[].rev", "slots[].serial", "slots[].slot", "slots[].type", "total"],
+                    "parseShowCageSFP": ["sfps[].cage", "sfps[].ddm", "sfps[].iom", "sfps[].label", "sfps[].manufacturer", "sfps[].max_speed_gbps", "sfps[].part_number", "sfps[].qualified", "sfps[].revision", "sfps[].rx_loss", "sfps[].rx_power_low", "sfps[].serial_number", "sfps[].sfp", "sfps[].state", "sfps[].tx_disable", "sfps[].tx_fault", "total"],
+                    "parseShowPdBasic": ["drives[].cage_pos", "drives[].capacity_gb", "drives[].free_mib", "drives[].id", "drives[].rpm", "drives[].state", "drives[].total_mib", "drives[].type", "free_cap", "total", "total_cap"],
+                    "parseShowPdS": ["drives[].cage_pos", "drives[].detailed_state", "drives[].id", "drives[].sed_state", "drives[].state", "drives[].type", "total"],
+                    "parseShowPdI": ["drives[].admission_time", "drives[].cage_pos", "drives[].drive_type", "drives[].firmware_rev", "drives[].id", "drives[].manufacturer", "drives[].model", "drives[].node_wwn", "drives[].protocol", "drives[].serial", "drives[].state", "total"]
+                }
+                fields = fallbacks.get(func_name, [])
+
             parsers.append({
                 "title": title,
                 "func_name": func_name,
                 "code": code,
                 "cli_outputs": cli_outputs,
-                "parsed_outputs": parsed_outputs
+                "parsed_outputs": parsed_outputs,
+                "fields": fields
             })
             
         return jsonify({
@@ -4809,6 +4995,14 @@ def save_testcases_markdown_parsers():
             out.append(sec.get("code", "").strip())
             out.append("```")
             out.append("")
+            
+            # Extracted Parameters
+            fields = sec.get("fields", [])
+            if fields:
+                out.append("**EXTRACTED PARAMETERS:**")
+                for f in fields:
+                    out.append(f"- {f.strip()}")
+                out.append("")
             
             # Parsed Outputs
             parsed_outs = sec.get("parsed_outputs", [])
@@ -4979,6 +5173,82 @@ def wait_for_services(timeout=60):
         log.info(f"Still waiting... (Neo4j: {'ok' if neo4j.available else 'wait'}, ES: {'disabled' if is_es_disabled else ('ok' if es.available else 'wait')})")
         time.sleep(5)
     return False
+def update_dotenv_file(keys_dict):
+    dotenv_path = os.path.join(MONOREPO, ".env")
+    lines = []
+    if os.path.exists(dotenv_path):
+        with open(dotenv_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            
+    existing = {}
+    for i, line in enumerate(lines):
+        if "=" in line and not line.strip().startswith("#"):
+            k, v = line.split("=", 1)
+            existing[k.strip()] = i
+            
+    for k, v in keys_dict.items():
+        if k in existing:
+            idx = existing[k]
+            lines[idx] = f"{k}={v}\n"
+        else:
+            lines.append(f"{k}={v}\n")
+            
+    with open(dotenv_path, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+
+
+@app.route("/api/config/api-keys", methods=["GET"])
+def get_api_keys():
+    return jsonify({
+        "GROQ_API_KEY": os.environ.get("GROQ_API_KEY", "").strip(),
+        "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY", "").strip(),
+        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", "").strip()
+    })
+
+
+@app.route("/api/config/api-keys", methods=["POST"])
+def save_api_keys():
+    body = request.json or {}
+    groq_key = body.get("GROQ_API_KEY", "").strip()
+    gemini_key = body.get("GEMINI_API_KEY", "").strip()
+    openai_key = body.get("OPENAI_API_KEY", "").strip()
+
+    os.environ["GROQ_API_KEY"] = groq_key
+    os.environ["GEMINI_API_KEY"] = gemini_key
+    os.environ["OPENAI_API_KEY"] = openai_key
+
+    try:
+        update_dotenv_file({
+            "GROQ_API_KEY": groq_key,
+            "GEMINI_API_KEY": gemini_key,
+            "OPENAI_API_KEY": openai_key
+        })
+    except Exception as e:
+        log.error(f"Failed to save .env file: {e}")
+
+    global _ontology_engine, _rag_engine, _spreadsheet_pipeline
+    try:
+        _ontology_engine = OntologyLLMEngine(_ontology_traversal)
+        _rag_engine = RAGEngine(
+            json_store=_json_store,
+            neo4j_loader=_Neo4jRagBridge() if neo4j.available else None,
+            ontology_traversal=_ontology_traversal
+        )
+        _spreadsheet_pipeline = SpreadsheetPipeline(run_cypher_fn=_cypher_for_spreadsheet)
+    except Exception as e:
+        log.error(f"Failed to re-initialize engines: {e}")
+
+    try:
+        import requests
+        requests.post(f"{CHATBOT_URL}/api/config/api-keys", json={
+            "GEMINI_API_KEY": gemini_key,
+            "OPENAI_API_KEY": openai_key
+        }, timeout=3)
+    except Exception as e:
+        log.error(f"Failed to forward keys to chatbot-service: {e}")
+
+    return jsonify({"status": "success", "message": "API keys updated successfully"})
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5005))

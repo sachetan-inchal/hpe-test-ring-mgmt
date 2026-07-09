@@ -595,13 +595,18 @@ export default function InventoryPage({ apiBase, deviceKindMap }) {
         )}
 
         {/* Selected Node Details Card */}
-        <div style={{ width: 340, display: selectedNode ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
+        <div style={{ width: 420, display: selectedNode ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
           <NodeCard 
             node={selectedNode} 
             connections={connectedNodes} 
             onUpdateNode={(id, props) => {
               setData(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === id ? { ...n, ...props } : n) }))
-              fetch(`${apiBase}/api/ontology/nodes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(props) }).catch(() => {})
+              const { isDecommissioned, ...otherProps } = props
+              fetch(`${apiBase}/api/ontology/nodes/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isDecommissioned, properties: otherProps })
+              }).catch(() => {})
             }}
           />
         </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { RefreshCw, Code, FileText, PanelsTopLeft, Plus, Pencil, Trash2, Check, X, Search } from 'lucide-react'
+import { RefreshCw, Code, FileText, PanelsTopLeft, Plus, Pencil, Trash2, Check, X, Search, Database } from 'lucide-react'
 
 function safeJsonParse(s) {
   try {
@@ -45,6 +45,158 @@ function Box({ title, icon, children, headerRight }) {
   )
 }
 
+function ParserTester({ initialCode, initialCliText }) {
+  const [funcStr, setFuncStr] = useState(initialCode || '');
+  const [cliText, setCliText] = useState(initialCliText || '');
+  const [result, setResult] = useState('(waiting for test)');
+  const [errorStr, setErrorStr] = useState('(none)');
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(380);
+
+  useEffect(() => {
+    if (initialCode) setFuncStr(initialCode);
+    if (initialCliText) setCliText(initialCliText);
+  }, [initialCode, initialCliText]);
+
+  const runParser = () => {
+    try {
+      const parseFn = eval("(" + funcStr + ")");
+      if (typeof parseFn !== "function") {
+        throw new Error("Provided code does not evaluate to a function.");
+      }
+      const parsed = parseFn(cliText);
+      setResult(JSON.stringify(parsed, null, 2));
+      setErrorStr("(no errors)");
+    } catch (err) {
+      setErrorStr(err.message);
+      setResult("(parse failed)");
+    }
+  };
+
+  const startResize = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+    
+    const onMouseMove = (moveEvent) => {
+      // Moving left increases width for a right-docked sidebar
+      let newWidth = startWidth + (startX - moveEvent.clientX);
+      // Min width 300px, max width up to almost full screen (leaving room for left nav)
+      newWidth = Math.max(300, Math.min(newWidth, window.innerWidth - 400));
+      setSidebarWidth(newWidth);
+    };
+    
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = 'default';
+    };
+    
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+  };
+
+  if (!isExpanded) {
+    return (
+      <div 
+        className="glass-card" 
+        onClick={() => setIsExpanded(true)}
+        style={{ 
+          width: 48, 
+          height: '100%', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          cursor: 'pointer',
+          padding: '20px 0',
+          borderLeft: '1px solid rgba(1, 169, 130, 0.2)'
+        }}
+        title="Expand Parser Tester"
+      >
+        <div style={{ transform: 'rotate(-90deg)', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1 }}>
+          PARSER TESTER
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-card" style={{ width: sidebarWidth, padding: 16, display: 'flex', flexDirection: 'column', height: '100%', borderLeft: '1px solid rgba(1, 169, 130, 0.1)', position: 'relative' }}>
+      
+      {/* Resizer Handle */}
+      <div 
+        onMouseDown={startResize}
+        style={{
+          position: 'absolute',
+          left: -3,
+          top: 0,
+          bottom: 0,
+          width: 6,
+          cursor: 'col-resize',
+          zIndex: 10,
+          background: 'transparent'
+        }}
+        title="Drag to resize"
+      />
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--foreground)' }}>Parser Tester</h3>
+        <button 
+          onClick={() => setIsExpanded(false)}
+          style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}
+          title="Minimize"
+        >
+          <X size={16} />
+        </button>
+      </div>
+      
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, overflowY: 'auto' }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Parser Function Code</label>
+          <textarea
+            value={funcStr}
+            onChange={e => setFuncStr(e.target.value)}
+            rows={12}
+            placeholder="function parse(cliOutput) { ... return rows; }"
+            style={{ width: '100%', padding: 8, fontSize: 11, fontFamily: 'monospace', background: 'rgba(0,0,0,0.2)', color: '#a5d6a7', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, resize: 'vertical' }}
+          />
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>CLI Output</label>
+          <textarea
+            value={cliText}
+            onChange={e => setCliText(e.target.value)}
+            rows={10}
+            placeholder="Paste CLI output here..."
+            style={{ width: '100%', padding: 8, fontSize: 11, fontFamily: 'monospace', background: 'rgba(0,0,0,0.2)', color: 'var(--foreground)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, resize: 'vertical' }}
+          />
+        </div>
+
+        <button onClick={runParser} className="btn btn-primary" style={{ alignSelf: 'flex-start', padding: '6px 16px', fontSize: 12 }}>
+          Test Parser
+        </button>
+
+        <div style={{ marginTop: 12 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Parsed Result (JSON)</label>
+          <pre style={{ margin: 0, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 6, fontSize: 11, fontFamily: 'monospace', color: '#90caf9', maxHeight: 250, overflow: 'auto', border: '1px solid rgba(255,255,255,0.1)' }}>
+            {result}
+          </pre>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Errors (if any)</label>
+          <pre style={{ margin: 0, padding: 10, background: 'rgba(255,0,0,0.05)', borderRadius: 6, fontSize: 11, fontFamily: 'monospace', color: errorStr === '(no errors)' ? 'var(--muted)' : '#ff8a80', border: '1px solid rgba(255,0,0,0.1)', whiteSpace: 'pre-wrap' }}>
+            {errorStr}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TestcasesMarkdownViewerPage({ apiBase }) {
   const apiUrl = `${apiBase}/api/parsers/testcases-markdown`
   const [loading, setLoading] = useState(true)
@@ -65,6 +217,7 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
   const [formCode, setFormCode] = useState('')
   const [formCliOutput, setFormCliOutput] = useState('')
   const [formParsedOutput, setFormParsedOutput] = useState('')
+  const [formFields, setFormFields] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -117,6 +270,7 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
     setFormCode(selected.code || '')
     setFormCliOutput(selected.cli_outputs?.[0] || '')
     setFormParsedOutput(selected.parsed_outputs?.[0] || '')
+    setFormFields((selected.fields || []).join(', '))
     setIsEditing(true)
     setIsAdding(false)
     setError('')
@@ -129,6 +283,7 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
     setFormCode('function parseNewCommand(cliOutput) {\n    const result = {};\n    // TODO: implement parser\n    return result;\n}')
     setFormCliOutput('')
     setFormParsedOutput('{}')
+    setFormFields('')
     setIsAdding(true)
     setIsEditing(false)
     setError('')
@@ -192,12 +347,17 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
 
     setSaving(true)
     try {
+      const fieldsArray = formFields.split(',')
+        .map(f => f.trim())
+        .filter(f => f.length > 0);
+
       const newParser = {
         title: formTitle.trim(),
         func_name: formFuncName.trim(),
         code: formCode,
         cli_outputs: [formCliOutput],
-        parsed_outputs: [formParsedOutput]
+        parsed_outputs: [formParsedOutput],
+        fields: fieldsArray
       }
 
       let updated = [...functions]
@@ -307,7 +467,7 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
       )}
 
       {/* Main Workspace Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr auto', gap: 14 }}>
         
         {/* Left Column: Parser List & Search */}
         <div style={{
@@ -474,8 +634,8 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
                     style={{
                       width: '100%',
                       padding: '8px 10px',
-                      background: 'rgba(0,0,0,0.2)',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'var(--editor-bg, rgba(0,0,0,0.2))',
+                      border: '1px solid var(--editor-border, rgba(255,255,255,0.1))',
                       borderRadius: 8,
                       color: 'var(--foreground)',
                       fontSize: 12
@@ -494,8 +654,8 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
                     style={{
                       width: '100%',
                       padding: '8px 10px',
-                      background: 'rgba(0,0,0,0.2)',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'var(--editor-bg, rgba(0,0,0,0.2))',
+                      border: '1px solid var(--editor-border, rgba(255,255,255,0.1))',
                       borderRadius: 8,
                       color: 'var(--foreground)',
                       fontSize: 12,
@@ -503,6 +663,27 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
                     }}
                   />
                 </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 4, color: 'var(--muted)' }}>
+                  Extracted Parameters (comma-separated, e.g. release_version, release_type)
+                </label>
+                <input
+                  type="text"
+                  value={formFields}
+                  onChange={(e) => setFormFields(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    background: 'var(--editor-bg, rgba(0,0,0,0.2))',
+                    border: '1px solid var(--editor-border, rgba(255,255,255,0.1))',
+                    borderRadius: 8,
+                    color: 'var(--foreground)',
+                    fontSize: 12
+                  }}
+                  placeholder="release_version, release_type, components[].name"
+                />
               </div>
 
               <div>
@@ -516,8 +697,8 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
                   style={{
                     width: '100%',
                     padding: '8px 10px',
-                    background: 'rgba(0,0,0,0.2)',
-                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'var(--editor-bg, rgba(0,0,0,0.2))',
+                    border: '1px solid var(--editor-border, rgba(255,255,255,0.1))',
                     borderRadius: 8,
                     color: 'var(--foreground)',
                     fontSize: 12,
@@ -540,10 +721,10 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
                   style={{
                     width: '100%',
                     padding: '10px',
-                    background: 'rgba(0,0,0,0.3)',
-                    border: '1px solid rgba(255,255,255,0.15)',
+                    background: 'var(--editor-bg-textarea, rgba(0,0,0,0.3))',
+                    border: '1px solid var(--editor-border-textarea, rgba(255,255,255,0.15))',
                     borderRadius: 8,
-                    color: '#a5d6a7', // light green font for code
+                    color: 'var(--editor-code-color, #a5d6a7)', // light green font for code
                     fontSize: 12,
                     fontFamily: 'Consolas, Monaco, Courier New, monospace',
                     resize: 'vertical',
@@ -563,10 +744,10 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
                   style={{
                     width: '100%',
                     padding: '8px 10px',
-                    background: 'rgba(0,0,0,0.2)',
-                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'var(--editor-bg, rgba(0,0,0,0.2))',
+                    border: '1px solid var(--editor-border, rgba(255,255,255,0.1))',
                     borderRadius: 8,
-                    color: '#90caf9', // light blue font for json
+                    color: 'var(--editor-json-color, #90caf9)', // light blue font for json
                     fontSize: 12,
                     fontFamily: 'monospace',
                     resize: 'vertical'
@@ -632,6 +813,18 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
                     </div>
                   </div>
 
+                  {selected.fields && selected.fields.length > 0 && (
+                    <Box title="Extracted Parameters" icon={<Database size={14} />}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {selected.fields.map(f => (
+                          <span key={f} style={{ background: 'rgba(1,169,130,0.1)', border: '1px solid rgba(1,169,130,0.3)', color: 'var(--hpe-green)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontFamily: 'monospace' }}>
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </Box>
+                  )}
+
                   <Box title="Function Prototype" icon={<Code size={14} />}>
                     <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12, color: 'var(--foreground)', fontFamily: 'Consolas, monospace' }}>
                       {selected.code || '—'}
@@ -667,6 +860,12 @@ export default function TestcasesMarkdownViewerPage({ apiBase }) {
           )}
 
         </div>
+        
+        {/* Right Sidebar - Parser Tester */}
+        <ParserTester 
+          initialCode={selected?.code || ''} 
+          initialCliText={selected?.cli_outputs?.[0] || ''} 
+        />
       </div>
     </div>
   )

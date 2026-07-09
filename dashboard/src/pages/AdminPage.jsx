@@ -1163,6 +1163,582 @@ function ManageDeviceTeamsSection({ apiBase, refreshKey, onTeamChange }) {
   )
 }
 
+// ====== Manage API Keys Section ======
+function ManageApiKeysSection({ apiBase }) {
+  const [keys, setKeys] = useState({ GROQ_API_KEY: '', GEMINI_API_KEY: '', OPENAI_API_KEY: '' })
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const fetchKeys = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${apiBase}/api/config/api-keys`)
+      if (res.ok) {
+        const data = await res.json()
+        setKeys(data)
+      }
+    } catch (e) {
+      console.error("Failed to fetch API keys", e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (apiBase) fetchKeys()
+  }, [apiBase])
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    setMsg('Saving keys...')
+    try {
+      const res = await fetch(`${apiBase}/api/config/api-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(keys)
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMsg('✓ API keys updated successfully')
+      } else {
+        setMsg(`✗ Save failed: ${data.error || 'Unknown error'}`)
+      }
+    } catch (err) {
+      setMsg(`✗ Save failed: ${err.message}`)
+    }
+  }
+
+  return (
+    <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 20 }}>🔑</span>
+        <div>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>AI Assistant API Keys</h3>
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '2px 0 0 0' }}>
+            Set or clear keys for online LLM modes (Groq, Gemini, OpenAI).
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Loading keys...</div>
+      ) : (
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="form-group">
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>GROQ API KEY (Agent/RAG Mode)</label>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="Enter Groq API Key..." 
+              value={keys.GROQ_API_KEY} 
+              onChange={e => setKeys(prev => ({ ...prev, GROQ_API_KEY: e.target.value }))}
+            />
+          </div>
+          <div className="form-group">
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>GEMINI API KEY (AI Assistant Tab)</label>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="Enter Gemini API Key..." 
+              value={keys.GEMINI_API_KEY} 
+              onChange={e => setKeys(prev => ({ ...prev, GEMINI_API_KEY: e.target.value }))}
+            />
+          </div>
+          <div className="form-group">
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>OPENAI API KEY (Chat Fallback)</label>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="Enter OpenAI API Key..." 
+              value={keys.OPENAI_API_KEY} 
+              onChange={e => setKeys(prev => ({ ...prev, OPENAI_API_KEY: e.target.value }))}
+            />
+          </div>
+          <button type="submit" className="btn btn-primary" style={{ width: 'max-content', alignSelf: 'flex-start' }}>
+            Save API Keys
+          </button>
+        </form>
+      )}
+
+      {msg && (
+        <div style={{
+          fontSize: 12,
+          color: msg.startsWith('✓') ? 'var(--status-ok)' : 'var(--accent-rose)'
+        }}>
+          {msg}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ====== Manage Schema Section ======
+function ManageSchemaSection({ apiBase }) {
+  const [schema, setSchema] = useState({})
+  const [selectedCategory, setSelectedCategory] = useState('ArraySystem')
+  const [newParam, setNewParam] = useState('')
+  const [highlightedField, setHighlightedField] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const fetchSchema = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${apiBase}/api/schema/fields`)
+      if (res.ok) {
+        const data = await res.json()
+        setSchema(data)
+      }
+    } catch (e) {
+      console.error("Failed to fetch schema", e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (apiBase) fetchSchema()
+  }, [apiBase])
+
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const highlightParam = queryParams.get('highlight');
+    if (highlightParam && Object.keys(schema).length > 0) {
+      for (const [cat, fields] of Object.entries(schema)) {
+        if (fields.includes(highlightParam)) {
+          setSelectedCategory(cat);
+          setHighlightedField(highlightParam);
+          setTimeout(() => setHighlightedField(null), 3000);
+          
+          const url = new URL(window.location);
+          url.searchParams.delete('highlight');
+          window.history.replaceState({}, '', url);
+          break;
+        }
+      }
+    }
+  }, [schema]);
+
+  const handleAddParam = (e) => {
+    e.preventDefault()
+    const cleanParam = newParam.trim()
+    if (!cleanParam) return
+    if ((schema[selectedCategory] || []).includes(cleanParam)) {
+      setMsg(`✗ Parameter "${cleanParam}" already exists in ${selectedCategory}`)
+      return
+    }
+    setSchema(prev => ({
+      ...prev,
+      [selectedCategory]: [...(prev[selectedCategory] || []), cleanParam]
+    }))
+    setNewParam('')
+    setMsg('')
+  }
+
+  const handleRemoveParam = (param) => {
+    setSchema(prev => ({
+      ...prev,
+      [selectedCategory]: (prev[selectedCategory] || []).filter(p => p !== param)
+    }))
+  }
+
+  const handleSaveSchema = async () => {
+    setMsg('Saving schema...')
+    try {
+      const res = await fetch(`${apiBase}/api/schema/fields`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(schema)
+      })
+      if (res.ok) {
+        setMsg('✓ Schema updated successfully')
+      } else {
+        const data = await res.json()
+        setMsg(`✗ Save failed: ${data.error || 'Unknown error'}`)
+      }
+    } catch (err) {
+      setMsg(`✗ Save failed: ${err.message}`)
+    }
+  }
+
+  const categories = Object.keys(schema)
+
+  return (
+    <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 20 }}>📊</span>
+        <div>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Device Schema Editor</h3>
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '2px 0 0 0' }}>
+            Add new parameter slots for arrays, switches, hosts, or disks.
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Loading schema...</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="form-group">
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>Select Device Category</label>
+            <select
+              className="input"
+              style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', background: 'var(--surface-1)', border: '1px solid var(--line)', color: 'var(--foreground)', outline: 'none' }}
+              value={selectedCategory}
+              onChange={e => setSelectedCategory(e.target.value)}
+            >
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 8 }}>
+              Active Parameters ({ (schema[selectedCategory] || []).length })
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 180, overflowY: 'auto', padding: 8, background: 'var(--background)', borderRadius: 6, border: '1px solid var(--line)' }}>
+              {(schema[selectedCategory] || []).map(param => {
+                const isHighlighted = param === highlightedField;
+                return (
+                  <span 
+                    key={param} 
+                    className={isHighlighted ? "search-match-pulse" : ""}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4, 
+                      background: isHighlighted ? 'rgba(255, 235, 59, 0.25)' : 'var(--surface-2)', 
+                      border: isHighlighted ? '2px solid #fbc02d' : '1px solid var(--line)', 
+                      borderRadius: 4, padding: '3px 8px', fontSize: 11, 
+                      color: 'var(--foreground)', fontWeight: 500,
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    {param}
+                    <button 
+                      onClick={() => handleRemoveParam(param)}
+                      style={{
+                        border: 'none', background: 'none', color: 'var(--accent-rose)', 
+                        cursor: 'pointer', fontSize: 11, padding: '0 2px', display: 'inline-flex', 
+                        alignItems: 'center', justifyContent: 'center'
+                      }}
+                      title={`Remove ${param}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+              {(schema[selectedCategory] || []).length === 0 && (
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>No parameters configured</span>
+              )}
+            </div>
+          </div>
+
+          <form onSubmit={handleAddParam} style={{ display: 'flex', gap: 8 }}>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="e.g. wear_level" 
+              value={newParam} 
+              onChange={e => setNewParam(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button type="submit" className="btn">
+              Add Field
+            </button>
+          </form>
+
+          <button 
+            onClick={handleSaveSchema} 
+            className="btn btn-primary" 
+            style={{ width: 'max-content', alignSelf: 'flex-start', marginTop: 8 }}
+          >
+            Save Schema definitions
+          </button>
+        </div>
+      )}
+
+      {msg && (
+        <div style={{
+          fontSize: 12,
+          color: msg.startsWith('✓') ? 'var(--status-ok)' : 'var(--accent-rose)'
+        }}>
+          {msg}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ====== Manage Command Parser Integrator ======
+function ManageCommandParserSection({ apiBase }) {
+  const [mapping, setMapping] = useState({})
+  const [parsers, setParsers] = useState([])
+  const [newCmd, setNewCmd] = useState('')
+  const [selectedParser, setSelectedParser] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('ArraySystem')
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const categories = ['ArraySystem', 'Node', 'Port', 'Switch', 'Host', 'Cage', 'PhysicalDisk', 'CageSlot']
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const [resMap, resParsers] = await Promise.all([
+        fetch(`${apiBase}/api/schema/command-parser-mapping`),
+        fetch(`${apiBase}/api/parsers/testcases-markdown`)
+      ])
+      if (resMap.ok) {
+        setMapping(await resMap.json())
+      }
+      if (resParsers.ok) {
+        const pData = await resParsers.json()
+        setParsers(pData.functions || [])
+        if (pData.functions && pData.functions.length > 0) {
+          setSelectedParser(pData.functions[0].func_name || pData.functions[0].title)
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load integrations mapping", e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (apiBase) loadData()
+  }, [apiBase])
+
+  const handleAddMapping = async (e) => {
+    e.preventDefault()
+    const cmd = newCmd.trim()
+    if (!cmd) return
+    
+    const updated = {
+      ...mapping,
+      [cmd]: {
+        parser_func: selectedParser,
+        category: selectedCategory
+      }
+    }
+
+    try {
+      const res = await fetch(`${apiBase}/api/schema/command-parser-mapping`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      })
+      if (res.ok) {
+        setMapping(updated)
+        setNewCmd('')
+        setMsg(`✓ Mapped "${cmd}" to parser "${selectedParser}"`)
+      } else {
+        setMsg('✗ Failed to save mapping')
+      }
+    } catch (err) {
+      setMsg(`✗ Error: ${err.message}`)
+    }
+  }
+
+  const handleRemoveMapping = async (cmd) => {
+    const updated = { ...mapping }
+    delete updated[cmd]
+    try {
+      const res = await fetch(`${apiBase}/api/schema/command-parser-mapping`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      })
+      if (res.ok) {
+        setMapping(updated)
+        setMsg(`✓ Removed mapping for "${cmd}"`)
+      } else {
+        setMsg('✗ Failed to delete mapping')
+      }
+    } catch (err) {
+      setMsg(`✗ Error: ${err.message}`)
+    }
+  }
+
+  const handleSyncSchema = async (cmd, mappingInfo) => {
+    const parserName = mappingInfo.parser_func
+    const targetCat = mappingInfo.category
+    
+    const matchedParser = parsers.find(p => p.func_name === parserName || p.title === parserName)
+    if (!matchedParser || !matchedParser.fields || matchedParser.fields.length === 0) {
+      setMsg(`✗ Parser "${parserName}" does not define any extracted parameters.`)
+      return
+    }
+
+    setMsg(`Syncing parameters to ${targetCat}...`)
+    try {
+      const resSchema = await fetch(`${apiBase}/api/schema/fields`)
+      if (!resSchema.ok) throw new Error("Could not read schema fields")
+      const schema = await resSchema.json()
+
+      const currentFields = schema[targetCat] || []
+      const newFieldsToAdd = matchedParser.fields.filter(f => !currentFields.includes(f))
+
+      if (newFieldsToAdd.length === 0) {
+        setMsg(`✓ All parameters from "${parserName}" are already in the "${targetCat}" schema.`)
+        return
+      }
+
+      const updatedSchema = {
+        ...schema,
+        [targetCat]: [...currentFields, ...newFieldsToAdd]
+      }
+
+      const resSave = await fetch(`${apiBase}/api/schema/fields`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedSchema)
+      })
+
+      if (resSave.ok) {
+        setMsg(`✓ Successfully synced ${newFieldsToAdd.length} parameters to "${targetCat}" schema!`)
+        window.dispatchEvent(new Event('schema-updated'))
+      } else {
+        setMsg('✗ Failed to save updated schema')
+      }
+    } catch (err) {
+      setMsg(`✗ Sync failed: ${err.message}`)
+    }
+  }
+
+  return (
+    <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 20 }}>🔗</span>
+        <div>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Command-to-Parser Integrator</h3>
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '2px 0 0 0' }}>
+            Map executing CLI commands to parser functions and auto-sync parameters to schemas.
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleAddMapping} style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--background)', padding: 12, borderRadius: 8, border: '1px solid var(--line)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600 }}>Create Command Mapping</div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--muted)' }}>Command</label>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="e.g. showsys -d" 
+              value={newCmd} 
+              onChange={e => setNewCmd(e.target.value)}
+              style={{ width: '100%' }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--muted)' }}>Device Category</label>
+            <select 
+              className="input" 
+              value={selectedCategory} 
+              onChange={e => setSelectedCategory(e.target.value)}
+              style={{ width: '100%', height: 32, padding: '4px 8px' }}
+            >
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 10, color: 'var(--muted)' }}>Assign Parser Function</label>
+          <select 
+            className="input" 
+            value={selectedParser} 
+            onChange={e => setSelectedParser(e.target.value)}
+            style={{ width: '100%', height: 32, padding: '4px 8px' }}
+          >
+            {parsers.map(p => {
+              const name = p.func_name || p.title
+              return <option key={name} value={name}>{name} ({p.title})</option>
+            })}
+          </select>
+        </div>
+
+        <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start', marginTop: 4 }}>
+          Map Command & Parser
+        </button>
+      </form>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 600 }}>Active Mapping Table</div>
+        <div style={{ overflowX: 'auto', border: '1px solid var(--line)', borderRadius: 6 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--line)' }}>
+                <th style={{ padding: '8px 10px', textAlign: 'left' }}>CLI Command</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left' }}>Parser Function</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left' }}>Category</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(mapping).map(([cmd, info]) => {
+                const matched = parsers.find(p => p.func_name === info.parser_func || p.title === info.parser_func)
+                const paramCount = matched && matched.fields ? matched.fields.length : 0
+                return (
+                  <tr key={cmd} style={{ borderBottom: '1px solid var(--line)' }}>
+                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>{cmd}</td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <div>{info.parser_func}</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{paramCount} params</div>
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <span style={{ fontSize: 10, background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 4 }}>
+                        {info.category}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <button 
+                          className="btn" 
+                          onClick={() => handleSyncSchema(cmd, info)}
+                          title="Auto-sync parsed parameters to Category Schema"
+                          style={{ padding: '2px 8px', fontSize: 10 }}
+                        >
+                          Sync Schema
+                        </button>
+                        <button 
+                          onClick={() => handleRemoveMapping(cmd)}
+                          style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer', fontSize: 14 }}
+                          title="Remove Mapping"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+              {Object.keys(mapping).length === 0 && (
+                <tr>
+                  <td colSpan="4" style={{ padding: 12, textAlign: 'center', color: 'var(--muted)' }}>No commands mapped yet.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {msg && (
+        <div style={{
+          fontSize: 12,
+          color: msg.startsWith('✓') ? 'var(--status-ok)' : 'var(--accent-rose)'
+        }}>
+          {msg}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ====== Main Admin Page ======
 export default function AdminPage({ apiBase, chatbotApi }) {
   const [allNodes, setAllNodes] = useState([])
@@ -1191,6 +1767,9 @@ export default function AdminPage({ apiBase, chatbotApi }) {
             <ManageTeamsSection apiBase={apiBase} onTeamChange={refresh} />
             <ManageUsersSection apiBase={apiBase} chatbotApi={chatbotApi} refreshKey={refreshKey} />
             <ManageDeviceTeamsSection apiBase={apiBase} refreshKey={refreshKey} onTeamChange={refresh} />
+            <ManageApiKeysSection apiBase={apiBase} />
+            <ManageSchemaSection apiBase={apiBase} />
+            <ManageCommandParserSection apiBase={apiBase} />
           </div>
         </>
       )}

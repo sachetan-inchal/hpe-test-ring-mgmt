@@ -685,43 +685,6 @@ export default function SSHRingPage({ apiBase }) {
           </h2>
 
           <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Device Kind</label>
-                <select
-                  value={deviceKind}
-                  onChange={(e) => setDeviceKind(e.target.value)}
-                  style={{
-                    width: '100%', padding: '9px 12px', borderRadius: 8,
-                    border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
-                    color: 'var(--foreground)', outline: 'none'
-                  }}
-                >
-                  <option value="real" style={{ background: '#1a1a1a', color: '#fff' }}>Real SSH Device</option>
-                  <option value="mock" style={{ background: '#1a1a1a', color: '#fff' }}>Virtual / Mock Device</option>
-                </select>
-              </div>
-
-              {deviceKind === 'mock' && (
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: 4 }}>Vsan Device Type</label>
-                  <select
-                    value={vsanDeviceType}
-                    onChange={(e) => setVsanDeviceType(e.target.value)}
-                    style={{
-                      width: '100%', padding: '9px 12px', borderRadius: 8,
-                      border: '1px solid rgba(1, 169, 130, 0.3)', background: 'rgba(0, 0, 0, 0.2)',
-                      color: 'var(--foreground)', outline: 'none'
-                    }}
-                  >
-                    <option value="host" style={{ background: '#1a1a1a', color: '#fff' }}>Compute Host</option>
-                    <option value="array" style={{ background: '#1a1a1a', color: '#fff' }}>Array System</option>
-                    <option value="switch" style={{ background: '#1a1a1a', color: '#fff' }}>Fibre Channel Switch</option>
-                    <option value="custom" style={{ background: '#1a1a1a', color: '#fff' }}>Custom Mock Outputs</option>
-                  </select>
-                </div>
-              )}
-            </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ flex: 2 }}>

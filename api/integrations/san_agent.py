@@ -22,6 +22,9 @@ from discovery.parsers.sim_parser import parse_sim_array_output
 
 ALLOWED_COMMANDS = frozenset(HPE_COMMANDS) | frozenset({
     "checkhealth", "cli checkhealth", "showversion", "showportdev",
+    "uname", "uname -a", "hostname", "ip addr", "ip addr show", "ip link",
+    "multipath", "multipath -ll", "Get-PhysicalDisk", "Get-ComputerInfo", "Get-HBaPort",
+    "df", "df -h", "free", "free -m", "cat /etc/os-release"
 })
 
 FORBIDDEN_PATTERNS = re.compile(
@@ -111,29 +114,6 @@ class SanAgent:
     def _load_topology_context(self) -> str:
         """Dynamic lookup of all devices, kinds, teams, and IP distribution context."""
         devices = []
-        # Mock/virtual devices
-        try:
-            raw_virtuals = self.list_devices() or []
-            for d in raw_virtuals:
-                if isinstance(d, dict):
-                    devices.append({
-                        "device_name": d.get("name"),
-                        "device_kind": "mock (virtual)",
-                        "team": d.get("team") or d.get("owner_team") or "real-devices",
-                        "inband_ip": d.get("ip") or d.get("ip_address"),
-                        "oob_ip": d.get("oob_ip") or "None"
-                    })
-                elif isinstance(d, str):
-                    name = d.replace(".txt", "")
-                    devices.append({
-                        "device_name": name,
-                        "device_kind": "mock (virtual)",
-                        "team": "real-devices",
-                        "inband_ip": d,
-                        "oob_ip": "None"
-                    })
-        except Exception:
-            pass
 
         # Real registered devices from MongoDB
         try:
@@ -274,6 +254,11 @@ PERSISTENT USER MEMORY (User preferences, context, and facts):
 
 INVENTORY TOPO (Devices available in the network):
 {topology_context}
+
+CRITICAL OFFLINE FALLBACK RULES:
+1. If the Neo4j database is offline or not connected (e.g., if you are running in offline/non-connected mode), DO NOT attempt to run any Cypher queries using run_cypher.
+2. For simple counting, inventory, or IP queries (e.g. "how many arrays do we have", "what switches are in the network"): Count or locate them directly from the INVENTORY TOPO device list provided above. Do not execute SSH commands or Cypher queries for this.
+3. For diagnostics/details (e.g. details/health of nodes or disks) when Neo4j is offline: Run SSH commands (ssh_execute or ssh_custom_execute) on the target devices, read their raw CLI outputs, and extract the answer directly from the raw outputs without calling parse_and_persist (since parse_and_persist requires Neo4j to be online).
 
 CALLABLE TOOLS:
 1. ssh_execute(device_name, ip, command)
@@ -703,6 +688,11 @@ PERSISTENT USER MEMORY (User preferences, context, and facts):
 INVENTORY TOPO:
 {topology_context}
 
+CRITICAL OFFLINE FALLBACK RULES:
+1. If the Neo4j database is offline or not connected (e.g., if you are running in offline/non-connected mode), DO NOT attempt to run any Cypher queries using run_cypher.
+2. For simple counting, inventory, or IP queries (e.g. "how many arrays do we have", "what switches are in the network"): Count or locate them directly from the INVENTORY TOPO device list provided above. Do not execute SSH commands or Cypher queries for this.
+3. For diagnostics/details (e.g. details/health of nodes or disks) when Neo4j is offline: Run SSH commands (ssh_execute or ssh_custom_execute) on the target devices, read their raw CLI outputs, and extract the answer directly from the raw outputs without calling parse_and_persist (since parse_and_persist requires Neo4j to be online).
+
 CALLABLE TOOLS:
 1. ssh_execute(device_name, ip, command)
    - Establish connection to an INVENTORY TOPO device using default/pre-configured simulator credentials and run a single CLI command.
@@ -726,6 +716,7 @@ CRITICAL REFLECTION RULES:
 1. If you have already successfully run the commands requested by the user and have their outputs in the observations, you have all the facts. Set "done": true.
 2. DO NOT repeat the same tool calls with the same arguments. If a tool call returned a result, repeating it is redundant.
 3. If the user's question has been answered by the gathered observations, set "done": true immediately.
+4. If Neo4j was reported as disconnected or unavailable and the user's question can be answered from the INVENTORY TOPO list (e.g. counting arrays, switches, or hosts), set "done": true immediately and answer using that list.
 
 Return ONLY a JSON object:
 {{
@@ -780,7 +771,8 @@ CRITICAL RULES:
 2. If the user query is a simple greeting, statement of identity (e.g. telling you their name), or asking if you remember them, respond directly, warmly, and professionally (e.g., "Hello Sachetan, I have updated your profile context..."). You do NOT need to write a full storage system diagnostic report for non-diagnostic queries.
 3. NEVER mention JSON fields, tool_calls, database columns, parser internals, or raw dictionaries.
 4. Base everything solely on the observations, facts, and persistent memory gathered. No hallucinations.
-5. For storage diagnostic queries, format all tabular output using standard GitHub Flavored Markdown pipe tables and provide a clear, actionable recommendation at the end."""
+5. For storage diagnostic queries, format all tabular output using standard GitHub Flavored Markdown pipe tables and provide a clear, actionable recommendation at the end.
+6. DO NOT write responses in the format of an email, letter, or memo. DO NOT include greetings, signatures, or placeholders like "Best regards, [Your Name]", "Sincerely, [Your Name]", or "[Your Name]" at the end. Deliver the answer directly.`"""
 
     def _llm_synthesize(self, query: str, observations: list, steps: list,
                         use_ollama=False, disable_think=False, stream=False, ollama_model=None) -> str:
@@ -789,8 +781,10 @@ CRITICAL RULES:
 
         user_memory_content = getattr(self, "user_memory_content", "None recorded yet.")
 
+        topology_context = self._load_topology_context()
         user_msg = (
             f"PERSISTENT USER MEMORY:\n{user_memory_content}\n\n"
+            f"INVENTORY TOPO (Devices available in the network):\n{topology_context}\n\n"
             f"OBSERVATIONS GATHERED:\n{json.dumps(observations, indent=2, default=str)}\n\n"
             f"USER QUESTION:\n{query}"
         )
@@ -810,7 +804,8 @@ CRITICAL RULES:
     def run(self, query: str, array_hint: Optional[str] = None,
             on_step: Optional[callable] = None,
             use_ollama=False, disable_think=False, ollama_model: Optional[str] = None,
-            request_id: Optional[str] = None, username: str = "Guest", stream=False) -> dict:
+            request_id: Optional[str] = None, username: str = "Guest", stream=False,
+            skip_plan: bool = False) -> dict:
         self.on_step = on_step
         self.request_id = request_id
         self.notebook = {}
@@ -822,13 +817,15 @@ CRITICAL RULES:
                                      ollama_model=ollama_model,
                                      request_id=request_id,
                                      username=username,
-                                     stream=stream)
+                                     stream=stream,
+                                     skip_plan=skip_plan)
         finally:
             self.on_step = None
 
     def _run_agentic(self, query: str, array_hint: Optional[str] = None,
                       use_ollama=False, disable_think=False, ollama_model: Optional[str] = None,
-                      request_id: Optional[str] = None, username: str = "Guest", stream=False) -> dict:
+                      request_id: Optional[str] = None, username: str = "Guest", stream=False,
+                      skip_plan: bool = False) -> dict:
         self.username = username
         
         # Load user's persistent memory profile from MongoDB
@@ -855,7 +852,6 @@ CRITICAL RULES:
             if stream:
                 callback = getattr(self, "on_synthesis_chunk", None)
                 if callback: callback(resp_text, False)
-            self._step(steps, "final", "Polite response", resp_text)
             return {
                 "answer": resp_text, "steps": steps, "cypher": None, "table": [],
                 "graph": {"nodes": [], "edges": []}, "array": None,
@@ -866,8 +862,13 @@ CRITICAL RULES:
         # 2. Load topology context
         topology_context = self._load_topology_context()
 
-        # 3. Plan Initial Tool Calls
-        plan = self._llm_plan(query, topology_context, steps, use_ollama=use_ollama, disable_think=disable_think, ollama_model=ollama_model)
+        # 3. Plan Initial Tool Calls (skip if user already approved a plan in Manual mode)
+        if skip_plan:
+            # Re-plan silently without emitting the Planning/Plan Approved steps again
+            plan = self._llm_plan(query, topology_context, [], use_ollama=use_ollama, disable_think=disable_think, ollama_model=ollama_model)
+            self._step(steps, "thinking", "Plan Resumed", "User approved plan. Executing scheduled tool calls...")
+        else:
+            plan = self._llm_plan(query, topology_context, steps, use_ollama=use_ollama, disable_think=disable_think, ollama_model=ollama_model)
         tool_calls = plan.get("tool_calls") or []
 
         # 4. Loop: Execute and Reflect

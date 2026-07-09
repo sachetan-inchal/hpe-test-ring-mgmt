@@ -21,9 +21,26 @@ export default function NodeCard({ node, connections = [], onDecommissionToggle,
     );
   }
 
+  const [schema, setSchema] = useState({});
+
+  useEffect(() => {
+    fetch(`http://${window.location.hostname}:5005/api/schema/fields`)
+      .then(r => r.json())
+      .then(data => setSchema(data || {}))
+      .catch(err => console.error("Failed to load schema", err));
+  }, []);
+
   // Group dynamic properties to display
   const excludeProps = ['id', 'name', 'type', 'status', 'category', 'parentId', 'isDecommissioned'];
-  const details = Object.entries(node).filter(([k, v]) => !excludeProps.includes(k) && v !== undefined);
+  
+  // Combine keys from schema and those currently present on the node
+  const schemaFields = schema[node.type] || [];
+  const allFieldKeys = Array.from(new Set([
+    ...schemaFields.filter(f => !excludeProps.includes(f)),
+    ...Object.keys(node).filter(k => !excludeProps.includes(k))
+  ]));
+
+  const details = allFieldKeys.map(k => [k, node[k]]);
 
   return (
     <aside className="glass-card" style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '20px' }}>
@@ -81,33 +98,41 @@ export default function NodeCard({ node, connections = [], onDecommissionToggle,
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
-          {details.length > 0 ? details.map(([key, value]) => (
-            <div key={key} style={{ borderRadius: 8, border: `1px solid ${isEditing ? 'var(--accent-blue)' : 'var(--line)'}`, background: 'var(--surface-1)', padding: 10 }}>
-              <p style={{ marginBottom: 4, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>
-                {key.replace(/([A-Z])/g, ' $1').trim()}
-              </p>
-              {isEditing ? (
-                <input
-                  className="input"
-                  style={{ width: '100%', fontSize: 14, fontWeight: 500, padding: '4px 8px' }}
-                  value={editForm[key] !== undefined ? String(editForm[key]) : ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const parsedVal = !isNaN(Number(val)) && val.trim() !== '' ? Number(val) : val;
-                    setEditForm(prev => ({ ...prev, [key]: parsedVal }));
-                  }}
-                />
-              ) : (
-                <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={String(value)}>
-                  {String(value)}
-                </p>
-              )}
-            </div>
-          )) : (
-             <p style={{ gridColumn: 'span 2', fontSize: 14, color: 'var(--muted)' }}>No additional properties available.</p>
-          )}
-        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
+          <tbody>
+            {details.length > 0 ? details.map(([key, value]) => (
+              <tr key={key} style={{ borderBottom: '1px solid var(--line)' }}>
+                <td style={{ padding: '8px 4px', fontSize: 12, fontWeight: 600, color: 'var(--muted)', width: '40%', wordBreak: 'break-word', verticalAlign: 'middle' }}>
+                  {key.replace(/([A-Z])/g, ' $1').trim()}
+                </td>
+                <td style={{ padding: '8px 4px', fontSize: 12, verticalAlign: 'middle' }}>
+                  {isEditing ? (
+                    <input
+                      className="input"
+                      style={{ width: '100%', fontSize: 12, fontWeight: 500, padding: '4px 8px' }}
+                      value={editForm[key] !== undefined ? String(editForm[key]) : ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const parsedVal = !isNaN(Number(val)) && val.trim() !== '' ? Number(val) : val;
+                        setEditForm(prev => ({ ...prev, [key]: parsedVal }));
+                      }}
+                    />
+                  ) : (
+                    <span style={{ fontWeight: 500, color: 'var(--foreground)', wordBreak: 'break-word' }} title={value !== undefined && value !== null ? String(value) : ""}>
+                      {value !== undefined && value !== null ? String(value) : "—"}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan="2" style={{ padding: '12px 4px', fontSize: 12, color: 'var(--muted)' }}>
+                  No additional properties available.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
 
         {isEditing && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
@@ -135,7 +160,9 @@ export default function NodeCard({ node, connections = [], onDecommissionToggle,
           <>
             <h3 style={{ marginBottom: 12, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--muted)' }}>Related Devices</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
-              {connections.map((conn) => (
+              {connections
+                .filter((conn) => conn.type !== "Port" && conn.type?.toLowerCase() !== "port")
+                .map((conn) => (
                 <div key={conn.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface-1)', padding: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ width: 6, height: 6, borderRadius: '50%', background: conn.status === 'normal' ? 'var(--status-ok)' : conn.status === 'degraded' ? 'var(--status-warn)' : 'var(--status-critical)' }} />
