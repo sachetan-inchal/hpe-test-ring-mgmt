@@ -1318,6 +1318,80 @@ def list_ssh_credentials():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/credentials/update", methods=["POST"])
+def update_ssh_credentials():
+    """Partial update of a credential record. Only updates fields that are explicitly provided.
+    Password is optional - if empty/absent, the existing password is preserved."""
+    data = request.json or {}
+    original_name = data.get("original_name") or data.get("device_name")
+    if not original_name:
+        return jsonify({"error": "original_name is required"}), 400
+
+    try:
+        if not mongo.available:
+            return jsonify({"error": "MongoDB unavailable"}), 503
+
+        db = mongo.db
+        existing = db.ssh_credentials.find_one({"device_name": original_name})
+        if not existing:
+            return jsonify({"error": f"Device '{original_name}' not found"}), 404
+
+        updates = {}
+
+        # Only update fields that were explicitly sent
+        field_map = {
+            "device_name": "device_name",
+            "ip": "ip",
+            "ip_address": "ip",
+            "port": "port",
+            "username": "username",
+            "dns_name": "dns_name",
+            "dns_server": "dns_server",
+            "category": "category",
+            "team": "team",
+            "connected_to": "connected_to",
+            "oob_ip": "oob_ip",
+        }
+        for src, dst in field_map.items():
+            if src in data and data[src] is not None:
+                val = data[src]
+                if dst == "port":
+                    try:
+                        val = int(val)
+                    except Exception:
+                        val = 22
+                updates[dst] = val
+
+        # Handle password separately: only update if a non-empty value was provided
+        new_password = data.get("password", "")
+        if new_password:
+            updates["password"] = _encrypt_password(new_password)
+
+        if not updates:
+            return jsonify({"status": "no_change", "message": "Nothing to update"})
+
+        # ── Clear pending flags independently based on what is now filled ──
+        # Use the newly-sent value OR fall back to what was already stored.
+        effective_ip = updates.get("ip") or existing.get("ip", "")
+        effective_username = updates.get("username") or existing.get("username", "")
+        effective_password = updates.get("password") or existing.get("password", "")  # encrypted
+
+        if effective_ip:
+            updates["ip_pending"] = False
+        if effective_username:
+            updates["username_pending"] = False
+        if effective_password:
+            updates["password_pending"] = False
+
+        db.ssh_credentials.update_one(
+            {"device_name": original_name},
+            {"$set": updates}
+        )
+        return jsonify({"status": "updated", "message": f"Device '{original_name}' updated"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/credentials/delete", methods=["POST"])
 def delete_ssh_credentials():
     """Delete saved SSH credentials."""
@@ -1733,7 +1807,9 @@ def ssh_ring_discover_all():
             device_result["status"] = status
 
             # If it is a real device, parse and save it exclusively!
-            if device_kind == "real" and status in ("success", "warning"):
+            # Ensure we only parse if the SSH connection actually succeeded.
+            ssh_succeeded = LAST_DISCOVERY_TRACE["steps"]["ssh_connect"]["status"] == "success"
+            if device_kind == "real" and status in ("success", "warning") and ssh_succeeded:
                 raw_outputs = {cmd: r.get("stdout", "") for cmd, r in results.items()}
                 parsed = None
                 
@@ -1799,96 +1875,147 @@ def ssh_ring_discover_all():
                                 try:
                                     db = real_mongo.db if hasattr(real_mongo, "db") else real_mongo.client.hpe_san
                                     array_name = parsed.get("name") or device_name
+
+                                    # Determine team from parent credential
+                                    parent_team = "real-devices"
+                                    parent_cred = db.ssh_credentials.find_one({"ip": ip})
+                                    if parent_cred and parent_cred.get("team"):
+                                        parent_team = parent_cred.get("team")
+
+                                    registered_count = 0
+
+                                    # Collect hosts/switches from parsed output
+                                    parsed_hosts = parsed.get("hosts", []) or []
+                                    parsed_switches = parsed.get("switches", []) or []
+
+                                    for h in parsed_hosts:
+                                        dev_name = h.get("name", "").strip()
+                                        if not dev_name:
+                                            continue
+                                        existing = db.ssh_credentials.find_one({"device_name": dev_name})
+                                        if existing:
+                                            # Device already registered — just ensure connected_to is set
+                                            if not existing.get("connected_to"):
+                                                db.ssh_credentials.update_one(
+                                                    {"_id": existing["_id"]},
+                                                    {"$set": {"connected_to": array_name}}
+                                                )
+                                                log.info(f"[api/discover] Updated connected_to for existing host {existing.get('device_name')} → {array_name}")
+                                        else:
+                                            db.ssh_credentials.insert_one({
+                                                "device_name": dev_name,
+                                                "ip": "",
+                                                "port": 22,
+                                                "username": "",
+                                                "password": "",
+                                                "device_kind": "real",
+                                                "category": "Host",
+                                                "team": parent_team,
+                                                "connected_to": array_name,
+                                                "ip_pending": True,
+                                                "password_pending": True,
+                                                "username_pending": True
+                                            })
+                                            log.info(f"[api/discover] Auto-registered host {dev_name} (from showhost) as pending.")
+                                            registered_count += 1
+
+                                    for sw in parsed_switches:
+                                        dev_name = sw.get("name", "").strip()
+                                        if not dev_name:
+                                            continue
+                                        existing_sw = db.ssh_credentials.find_one({"device_name": dev_name})
+                                        if existing_sw:
+                                            if not existing_sw.get("connected_to"):
+                                                db.ssh_credentials.update_one(
+                                                    {"_id": existing_sw["_id"]},
+                                                    {"$set": {"connected_to": array_name}}
+                                                )
+                                        else:
+                                            db.ssh_credentials.insert_one({
+                                                "device_name": dev_name,
+                                                "ip": "",
+                                                "port": 22,
+                                                "username": "",
+                                                "password": "",
+                                                "device_kind": "real",
+                                                "category": "Switch",
+                                                "team": parent_team,
+                                                "connected_to": array_name,
+                                                "ip_pending": True,
+                                                "password_pending": True,
+                                                "username_pending": True
+                                            })
+                                            log.info(f"[api/discover] Auto-registered switch {dev_name} (from showswitch) as pending.")
+                                            registered_count += 1
+
+                                    # ── SECONDARY: Also check virtual_network for simulated topology ──
+                                    # This handles peer arrays and any devices known to the simulator.
                                     cleaned_array_name = array_name.lower().replace("-", "")
-                                    
-                                    # List simulator devices to map connections
-                                    v_net = globals().get("virtual_network")
-                                    if v_net:
-                                        all_devices = v_net.list_devices()
-                                        
-                                        # Find array metadata in simulator
-                                        array_meta = {}
-                                        for d_item in all_devices:
-                                            if d_item.get("name", "").lower().replace("-", "") == cleaned_array_name:
-                                                array_meta = d_item
-                                                break
-                                                
-                                        # Determine team of parent
-                                        parent_team = "real-devices"
-                                        parent_cred = db.ssh_credentials.find_one({"ip": ip})
-                                        if parent_cred and parent_cred.get("team"):
-                                            parent_team = parent_cred.get("team")
-                                            
-                                        # 1. Peer Arrays
-                                        if array_meta:
-                                            for peer_ip in array_meta.get("connected_to", []):
-                                                peer_meta = next((x for x in all_devices if x.get("ip") == peer_ip), {})
-                                                peer_name = peer_meta.get("name") or f"Peer-{peer_ip}"
-                                                existing = db.ssh_credentials.find_one({"device_name": peer_name})
-                                                if not existing:
-                                                    db.ssh_credentials.insert_one({
-                                                        "device_name": peer_name,
-                                                        "ip": "",
-                                                        "port": 22,
-                                                        "username": "",
-                                                        "password": "",
-                                                        "device_kind": "real",
-                                                        "category": "Array",
-                                                        "team": parent_team,
-                                                        "connected_to": array_name,
-                                                        "ip_pending": True,
-                                                        "password_pending": True,
-                                                        "username_pending": True
-                                                    })
-                                                    log.info(f"[api/discover] Auto-registered peer array {peer_name} as pending.")
-                                                    
-                                        # 2. Switches & Hosts
-                                        for d_item in all_devices:
-                                            parent = d_item.get("parent_array", "")
-                                            if parent and parent.lower().replace("-", "") == cleaned_array_name:
-                                                dev_name = d_item.get("name", "")
-                                                if dev_name:
-                                                    dtype = d_item.get("type", "host")
-                                                    cat = "Switch" if dtype == "switch" else "Host"
-                                                    
-                                                    # Connected To mapping
-                                                    if cat == "Host":
-                                                        connected_to_val = array_name
-                                                        try:
-                                                            import json as _json
-                                                            import os as _os
-                                                            topo_path = _os.path.join(_os.path.dirname(__file__), "..", "san-lab", "network_topology.json")
-                                                            if not _os.path.exists(topo_path):
-                                                                topo_path = _os.path.join(_os.path.dirname(__file__), "..", "network_topology.json")
-                                                            if _os.path.exists(topo_path):
-                                                                with open(topo_path) as f_topo:
-                                                                    topo_data = _json.load(f_topo)
-                                                                for arr_t in topo_data.get("arrays", []):
-                                                                    for h_t in arr_t.get("hosts", []):
-                                                                        if h_t["name"].lower() == dev_name.lower():
-                                                                            connected_to_val = h_t.get("via_switch", array_name)
-                                                        except Exception:
-                                                            pass
-                                                    else:
-                                                        connected_to_val = array_name
-                                                        
-                                                    existing = db.ssh_credentials.find_one({"device_name": dev_name})
-                                                    if not existing:
-                                                        db.ssh_credentials.insert_one({
-                                                            "device_name": dev_name,
-                                                            "ip": "",
-                                                            "port": 22,
-                                                            "username": "",
-                                                            "password": "",
-                                                            "device_kind": "real",
-                                                            "category": cat,
-                                                            "team": parent_team,
-                                                            "connected_to": connected_to_val,
-                                                            "ip_pending": True,
-                                                            "password_pending": True,
-                                                            "username_pending": True
-                                                        })
-                                                        log.info(f"[api/discover] Auto-registered {dev_name} as pending.")
+                                    try:
+                                        all_devices = virtual_network.list_devices()
+                                    except Exception:
+                                        all_devices = []
+
+                                    array_meta = next(
+                                        (d for d in all_devices if d.get("name", "").lower().replace("-", "") == cleaned_array_name),
+                                        {}
+                                    )
+
+                                    # Peer arrays from simulator metadata
+                                    for peer_ip in array_meta.get("connected_to", []):
+                                        peer_meta = next((x for x in all_devices if x.get("ip") == peer_ip), {})
+                                        peer_name = peer_meta.get("name") or f"Peer-{peer_ip}"
+                                        existing = db.ssh_credentials.find_one({"device_name": peer_name})
+                                        if not existing:
+                                            db.ssh_credentials.insert_one({
+                                                "device_name": peer_name,
+                                                "ip": "",
+                                                "port": 22,
+                                                "username": "",
+                                                "password": "",
+                                                "device_kind": "real",
+                                                "category": "Array",
+                                                "team": parent_team,
+                                                "connected_to": array_name,
+                                                "ip_pending": True,
+                                                "password_pending": True,
+                                                "username_pending": True
+                                            })
+                                            log.info(f"[api/discover] Auto-registered peer array {peer_name} as pending.")
+                                            registered_count += 1
+
+                                    # Switches & hosts from simulator parent_array metadata
+                                    for d_item in all_devices:
+                                        parent = d_item.get("parent_array", "")
+                                        if not parent or parent.lower().replace("-", "") != cleaned_array_name:
+                                            continue
+                                        dev_name = d_item.get("name", "")
+                                        if not dev_name:
+                                            continue
+                                        # Skip if already registered from parsed output
+                                        existing = db.ssh_credentials.find_one({"device_name": dev_name})
+                                        if existing:
+                                            continue
+                                        dtype = d_item.get("type", "host")
+                                        cat = "Switch" if dtype == "switch" else "Host"
+                                        db.ssh_credentials.insert_one({
+                                            "device_name": dev_name,
+                                            "ip": "",
+                                            "port": 22,
+                                            "username": "",
+                                            "password": "",
+                                            "device_kind": "real",
+                                            "category": cat,
+                                            "team": parent_team,
+                                            "connected_to": array_name,
+                                            "ip_pending": True,
+                                            "password_pending": True,
+                                            "username_pending": True
+                                        })
+                                        log.info(f"[api/discover] Auto-registered {dev_name} (sim topology) as pending.")
+                                        registered_count += 1
+
+                                    log.info(f"[api/discover] Total auto-registered for {array_name}: {registered_count} devices.")
                                 except Exception as e_reg:
                                     log.error(f"Failed to auto-register discovered peers/devices: {e_reg}")
                         else:
@@ -4158,24 +4285,26 @@ def patch_graph_node(element_id):
     if mongo.available:
         try:
             db = mongo.db
-            doc = db.sandatas.find_one({})
-            if doc:
-                nodes_list = doc.setdefault("nodes", [])
-                for node in nodes_list:
-                    if str(node.get("id")) == element_id:
-                        if deco is not None:
-                            node["isDecommissioned"] = bool(deco)
-                            # Cascade to children
-                            for child in nodes_list:
-                                if str(child.get("parentId")) == element_id:
-                                    child["isDecommissioned"] = bool(deco)
-                        for k, v in props.items():
-                            if k in allowed and _valid_prop_key(k):
-                                node[k] = v
-                from datetime import datetime
-                doc["lastUpdated"] = datetime.utcnow()
-                db.sandatas.replace_one({}, doc, upsert=True)
-                log.info(f"[mongo] Updated node '{element_id}' in MongoDB.")
+            for collection_name in ["sandatas", "real_sandatas"]:
+                doc = db[collection_name].find_one({})
+                if doc:
+                    nodes_list = doc.setdefault("nodes", [])
+                    for node in nodes_list:
+                        # Match by id or name
+                        if str(node.get("id")) == element_id or str(node.get("name")) == element_id:
+                            if deco is not None:
+                                node["isDecommissioned"] = bool(deco)
+                                # Cascade to children
+                                for child in nodes_list:
+                                    if str(child.get("parentId")) == element_id:
+                                        child["isDecommissioned"] = bool(deco)
+                            for k, v in props.items():
+                                if k in allowed and _valid_prop_key(k):
+                                    node[k] = v
+                    from datetime import datetime
+                    doc["lastUpdated"] = datetime.utcnow()
+                    db[collection_name].replace_one({}, doc, upsert=True)
+            log.info(f"[mongo] Updated node '{element_id}' in MongoDB.")
         except Exception as mongo_err:
             log.warning(f"[mongo] Failed to update node in MongoDB: {mongo_err}")
 
@@ -4191,10 +4320,10 @@ def patch_graph_node(element_id):
                 if k not in allowed or not _valid_prop_key(k):
                     continue
                 pk = "pv_" + k
-                sets.append(f"n.{k} = ${pk}")
+                sets.append(f"n.`{k}` = ${pk}")
                 params[pk] = v
             if sets:
-                cypher = f"MATCH (n) WHERE elementId(n) = $eid SET {', '.join(sets)} RETURN elementId(n) AS element_id"
+                cypher = f"MATCH (n) WHERE elementId(n) = $eid OR n.id = $eid OR n.name = $eid OR n.ip_address = $eid SET {', '.join(sets)} RETURN elementId(n) AS element_id"
                 neo4j._run(cypher, **params)
         except Exception as ex:
             log.warning(f"Neo4j PATCH failed: {ex}")
@@ -4208,29 +4337,34 @@ def delete_graph_node(element_id):
     if mongo.available:
         try:
             db = mongo.db
-            doc = db.sandatas.find_one({})
-            if doc:
-                nodes_list = doc.get("nodes", [])
-                edges_list = doc.get("edges", [])
-                doc["nodes"] = [n for n in nodes_list if str(n.get("id")) != element_id]
-                doc["edges"] = [
-                    e for e in edges_list 
-                    if str(e.get("from")) != element_id 
-                    and str(e.get("to")) != element_id 
-                    and str(e.get("source")) != element_id 
-                    and str(e.get("target")) != element_id
-                ]
-                from datetime import datetime
-                doc["lastUpdated"] = datetime.utcnow()
-                db.sandatas.replace_one({}, doc, upsert=True)
-                log.info(f"[mongo] Deleted node '{element_id}' from MongoDB.")
+            for collection_name in ["sandatas", "real_sandatas"]:
+                doc = db[collection_name].find_one({})
+                if doc:
+                    nodes_list = doc.get("nodes", [])
+                    edges_list = doc.get("edges", [])
+                    # Remove nodes where id or name match
+                    doc["nodes"] = [n for n in nodes_list if str(n.get("id")) != element_id and str(n.get("name")) != element_id]
+                    doc["edges"] = [
+                        e for e in edges_list 
+                        if str(e.get("from")) != element_id 
+                        and str(e.get("to")) != element_id 
+                        and str(e.get("source")) != element_id 
+                        and str(e.get("target")) != element_id
+                    ]
+                    from datetime import datetime
+                    doc["lastUpdated"] = datetime.utcnow()
+                    db[collection_name].replace_one({}, doc, upsert=True)
+            
+            # Also ensure it is removed from the registry (ssh_credentials) to prevent it re-appearing
+            db.ssh_credentials.delete_one({"$or": [{"device_name": element_id}, {"ip": element_id}, {"wwn": element_id}]})
+            log.info(f"[mongo] Deleted node '{element_id}' from MongoDB.")
         except Exception as mongo_err:
             log.warning(f"[mongo] Failed to delete node from MongoDB: {mongo_err}")
 
     # 2. Delete from Neo4j (best effort)
     if neo4j.available:
         try:
-            neo4j._run("MATCH (n) WHERE elementId(n) = $eid DETACH DELETE n", eid=element_id)
+            neo4j._run("MATCH (n) WHERE elementId(n) = $eid OR n.id = $eid OR n.name = $eid OR n.ip_address = $eid DETACH DELETE n", eid=element_id)
         except Exception as ex:
             log.warning(f"Neo4j DELETE failed: {ex}")
             

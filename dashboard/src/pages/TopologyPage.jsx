@@ -58,6 +58,22 @@ function PieChart({ data, size = 80 }) {
           const percentage = item.value / total;
           const angle = percentage * 360;
           
+          if (percentage >= 0.999) {
+            return (
+              <circle
+                key={index}
+                cx="50"
+                cy="50"
+                r="40"
+                fill={item.color}
+                stroke="var(--background, #0d1117)"
+                strokeWidth="1.5"
+              >
+                <title>{`${item.label}: ${item.value} (100%)`}</title>
+              </circle>
+            );
+          }
+
           const x1 = 50 + 40 * Math.cos((accumulatedAngle * Math.PI) / 180);
           const y1 = 50 + 40 * Math.sin((accumulatedAngle * Math.PI) / 180);
           
@@ -227,29 +243,53 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
     }
 
     // Count real arrays, switches, hosts from teamNodes
-    const arrays = teamNodes.filter(n => (n.type || '').toLowerCase().includes('array')).length;
-    const switches = teamNodes.filter(n => (n.type || '').toLowerCase().includes('switch')).length;
-    const hosts = teamNodes.filter(n => (n.type || '').toLowerCase().includes('host')).length;
+    const arrays = teamNodes.filter(n => (n.type || n.label || '').toLowerCase().includes('array')).length;
+    const switches = teamNodes.filter(n => (n.type || n.label || '').toLowerCase().includes('switch')).length;
+    const hosts = teamNodes.filter(n => (n.type || n.label || '').toLowerCase().includes('host')).length;
     const total = teamNodes.length;
 
-    // Let's seed specific dummy data based on the team name/id to make it look realistic and dynamic
-    const seed = (teamId || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-    
-    // Generation counts
-    const g9 = Math.round(total * (0.3 + (seed % 10) / 50));
-    const g10 = Math.round(total * (0.5 - (seed % 10) / 100));
-    const g11 = Math.max(0, total - g9 - g10);
+    // Calculate real generation counts from host nodes names/labels
+    let g9 = 0;
+    let g10 = 0;
+    let g11 = 0;
+    teamNodes.forEach(n => {
+      const type = (n.type || n.label || '').toLowerCase();
+      if (type.includes('host')) {
+        const name = (n.name || n.id || '').toLowerCase();
+        if (name.includes('g9')) {
+          g9++;
+        } else if (name.includes('g10')) {
+          g10++;
+        } else if (name.includes('g11')) {
+          g11++;
+        } else {
+          g10++; // fallback default to gen 10
+        }
+      }
+    });
 
-    // Array node node-count split
-    const twoNode = Math.round(arrays * (0.6 + (seed % 5) / 25));
-    const fourNode = Math.max(0, arrays - twoNode);
-
-    // Fabric topology split (switched vs switchless)
-    const switched = Math.round(total * (0.8 - (seed % 4) / 40));
-    const switchless = Math.max(0, total - switched);
+    // Calculate real node-count split from array nodes properties
+    let twoNode = 0;
+    let fourNode = 0;
+    teamNodes.forEach(n => {
+      const type = (n.type || n.label || '').toLowerCase();
+      if (type.includes('array')) {
+        const nodeCount = n.nodeCount || n.maxNodes || n.installedNodes || n.node_count || 2;
+        if (parseInt(nodeCount) === 2) {
+          twoNode++;
+        } else if (parseInt(nodeCount) === 4) {
+          fourNode++;
+        } else {
+          twoNode++;
+        }
+      }
+    });
 
     // Switch type split
-    const ethernet = Math.round(switches * (0.4 + (seed % 3) / 15));
+    const ethernet = teamNodes.filter(n => {
+      const type = (n.type || n.label || '').toLowerCase();
+      return type.includes('switch') && (n.name || n.id || '').toLowerCase().includes('eth');
+    }).length;
     const fc = Math.max(0, switches - ethernet);
 
     // Statuses
@@ -270,8 +310,6 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
       g11,
       twoNode,
       fourNode,
-      switched,
-      switchless,
       ethernet,
       fc
     };
@@ -576,7 +614,7 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
   const handleUpdate = (id, props) => {
     setData(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === id ? { ...n, ...props } : n) }))
     const { isDecommissioned, ...otherProps } = props
-    fetch(`${apiBase}/api/ontology/nodes/${id}`, {
+    fetch(`${apiBase}/api/graph/nodes/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1051,10 +1089,6 @@ export default function TopologyPage({ apiBase, chatbotApi, deviceKindMap }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textAlign: 'center' }}>Array Nodes Config</span>
                       <PieChart data={arrayNodeSplit} size={80} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textAlign: 'center' }}>Fabric Connectivity</span>
-                      <PieChart data={fabricSplit} size={80} />
                     </div>
                   </>
                 )

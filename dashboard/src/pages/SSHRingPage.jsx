@@ -110,6 +110,108 @@ export default function SSHRingPage({ apiBase }) {
   // Selection of devices in the table
   const [selectedDeviceIps, setSelectedDeviceIps] = useState(new Set())
 
+  // Inline spreadsheet edit mode
+  const [tableEditMode, setTableEditMode] = useState(false)
+  const [editRows, setEditRows] = useState([]) // shallow copy of devices for editing
+  const [tableSaving, setTableSaving] = useState(false)
+
+  const enterEditMode = () => {
+    // Store original name so renames can still find the record
+    setEditRows(devices.map(d => ({ ...d, _original_name: d.device_name, _new_password: '' })))
+    setTableEditMode(true)
+  }
+
+  const cancelEditMode = () => {
+    setEditRows([])
+    setTableEditMode(false)
+  }
+
+  const addEditRow = () => {
+    setEditRows(prev => [
+      ...prev,
+      {
+        device_name: '',
+        ip: '',
+        ip_address: '',
+        port: 22,
+        username: '',
+        _new_password: '',
+        category: 'Host',
+        team: '',
+        connected_to: '',
+        oob_ip: '',
+        device_kind: 'real',
+        _is_new: true
+      }
+    ])
+  }
+
+  const updateEditCell = (idx, field, value) => {
+    setEditRows(prev => {
+      const copy = [...prev]
+      copy[idx] = { ...copy[idx], [field]: value }
+      return copy
+    })
+  }
+
+  const saveEditMode = async () => {
+    setTableSaving(true)
+    const errors = []
+    try {
+      for (const row of editRows) {
+        const isNew = row._is_new || !row._original_name
+        const url = isNew ? `${API}/api/credentials/save` : `${API}/api/credentials/update`
+        const payload = isNew ? {
+          device_name: row.device_name,
+          ip: row.ip_address || row.ip || '',
+          dns_name: row.dns_name || '',
+          dns_server: row.dns_server || '',
+          port: row.port || 22,
+          username: row.username || '',
+          password: row._new_password || '',
+          category: row.category || 'Host',
+          team: row.team || '',
+          connected_to: row.connected_to || '',
+          oob_ip: row.oob_ip || '',
+          device_kind: row.device_kind || 'real'
+        } : {
+          original_name: row._original_name || row.device_name,
+          device_name: row.device_name,
+          ip: row.ip_address || row.ip || '',
+          dns_name: row.dns_name || '',
+          dns_server: row.dns_server || '',
+          port: row.port || 22,
+          username: row.username || '',
+          password: row._new_password || '',
+          category: row.category || 'Host',
+          team: row.team || '',
+          connected_to: row.connected_to || '',
+          oob_ip: row.oob_ip || '',
+        }
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}))
+          errors.push(`${row.device_name || 'New Device'}: ${d.error || res.status}`)
+        }
+      }
+      if (errors.length > 0) {
+        alert('Some updates failed:\n' + errors.join('\n'))
+      }
+      setTableEditMode(false)
+      setEditRows([])
+      await fetchDevices()
+    } catch (e) {
+      alert('Save failed: ' + e.message)
+    } finally {
+      setTableSaving(false)
+    }
+  }
+
   // Auto-select all preset commands when target device category changes
   useEffect(() => {
     if (targetCategory && PRESET_COMMANDS[targetCategory]) {
@@ -468,7 +570,7 @@ export default function SSHRingPage({ apiBase }) {
 
       try {
         const payload = { ips: [ipAddr] }
-        const res = await fetch(`${API}/api/discover`, {
+        const res = await fetch(`${API}/api/ssh-ring/discover`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1421,51 +1523,101 @@ export default function SSHRingPage({ apiBase }) {
           <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>
             Registered Devices
           </h2>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={() => handleDiscover(true)}
-              disabled={isDiscovering || selectedDeviceIps.size === 0}
-              style={{
-                padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
-                border: '1px solid var(--hpe-green)',
-                background: selectedDeviceIps.size === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(1, 169, 130, 0.1)',
-                color: selectedDeviceIps.size === 0 ? 'var(--muted)' : 'var(--hpe-green)',
-                cursor: isDiscovering || selectedDeviceIps.size === 0 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Poll Selected ({selectedDeviceIps.size})
-            </button>
-            <button
-              onClick={handleDeleteSelected}
-              disabled={selectedDeviceIps.size === 0}
-              style={{
-                padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
-                border: '1px solid #ff4d4d',
-                background: selectedDeviceIps.size === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255, 77, 77, 0.1)',
-                color: selectedDeviceIps.size === 0 ? 'var(--muted)' : '#ff7b72',
-                cursor: selectedDeviceIps.size === 0 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Delete Selected ({selectedDeviceIps.size})
-            </button>
-            <button
-              onClick={() => handleDiscover(false)}
-              disabled={isDiscovering || devices.length === 0}
-              style={{
-                padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
-                border: '1px solid var(--hpe-green)', background: 'rgba(1, 169, 130, 0.15)',
-                color: 'var(--hpe-green)', cursor: isDiscovering ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {isDiscovering ? 'Discovering...' : 'Discover All'}
-            </button>
-            <button
-              onClick={fetchDevices}
-              className="btn"
-              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', height: 28 }}
-            >
-              <RefreshCw size={12} /> Refresh
-            </button>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {!tableEditMode ? (
+              <>
+                <button
+                  onClick={() => handleDiscover(true)}
+                  disabled={isDiscovering || selectedDeviceIps.size === 0}
+                  style={{
+                    padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
+                    border: '1px solid var(--hpe-green)',
+                    background: selectedDeviceIps.size === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(1, 169, 130, 0.1)',
+                    color: selectedDeviceIps.size === 0 ? 'var(--muted)' : 'var(--hpe-green)',
+                    cursor: isDiscovering || selectedDeviceIps.size === 0 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Poll Selected ({selectedDeviceIps.size})
+                </button>
+                <button
+                  onClick={handleDeleteSelected}
+                  disabled={selectedDeviceIps.size === 0}
+                  style={{
+                    padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
+                    border: '1px solid #ff4d4d',
+                    background: selectedDeviceIps.size === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255, 77, 77, 0.1)',
+                    color: selectedDeviceIps.size === 0 ? 'var(--muted)' : '#ff7b72',
+                    cursor: selectedDeviceIps.size === 0 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Delete Selected ({selectedDeviceIps.size})
+                </button>
+                <button
+                  onClick={() => handleDiscover(false)}
+                  disabled={isDiscovering || devices.length === 0}
+                  style={{
+                    padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
+                    border: '1px solid var(--hpe-green)', background: 'rgba(1, 169, 130, 0.15)',
+                    color: 'var(--hpe-green)', cursor: isDiscovering ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {isDiscovering ? 'Discovering...' : 'Discover All'}
+                </button>
+                <button
+                  onClick={fetchDevices}
+                  className="btn"
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', height: 28 }}
+                >
+                  <RefreshCw size={12} /> Refresh
+                </button>
+                <button
+                  onClick={enterEditMode}
+                  disabled={devices.length === 0}
+                  style={{
+                    padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
+                    border: '1px solid rgba(255, 200, 80, 0.5)', background: 'rgba(255, 200, 80, 0.08)',
+                    color: '#ffc850', cursor: devices.length === 0 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  ✏ Edit Table
+                </button>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: 11, color: '#ffc850', fontWeight: 600 }}>📝 Spreadsheet Mode — click any cell to edit</span>
+                <button
+                  onClick={addEditRow}
+                  style={{
+                    padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
+                    border: '1px solid rgba(1, 169, 130, 0.4)', background: 'rgba(1, 169, 130, 0.1)',
+                    color: 'var(--hpe-green)', cursor: 'pointer'
+                  }}
+                >
+                  ➕ Add Row
+                </button>
+                <button
+                  onClick={saveEditMode}
+                  disabled={tableSaving}
+                  style={{
+                    padding: '6px 14px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
+                    border: '1px solid var(--hpe-green)', background: 'rgba(1,169,130,0.2)',
+                    color: 'var(--hpe-green)', cursor: tableSaving ? 'wait' : 'pointer'
+                  }}
+                >
+                  {tableSaving ? 'Saving...' : '✓ Save All'}
+                </button>
+                <button
+                  onClick={cancelEditMode}
+                  style={{
+                    padding: '6px 12px', borderRadius: 6, fontSize: '11px', fontWeight: 'bold',
+                    border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)',
+                    color: 'var(--muted)', cursor: 'pointer'
+                  }}
+                >
+                  ✕ Cancel
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -1559,17 +1711,19 @@ export default function SSHRingPage({ apiBase }) {
         ) : devices.length === 0 ? (
           <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '10px 0' }}>No registered SSH devices. Create one above to get started.</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', outline: tableEditMode ? '2px solid rgba(255, 200, 80, 0.4)' : 'none', borderRadius: 8, transition: 'outline 0.2s' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
                   <th style={{ textAlign: 'left', padding: '10px 8px', width: '30px' }}>
-                    <input
-                      type="checkbox"
-                      checked={isAllSelected}
-                      onChange={(e) => handleToggleSelectAll(e.target.checked)}
-                      style={{ accentColor: 'var(--hpe-green)', cursor: 'pointer' }}
-                    />
+                    {!tableEditMode && (
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={(e) => handleToggleSelectAll(e.target.checked)}
+                        style={{ accentColor: 'var(--hpe-green)', cursor: 'pointer' }}
+                      />
+                    )}
                   </th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Device Name</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Category</th>
@@ -1579,16 +1733,39 @@ export default function SSHRingPage({ apiBase }) {
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>DNS Name</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>DNS Server</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Username</th>
+                  <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Password</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Port</th>
-                  <th style={{ textAlign: 'right', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Actions</th>
+                  {!tableEditMode && <th style={{ textAlign: 'right', padding: '10px 8px', color: 'var(--muted)', fontSize: '12px', fontWeight: 700 }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {devices.map((device, idx) => {
+                {(tableEditMode ? editRows : devices).map((device, idx) => {
+                  const cellStyle = tableEditMode ? {
+                    padding: '4px 4px',
+                  } : { padding: '12px 8px', fontSize: '13px' }
+                  const inputStyle = {
+                    width: '100%',
+                    padding: '5px 7px',
+                    background: 'rgba(255,200,80,0.06)',
+                    border: '1px solid rgba(255,200,80,0.3)',
+                    borderRadius: 5,
+                    color: 'var(--foreground)',
+                    fontSize: '12px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none',
+                    minWidth: 80,
+                  }
                   return (
-                    <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)', transition: 'background 0.2s' }}>
-                      <td style={{ padding: '12px 8px' }}>
-                        {device.device_name && (
+                    <tr
+                      key={idx}
+                      style={{
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                        transition: 'background 0.15s',
+                        background: tableEditMode ? 'rgba(255,200,80,0.02)' : 'transparent'
+                      }}
+                    >
+                      <td style={cellStyle}>
+                        {!tableEditMode && device.device_name && (
                           <input
                             type="checkbox"
                             checked={selectedDeviceIps.has(device.device_name)}
@@ -1597,139 +1774,185 @@ export default function SSHRingPage({ apiBase }) {
                           />
                         )}
                       </td>
-                      <td 
-                        onClick={() => {
-                          sessionStorage.setItem('target_focused_node_id', device.device_name || device.ip)
-                          navigate('/topology')
-                        }}
-                        onContextMenu={(e) => {
-                          e.preventDefault()
-                          sessionStorage.setItem('target_console_device_name', device.device_name || device.ip)
-                          navigate('/emulator')
-                        }}
-                        style={{ 
-                          padding: '12px 8px', fontSize: '13px', fontWeight: 600, 
-                          color: 'var(--accent-blue)', cursor: 'pointer', textDecoration: 'underline' 
-                        }}
-                        title="Click: Dashboard | Right-click: SSH Console"
-                      >
-                        {device.device_name}
-                      </td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                        <span style={{
-                          padding: '2px 6px', borderRadius: 4, fontSize: '11px', fontWeight: 'bold',
-                          background: device.category === 'Array' ? 'rgba(0, 200, 255, 0.15)' : device.category === 'Switch' ? 'rgba(255, 170, 0, 0.15)' : 'rgba(128, 128, 128, 0.15)',
-                          color: device.category === 'Array' ? '#00c8ff' : device.category === 'Switch' ? '#ffaa00' : 'var(--muted)',
-                          border: `1px solid ${device.category === 'Array' ? 'rgba(0, 200, 255, 0.3)' : device.category === 'Switch' ? 'rgba(255, 170, 0, 0.3)' : 'rgba(128, 128, 128, 0.3)'}`
-                        }}>
-                          {device.category || 'Host'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                        {(() => {
-                          const tName = device.team || 'team-alpha';
-                          const palettes = [
-                            { bg: 'rgba(56, 139, 253, 0.1)', border: 'rgba(56, 139, 253, 0.3)', text: '#58a6ff' },
-                            { bg: 'rgba(46, 160, 67, 0.1)', border: 'rgba(46, 160, 67, 0.3)', text: '#3fb950' },
-                            { bg: 'rgba(187, 128, 250, 0.1)', border: 'rgba(187, 128, 250, 0.3)', text: '#bc8cff' },
-                            { bg: 'rgba(219, 109, 40, 0.1)', border: 'rgba(219, 109, 40, 0.3)', text: '#f0883e' },
-                            { bg: 'rgba(244, 63, 94, 0.1)', border: 'rgba(244, 63, 94, 0.3)', text: '#ff7b72' }
-                          ];
-                          const idx = availableTeams.length > 0 
-                            ? availableTeams.findIndex(x => x.name === tName)
-                            : tName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                          const colors = palettes[Math.abs(idx) % palettes.length];
-                          return (
-                            <span style={{
-                              padding: '2px 6px', borderRadius: 4, fontSize: '11px', fontWeight: '600',
-                              background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`
-                            }}>
-                              {tName}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                        {device.category === 'Host' || device.category === 'Switch' ? (
-                          device.connected_to ? (
-                            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, fontSize: '11px' }}>
-                              {device.connected_to}
-                            </span>
-                          ) : (
-                            <span style={{ color: 'var(--muted)', fontSize: '11px' }}>None</span>
-                          )
+
+                      {/* Device Name */}
+                      <td style={cellStyle}>
+                        {tableEditMode ? (
+                          <input style={inputStyle} value={device.device_name || ''} onChange={e => updateEditCell(idx, 'device_name', e.target.value)} />
                         ) : (
-                          <span style={{ color: 'var(--muted)', fontSize: '11px' }}>-</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                        <div style={{ fontFamily: 'var(--font-mono)' }}>{device.ip_pending ? '-' : (device.ip_address || device.ip || '-')}</div>
-                        {device.ip_pending && (
-                          <div style={{ fontSize: '10px', color: '#e0a800', fontWeight: 'bold', marginTop: 2 }}>
-                            IP Pending
-                          </div>
-                        )}
-                        {device.oob_ip && (
-                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: 2 }}>
-                            OOB: <span style={{ fontFamily: 'var(--font-mono)' }}>{device.oob_ip}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_name || '-'}</td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.dns_server || '-'}</td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                        {device.username_pending ? '-' : (device.username || '-')}
-                        {device.username_pending && device.password_pending && device.ip_pending ? (
-                          <div style={{ fontSize: '10px', color: '#e0a800', fontWeight: 'bold', marginTop: 2 }}>
-                            Credentials Pending
-                          </div>
-                        ) : device.username_pending && device.password_pending ? (
-                          <div style={{ fontSize: '10px', color: '#e0a800', fontWeight: 'bold', marginTop: 2 }}>
-                            Credentials Pending
-                          </div>
-                        ) : device.password_pending ? (
-                          <div style={{ fontSize: '10px', color: '#e0a800', fontWeight: 'bold', marginTop: 2 }}>
-                            Password Pending
-                          </div>
-                        ) : null}
-                      </td>
-                      <td style={{ padding: '12px 8px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{device.port}</td>
-                      <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                          <button
-                            onClick={() => handleUse(device)}
-                            style={{
-                              padding: '6px 10px', borderRadius: 6, fontSize: '11px',
-                              border: '1px solid var(--hpe-green)', background: 'rgba(1, 169, 130, 0.08)',
-                              color: 'var(--hpe-green)', cursor: 'pointer'
-                            }}
+                          <span
+                            onClick={() => { sessionStorage.setItem('target_focused_node_id', device.device_name || device.ip); navigate('/topology') }}
+                            onContextMenu={(e) => { e.preventDefault(); sessionStorage.setItem('target_console_device_name', device.device_name || device.ip); navigate('/emulator') }}
+                            style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-blue)', cursor: 'pointer', textDecoration: 'underline' }}
+                            title="Click: Dashboard | Right-click: SSH Console"
                           >
-                            Use
-                          </button>
-                          <button
-                            onClick={() => handleEdit(device)}
-                            style={{
-                              padding: '6px 10px', borderRadius: 6, fontSize: '11px',
-                              border: '1px solid rgba(255, 255, 255, 0.2)', background: 'rgba(255, 255, 255, 0.05)',
-                              color: 'var(--foreground)', cursor: 'pointer'
-                            }}
+                            {device.device_name}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Category */}
+                      <td style={cellStyle}>
+                        {tableEditMode ? (
+                          <select
+                            style={{ ...inputStyle, fontFamily: 'inherit' }}
+                            value={device.category || 'Host'}
+                            onChange={e => updateEditCell(idx, 'category', e.target.value)}
                           >
-                            Edit
-                          </button>
-                          {user?.role !== 'team_member' && (
+                            <option value="Array">Array</option>
+                            <option value="Switch">Switch</option>
+                            <option value="Host">Host</option>
+                          </select>
+                        ) : (
+                          <span style={{
+                            padding: '2px 6px', borderRadius: 4, fontSize: '11px', fontWeight: 'bold',
+                            background: device.category === 'Array' ? 'rgba(0,200,255,0.15)' : device.category === 'Switch' ? 'rgba(255,170,0,0.15)' : 'rgba(128,128,128,0.15)',
+                            color: device.category === 'Array' ? '#00c8ff' : device.category === 'Switch' ? '#ffaa00' : 'var(--muted)',
+                            border: `1px solid ${device.category === 'Array' ? 'rgba(0,200,255,0.3)' : device.category === 'Switch' ? 'rgba(255,170,0,0.3)' : 'rgba(128,128,128,0.3)'}`
+                          }}>
+                            {device.category || 'Host'}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Team */}
+                      <td style={cellStyle}>
+                        {tableEditMode ? (
+                          <input style={inputStyle} value={device.team || ''} onChange={e => updateEditCell(idx, 'team', e.target.value)} />
+                        ) : (
+                          (() => {
+                            const tName = device.team || 'team-alpha';
+                            const palettes = [
+                              { bg: 'rgba(56,139,253,0.1)', border: 'rgba(56,139,253,0.3)', text: '#58a6ff' },
+                              { bg: 'rgba(46,160,67,0.1)', border: 'rgba(46,160,67,0.3)', text: '#3fb950' },
+                              { bg: 'rgba(187,128,250,0.1)', border: 'rgba(187,128,250,0.3)', text: '#bc8cff' },
+                              { bg: 'rgba(219,109,40,0.1)', border: 'rgba(219,109,40,0.3)', text: '#f0883e' },
+                              { bg: 'rgba(244,63,94,0.1)', border: 'rgba(244,63,94,0.3)', text: '#ff7b72' }
+                            ];
+                            const tidx = availableTeams.length > 0
+                              ? availableTeams.findIndex(x => x.name === tName)
+                              : tName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                            const colors = palettes[Math.abs(tidx) % palettes.length];
+                            return (
+                              <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: '11px', fontWeight: '600', background: colors.bg, color: colors.text, border: `1px solid ${colors.border}` }}>
+                                {tName}
+                              </span>
+                            );
+                          })()
+                        )}
+                      </td>
+
+                      {/* Connected to */}
+                      <td style={cellStyle}>
+                        {tableEditMode ? (
+                          <input style={inputStyle} value={device.connected_to || ''} onChange={e => updateEditCell(idx, 'connected_to', e.target.value)} />
+                        ) : (
+                          device.category === 'Host' || device.category === 'Switch' ? (
+                            device.connected_to
+                              ? <span style={{ fontFamily: 'var(--font-mono)', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, fontSize: '11px' }}>{device.connected_to}</span>
+                              : <span style={{ color: 'var(--muted)', fontSize: '11px' }}>None</span>
+                          ) : <span style={{ color: 'var(--muted)', fontSize: '11px' }}>-</span>
+                        )}
+                      </td>
+
+                      {/* IP Address */}
+                      <td style={cellStyle}>
+                        {tableEditMode ? (
+                          <input style={inputStyle} value={device.ip_address || device.ip || ''} onChange={e => updateEditCell(idx, 'ip_address', e.target.value)} />
+                        ) : (
+                          <>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{(device.ip_address || device.ip) || '-'}</div>
+                            {device.ip_pending && !(device.ip_address || device.ip) && <div style={{ fontSize: '10px', color: '#e0a800', fontWeight: 'bold', marginTop: 2 }}>IP Pending</div>}
+                            {device.oob_ip && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: 2 }}>OOB: <span style={{ fontFamily: 'var(--font-mono)' }}>{device.oob_ip}</span></div>}
+                          </>
+                        )}
+                      </td>
+
+                      {/* DNS Name */}
+                      <td style={cellStyle}>
+                        {tableEditMode ? (
+                          <input style={inputStyle} value={device.dns_name || ''} onChange={e => updateEditCell(idx, 'dns_name', e.target.value)} />
+                        ) : (
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{device.dns_name || '-'}</span>
+                        )}
+                      </td>
+
+                      {/* DNS Server */}
+                      <td style={cellStyle}>
+                        {tableEditMode ? (
+                          <input style={inputStyle} value={device.dns_server || ''} onChange={e => updateEditCell(idx, 'dns_server', e.target.value)} />
+                        ) : (
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{device.dns_server || '-'}</span>
+                        )}
+                      </td>
+
+                      {/* Username */}
+                      <td style={cellStyle}>
+                        {tableEditMode ? (
+                          <input style={inputStyle} value={device.username || ''} onChange={e => updateEditCell(idx, 'username', e.target.value)} />
+                        ) : (
+                          <>
+                            <span style={{ fontSize: 13 }}>{device.username || '-'}</span>
+                            {(device.username_pending && !device.username) || (device.password_pending && !device.password) ? (
+                              <div style={{ fontSize: '10px', color: '#e0a800', fontWeight: 'bold', marginTop: 2 }}>Credentials Pending</div>
+                            ) : null}
+                          </>
+                        )}
+                      </td>
+
+                      {/* Password (only visible in edit mode) */}
+                      <td style={cellStyle}>
+                        {tableEditMode ? (
+                          <input
+                            style={inputStyle}
+                            type="text"
+                            value={device._new_password || ''}
+                            placeholder={device.password ? '(keep existing)' : 'enter password'}
+                            onChange={e => updateEditCell(idx, '_new_password', e.target.value)}
+                          />
+                        ) : (
+                          device.password
+                            ? <span style={{ fontSize: 13, color: 'var(--muted)' }}>••••••</span>
+                            : <span style={{ fontSize: 13, color: '#e0a800' }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Port */}
+                      <td style={cellStyle}>
+                        {tableEditMode ? (
+                          <input style={{ ...inputStyle, minWidth: 50, maxWidth: 70 }} type="number" value={device.port || 22} onChange={e => updateEditCell(idx, 'port', e.target.value)} />
+                        ) : (
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{device.port}</span>
+                        )}
+                      </td>
+
+                      {/* Actions (hidden in edit mode) */}
+                      {!tableEditMode && (
+                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                             <button
-                              onClick={() => handleDelete(device)}
-                              style={{
-                                padding: '6px 10px', borderRadius: 6, fontSize: '11px',
-                                border: '1px solid rgba(255, 107, 107, 0.3)', background: 'rgba(255, 107, 107, 0.08)',
-                                color: '#ff6b6b', cursor: 'pointer'
-                              }}
+                              onClick={() => handleUse(device)}
+                              style={{ padding: '6px 10px', borderRadius: 6, fontSize: '11px', border: '1px solid var(--hpe-green)', background: 'rgba(1,169,130,0.08)', color: 'var(--hpe-green)', cursor: 'pointer' }}
                             >
-                              Delete
+                              Use
                             </button>
-                          )}
-                        </div>
-                      </td>
+                            <button
+                              onClick={() => handleEdit(device)}
+                              style={{ padding: '6px 10px', borderRadius: 6, fontSize: '11px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'var(--foreground)', cursor: 'pointer' }}
+                            >
+                              Edit
+                            </button>
+                            {user?.role !== 'team_member' && (
+                              <button
+                                onClick={() => handleDelete(device)}
+                                style={{ padding: '6px 10px', borderRadius: 6, fontSize: '11px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#ff6b6b', cursor: 'pointer' }}
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   )
                 })}

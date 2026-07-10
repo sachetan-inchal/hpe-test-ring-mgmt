@@ -169,6 +169,9 @@ class Neo4jStore:
 
         # Hosts with WWN mappings
         for h in p.get("hosts", []):
+            h_name = h.get("name", "").strip()
+            if not h_name:
+                continue
             h_ip = h.get("ip_address") or h.get("wwn", f"wwn_{h.get('host_id')}")
             # Correctly extract os and port from modern/legacy parsed keys
             os_val = h.get("os") or h.get("os_name") or h.get("persona", "")
@@ -177,14 +180,15 @@ class Neo4jStore:
             port_val = h.get("port") or h.get("multipath") or first_nsp or ""
             
             self._run("""
-                MERGE (h:Host {ip_address: $hip})
-                SET h.host_id=$hid, h.name=$name, h.persona=$persona,
+                MERGE (h:Host {name: $name})
+                ON CREATE SET h.ip_address = $hip
+                SET h.host_id=$hid, h.persona=$persona,
                     h.wwn=$wwn, h.port=$port, h.os_name=$os, h.multipath=$port,
                     h.hba_fw=$hba_fw, h.hba_driver=$hba_driver, h.hba_model=$hba_model
                 WITH h
                 MATCH (a:ArraySystem {ip_address: $ip})
                 MERGE (h)-[:CONNECTS_TO]->(a)
-            """, hip=h_ip, hid=h.get("host_id"), name=h.get("name"),
+            """, name=h_name, hip=h_ip, hid=h.get("host_id"),
                 persona=h.get("persona"), wwn=h.get("wwn",""),
                 port=port_val, os=os_val, ip=ip,
                 hba_fw=h.get("hba_fw", ""), hba_driver=h.get("hba_driver", ""), hba_model=h.get("hba_model", ""))
@@ -255,13 +259,18 @@ class Neo4jStore:
 
     def _store_host(self, p: dict):
         ip = p.get("_ip", "")
+        name = p.get("hostname") or p.get("name") or ip
         dtype = p.get("_device_type", "host")
         self._run("""
-            MERGE (h:Host {ip_address: $ip})
-            SET h.name=$name, h.os_name=$os, h.os_version=$osv,
+            MERGE (h:Host {name: $name})
+            SET h.os_name=$os, h.os_version=$osv,
                 h.bios_version=$bios, h.server_model=$sm,
                 h.cpu_model=$cpu, h.device_type=$dtype
-        """, ip=ip, name=p.get("hostname"), os=p.get("os_name"),
+            WITH h
+            // If the current ip_address is empty or looks like a WWN (16 chars, no dots), overwrite it with the real IP.
+            WHERE h.ip_address IS NULL OR h.ip_address STARTS WITH 'wwn_' OR NOT h.ip_address CONTAINS '.'
+            SET h.ip_address=$ip
+        """, ip=ip, name=name, os=p.get("os_name"),
             osv=p.get("os_version"), bios=p.get("bios_version"),
             sm=p.get("server_model"), cpu=p.get("cpu_model"), dtype=dtype)
 
