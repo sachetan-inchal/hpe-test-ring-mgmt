@@ -1627,11 +1627,11 @@ export default function SSHRingPage({ apiBase }) {
             top: '80px',
             right: '20px',
             zIndex: 9999,
-            background: '#ffffff',
+            background: 'var(--surface-1)',
             border: '1px solid var(--hpe-green)',
             borderRadius: '8px',
             padding: '12px 14px',
-            color: '#1a1a1a',
+            color: 'var(--foreground)',
             fontFamily: 'var(--font-mono)',
             fontSize: '10px',
             width: '290px',
@@ -1658,7 +1658,7 @@ export default function SSHRingPage({ apiBase }) {
               </button>
             </div>
             
-            <div style={{ color: '#333', lineHeight: 1.4 }}>
+            <div style={{ color: 'var(--foreground)', lineHeight: 1.4 }}>
               {discoverStatus}
             </div>
 
@@ -1666,7 +1666,7 @@ export default function SSHRingPage({ apiBase }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
                 {discoveryTotal > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ flex: 1, height: 3, background: 'rgba(0,0,0,0.08)', borderRadius: 1.5, overflow: 'hidden' }}>
+                    <div style={{ flex: 1, height: 3, background: 'var(--line)', borderRadius: 1.5, overflow: 'hidden' }}>
                       <div
                         style={{
                           height: '100%',
